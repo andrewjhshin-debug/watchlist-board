@@ -35,15 +35,21 @@ jobs:
           restore-keys: state-
       - if: inputs.ping
         run: python watch.py --ping
-      - name: 10분마다 갱신 (30번 ≈ 5시간)
+      - name: 75초마다 시세(live 브랜치), 10분마다 차트(gh-pages) — 약 5시간
         run: |
-          for i in $(seq 1 30); do
-            python watch.py || true
-            rm -rf site && mkdir site && cp index.html manifest.json icon.png icon-192.png sw.js site/ && touch site/.nojekyll
-            (cd site && git init -q -b gh-pages && git add -A \
-              && git -c user.name=watchlist-bot -c user.email=watchlist-bot@users.noreply.github.com commit -qm "갱신" \
-              && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" gh-pages) || true
-            if [ "$i" -lt 30 ]; then sleep 600; fi
+          git config --global user.name watchlist-bot
+          git config --global user.email watchlist-bot@users.noreply.github.com
+          REPO="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          for i in $(seq 0 239); do
+            if [ $((i % 8)) -eq 0 ]; then
+              python watch.py || true
+              rm -rf site && mkdir site && cp index.html manifest.json icon.png icon-192.png sw.js site/ && touch site/.nojekyll
+              (cd site && git init -q -b gh-pages && git add -A && git commit -qm "차트" && git push -qf "$REPO" gh-pages) || true
+            fi
+            python watch.py --live || true
+            rm -rf livedir && mkdir livedir && cp live.json livedir/
+            (cd livedir && git init -q -b live && git add -A && git commit -qm "시세" && git push -qf "$REPO" live) || true
+            sleep 70
           done
       - name: 다음 회차 실행
         if: always()

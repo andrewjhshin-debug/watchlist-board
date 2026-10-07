@@ -6,6 +6,7 @@
     python watch.py --loop   refresh_min 분마다 계속 갱신
     python watch.py --test   자체 점검
     python watch.py --ping   텔레그램 테스트 메시지 1건
+    python watch.py --live   실시간 시세만 live.json 에 + 목표가 알림
 
 시세: 야후 파이낸스, 비트코인은 업비트 원화. 60분/일/주/월 보기.
 현재가가 목표가 이하로 내려가면 텔레그램 알림(종목당 하루 1번) + 보드에 '목표 도달' 표시.
@@ -80,6 +81,51 @@ def fetch(sym: str, view: str = "일") -> dict:
     return {"closes": closes, "highs": [h for _, _, h in bars], "dates": dates, "currency": d["meta"].get("currency", "USD")}
 
 
+def quote(sym: str) -> tuple[float, float]:
+    """(현재가, 전일 종가). 미국 종목은 시간외 거래까지 포함한 마지막 1분 가격."""
+    if sym.startswith("upbit:"):
+        r = get_json(f"https://api.upbit.com/v1/ticker?markets={sym[6:]}")[0]
+        return r["trade_price"], r["prev_closing_price"]
+    d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}"
+                 "?range=1d&interval=1m&includePrePost=true")["chart"]["result"][0]
+    closes = [c for c in d["indicators"]["quote"][0]["close"] if c is not None]
+    m = d["meta"]
+    return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
+
+
+def target_alerts(s: dict, price: float, cur: str, state: dict, today: str) -> list[str]:
+    out = []
+    for tgt in targets(s.get("target")):
+        key = f"{s['sym']}:목표:{tgt}"
+        if price <= tgt and state.get(key) != today:
+            out.append(f"🎯 <b>{html.escape(s['name'])}</b> 목표가 도달\n현재 {fmt(price, cur)} / 목표 {fmt(tgt, cur)}")
+            state[key] = today
+    return out
+
+
+def run_live() -> None:
+    """1분 남짓마다: 시세만 받아 live.json 에 쓰고(보드가 가져가 숫자·막대 갱신) 목표가 알림."""
+    state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    q, alerts = {}, []
+    for s in CFG["symbols"]:
+        if s["sym"].startswith("ecos:"):
+            continue  # 월간 지표는 실시간 없음
+        try:
+            price, prev = quote(s["sym"])
+            q[s["sym"]] = [price, prev]
+            alerts += target_alerts(s, price, "KRW" if s["sym"].startswith("upbit:") else "USD", state, today)
+        except Exception as e:
+            print("  실시간 실패:", s["name"], e)
+    (ROOT / "live.json").write_text(json.dumps({"t": datetime.now(KST).strftime("%H:%M:%S"), "q": q}), encoding="utf-8")
+    if alerts:
+        try:
+            send_telegram("\n\n".join(alerts))
+        except Exception as e:
+            print("  텔레그램 실패:", e)
+        STATE.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+
+
 # ---------------------------------------------------------------- 알림
 def send_telegram(text: str) -> None:
     # GitHub 에서는 비밀값(TG_TOKEN, TG_CHAT_ID), PC 에서는 출자공고 알림 설정 파일
@@ -148,16 +194,17 @@ def tile(d: dict) -> str:
         v = v | {"target": d.get("target"), "currency": cur}
         views += f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div></div>'
     badges = '<span class="badge t">목표 도달</span>' if thit else ''
-    tgt = "".join(f'<div class="tgttxt">목표 {fmt_short(t, cur)} <b>{(price / t - 1) * 100:+.1f}%</b></div>' for t in tgts)
+    tgt = "".join(f'<div class="tgttxt" data-t="{t}">목표 {fmt_short(t, cur)} <b>{(price / t - 1) * 100:+.1f}%</b></div>' for t in tgts)
     # 거리 막대: 종목마다 자기 기준. gauge_since(2026-07-31) 이후 장중 최고가 = 100%, 목표가 = 0%.
     # 다가올수록 줄어듦. 이름과 막대는 같은 4단계 색: 75%↑ 빨강, 50%↑ 주황, 25%↑ 노랑, 그 아래 흰색(임박)
-    lv, gauge = "", ""
+    lv, gauge, live_attr = "", "", ""
     if tgts:
         since = CFG.get("gauge_since", "")
         t = max(tgts)  # 여러 목표면 가장 가까운(높은) 목표
         highs = day.get("highs", day["closes"])  # 월간 지표는 고가가 없어 값 그대로
         hi = max([h for h, dt in zip(highs, day.get("dates", [])) if dt >= since] or highs)
         left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
+        live_attr = f' data-hi="{hi}" data-tgts="{json.dumps(tgts)}"'
         lv = f" lv{4 if left >= .75 else 3 if left >= .5 else 2 if left >= .25 else 1}"
         gauge = f'<div class="gauge"><i style="width:{left * 100:.0f}%"></i></div>'
     # 월간 지표: 몇 월분인지 + 언제 발표됐는지(통계청 산업활동동향은 다음 달 말에 나온다)
@@ -166,7 +213,7 @@ def tile(d: dict) -> str:
         when = f' <small>{m}월분 · {m % 12 + 1}월 말 발표</small>'
     else:
         when = ""
-    return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}{lv}" onclick="this.classList.toggle(\'zoom\')">'
+    return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="this.classList.toggle(\'zoom\')">'
             f'<div class="name">{html.escape(d["name"])}{when}{badges}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
@@ -222,7 +269,7 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
 <header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="theme">☀</button></div></header>
-<div class="note">{now} 기준 · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i></div>
+<div class="note">차트 {now} · <b id="live" style="font-weight:normal;color:var(--tgt)"></b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
@@ -234,6 +281,28 @@ const th=document.getElementById('theme');
 function setT(day){{document.body.classList.toggle('day',day);th.textContent=day?'☾':'☀';try{{localStorage.day=day?1:''}}catch(e){{}}}}
 let sd;try{{sd=localStorage.day}}catch(e){{}}
 setT(!!sd);th.onclick=()=>setT(!document.body.classList.contains('day'));
+const LIVE='https://api.github.com/repos/{CFG.get("repo", "andrewjhshin-debug/watchlist-board")}/contents/live.json?ref=live';
+const f2=(v,c)=>c==='KRW'?Math.round(v).toLocaleString('en-US'):v.toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+function apply(sym,price,prev){{
+  document.querySelectorAll('.tile[data-sym="'+sym+'"]').forEach(el=>{{
+    const c=el.dataset.cur,ch=price-prev;
+    el.querySelector('.price').textContent=f2(price,c);
+    el.classList.toggle('up',ch>=0);el.classList.toggle('down',ch<0);
+    el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
+    el.querySelectorAll('.tgttxt').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
+    if(el.dataset.tgts){{const t=Math.max(...JSON.parse(el.dataset.tgts)),hi=+el.dataset.hi;
+      const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;
+      el.querySelector('.gauge i').style.width=Math.round(left*100)+'%';
+      el.classList.remove('lv1','lv2','lv3','lv4');el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));}}
+  }});
+}}
+const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;}};
+async function pollLive(){{try{{const r=await fetch(LIVE,{{cache:'no-cache',headers:{{Accept:'application/vnd.github.raw'}}}});
+  if(r.ok){{const j=await r.json();for(const k in j.q)if(!k.startsWith('upbit:'))apply(k,j.q[k][0],j.q[k][1]);stamp(j.t);}}}}catch(e){{}}}}
+const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
+async function pollUpbit(){{if(!UP.length)return;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','));
+  for(const x of await r.json())apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);}}catch(e){{}}}}
+pollLive();pollUpbit();setInterval(pollLive,75000);setInterval(pollUpbit,5000);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
@@ -257,15 +326,9 @@ def run_once() -> None:
                 if len(v["closes"]) >= 3:
                     views[k] = v
             cur = views["일"]["currency"]
-            items.append({"name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
+            items.append({"sym": s["sym"], "name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
                           "wide": s["sym"].startswith("ecos:"), "last": views["일"].get("last")})
-            price = views["일"]["closes"][-1]
-            for tgt in targets(s.get("target")):
-                key = f"{s['sym']}:목표:{tgt}"
-                if price <= tgt and state.get(key) != today:
-                    alerts.append(f"🎯 <b>{html.escape(s['name'])}</b> 목표가 도달\n"
-                                  f"현재 {fmt(price, cur)} / 목표 {fmt(tgt, cur)}")
-                    state[key] = today
+            alerts += target_alerts(s, views["일"]["closes"][-1], cur, state, today)
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
             errors.append(f"{s['name']} 불러오기 실패: {e}")
     render(items, errors)
@@ -293,7 +356,9 @@ def self_test() -> None:
 
 
 if __name__ == "__main__":
-    if "--ping" in sys.argv:
+    if "--live" in sys.argv:
+        run_live()
+    elif "--ping" in sys.argv:
         send_telegram("✅ 관심종목 보드 알림 연결 테스트")
     elif "--test" in sys.argv:
         self_test()
