@@ -1,0 +1,9 @@
+{
+  "name": "관심종목 보드",
+  "short_name": "관심종목",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0d1424",
+  "theme_color": "#0d1424",
+  "icons": [{"src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}]
+}

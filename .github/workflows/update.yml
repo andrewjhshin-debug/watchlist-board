@@ -23,7 +23,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-      - run: mkdir site && cp index.html site/
+      - run: mkdir site && cp index.html manifest.json icon.png site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
