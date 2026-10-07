@@ -1,7 +1,10 @@
 name: update
+# GitHub 예약 실행(cron)은 10분 간격을 자주 건너뛴다(2026-10-07 하루 종일 0회).
+# 그래서 작업 하나가 ~5시간 동안 10분마다 직접 갱신하고, 끝나면 다음 회차를 스스로 실행한다.
+# 아래 cron 은 사슬이 끊겼을 때 다시 살리는 백업용.
 on:
   schedule:
-    - cron: "4-59/10 * * * *"   # 10분마다, 정각 혼잡을 피해 4분·14분·24분… (GitHub 사정으로 늦을 수 있음)
+    - cron: "17 */2 * * *"
   workflow_dispatch:
     inputs:
       ping:
@@ -9,16 +12,20 @@ on:
         type: boolean
         default: false
 permissions:
-  pages: write
-  id-token: write
-concurrency: update
+  contents: write   # gh-pages 브랜치에 화면 올리기
+  actions: write    # 다음 회차 실행
+concurrency: update  # 한 번에 한 회차만 (나머지는 대기)
 jobs:
   run:
     runs-on: ubuntu-latest
-    environment: github-pages
+    timeout-minutes: 340
+    env:
+      TG_TOKEN: ${{ secrets.TG_TOKEN }}
+      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      # 같은 날 같은 종목 알림 중복 방지 기록(state.json)을 실행 사이에 이어받기
+      # 알림 중복 방지 기록(state.json)·한국은행 지표(ecos.json)를 회차 사이에 이어받기
       - uses: actions/cache@v4
         with:
           path: |
@@ -28,15 +35,16 @@ jobs:
           restore-keys: state-
       - if: inputs.ping
         run: python watch.py --ping
-        env:
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-      - run: python watch.py
-        env:
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-      - run: mkdir site && cp index.html manifest.json icon.png icon-192.png sw.js site/
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - uses: actions/deploy-pages@v4
+      - name: 10분마다 갱신 (30번 ≈ 5시간)
+        run: |
+          for i in $(seq 1 30); do
+            python watch.py || true
+            rm -rf site && mkdir site && cp index.html manifest.json icon.png icon-192.png sw.js site/ && touch site/.nojekyll
+            (cd site && git init -q -b gh-pages && git add -A \
+              && git -c user.name=watchlist-bot -c user.email=watchlist-bot@users.noreply.github.com commit -qm "갱신" \
+              && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" gh-pages) || true
+            if [ "$i" -lt 30 ]; then sleep 600; fi
+          done
+      - name: 다음 회차 실행
+        if: always()
+        run: gh workflow run update.yml -R ${{ github.repository }}
