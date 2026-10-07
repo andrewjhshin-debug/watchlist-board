@@ -269,7 +269,7 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
 <header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="theme">☀</button></div></header>
-<div class="note">차트 {now} · <b id="live" style="font-weight:normal;color:var(--tgt)"></b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i></div>
+<div class="note"><b id="live" style="font-weight:normal">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
