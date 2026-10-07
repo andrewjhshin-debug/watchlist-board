@@ -175,7 +175,8 @@ body.day{{--desk:#5f7a68;--face:#c6d2c6;--light:#eef4ee;--shadow:#879589;--dark:
 body{{margin:0;background:var(--desk);color:var(--txt);font-family:'Galmuri14','Galmuri11',monospace;font-size:14px;line-height:1.5;-webkit-font-smoothing:none;font-smooth:never}}
 body *{{font-weight:400}}
 /* Win98 베벨: 볼록(창·버튼) / 오목(차트) */
-header,.tile,.tabs button{{background:var(--face);border:2px solid;border-color:var(--light) var(--dark) var(--dark) var(--light);box-shadow:inset -1px -1px 0 var(--shadow)}}
+header,.tile{{background:var(--face);border:1px solid var(--shadow)}}
+.tabs button{{background:var(--face);border:1px solid;border-color:var(--light) var(--dark) var(--dark) var(--light)}}
 header{{display:flex;gap:8px;justify-content:space-between;align-items:center;margin:4px;padding:0 4px 0 0;background:var(--bar)}}
 h1{{margin:0;padding:5px 8px;font-size:14px;color:#f2f4f7;white-space:nowrap}}
 .note{{color:var(--sub);font-size:14px;padding:0 6px}}
@@ -189,7 +190,7 @@ body.day .note{{color:#f2f4f7}}body.day .note i{{color:var(--acc)!important}}
 .chg,.tgttxt{{font-size:14px;line-height:1.4}}
 .ax{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:11px}}
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
-.chart{{position:relative;margin-top:3px;background:var(--field);border:2px solid;border-color:var(--shadow) var(--light) var(--light) var(--shadow);aspect-ratio:30/12}}
+.chart{{position:relative;margin-top:3px;background:var(--field);border:1px solid var(--shadow);aspect-ratio:30/12}}
 .ax{{position:absolute;left:2px;color:var(--sub);background:var(--field);padding:0 2px;pointer-events:none;z-index:1}}.ax.top{{top:1px}}.ax.bot{{bottom:1px}}
 .view{{display:none}}
 body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
