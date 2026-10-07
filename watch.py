@@ -122,7 +122,7 @@ def tile(d: dict) -> str:
 
 
 def render(items: list[dict], errors: list[str]) -> None:
-    now = datetime.now(KST).strftime("%Y년 %m월 %d일 %H:%M")
+    now = datetime.now(KST).strftime("%y년 %m월 %d일 %H:%M")
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -162,7 +162,7 @@ svg{{width:100%;height:100%;display:block}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
 <header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}</div></header>
-<div class="note">{now} 기준 · <span id="vdesc"></span> · <i style="color:var(--tgt)">┈ 목표가</i> · 카드를 누르면 크게</div>
+<div class="note">{now} 기준 · <span id="vdesc"></span> · <i style="color:var(--tgt)">┈ 목표가</i></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
