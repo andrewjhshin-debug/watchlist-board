@@ -88,8 +88,8 @@ def chart_svg(d: dict) -> str:
     span = (vmax - vmin) or 1
     y = lambda v: H - CELL / 2 - round((v - vmin) / span * (ROWS - 1)) * CELL  # 칸 단위로 스냅
     pts = " ".join(f"{c * CELL},{y(v)} {(c + 1) * CELL},{y(v)}" for c, v in enumerate(cols))
-    grid = "".join(f'<line x1="0" y1="{g}" x2="{W}" y2="{g}"/>' for g in range(0, H, CELL * 2)) + \
-           "".join(f'<line x1="{g}" y1="0" x2="{g}" y2="{H}"/>' for g in range(0, W, CELL * 2))
+    grid = "".join(f'<line x1="0" y1="{g}" x2="{W}" y2="{g}"/>' for g in range(0, H, CELL)) + \
+           "".join(f'<line x1="{g}" y1="0" x2="{g}" y2="{H}"/>' for g in range(0, W, CELL))
     cur = d["currency"]
     return f'''<span class="ax top">{fmt(vmax, cur)}</span><span class="ax bot">{fmt(vmin, cur)}</span><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none">
 <g class="grid">{grid}</g>
