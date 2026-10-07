@@ -149,7 +149,14 @@ def tile(d: dict) -> str:
     # 가장 가까운 목표까지 거리: far_pct(기본 100%) 이상 멀면 이름 완전 빨강·게이지 빈칸, 0%면 원래 색·게이지 꽉 참
     far = max(0.0, min(1.0, min(price / t - 1 for t in tgts) * 100 / CFG.get("far_pct", 100))) if tgts else None
     name_style = f' style="color:color-mix(in srgb,var(--up) {far * 100:.0f}%,var(--txt))"' if far is not None else ""
-    gauge = f'<div class="gauge"><i style="width:{(1 - far) * 100:.0f}%"></i></div>' if far is not None else ""
+    # 거리 막대: 종목마다 자기 기준. 최근 6개월(일봉) 최고가 → 목표가 구간에서 지금 얼마나 남았나.
+    # 최고가 근처면 꽉 참, 목표에 다가올수록 줄어듦, 도달하면 빈칸
+    if tgts:
+        t, hi = max(tgts), max(day["closes"])  # 여러 목표면 가장 가까운(높은) 목표
+        left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
+        gauge = f'<div class="gauge"><i style="width:{left * 100:.0f}%;background:color-mix(in srgb,var(--up) {left * 100:.0f}%,var(--txt))"></i></div>'
+    else:
+        gauge = ""
     when = f' <small>{d["last"][:4]}.{d["last"][4:]}</small>' if d.get("last") else ""  # 월간 지표 기준월
     return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}" onclick="this.classList.toggle(\'zoom\')">'
             f'<div class="name"{name_style}>{html.escape(d["name"])}{when}{badges}<span class="x">✕</span></div>'
@@ -265,7 +272,8 @@ def self_test() -> None:
     t = tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d, "주": d}})
     assert t.count('class="view"') == 2 and "목표 5.00" in t and "목표 도달" not in t
     assert "목표 도달" in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})
-    assert 'width:100%' in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})   # 도달 → 게이지 꽉 참
+    assert 'width:0%' in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})     # 도달 → 막대 빈칸
+    assert 'width:86%' in tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d}})     # (11-5)/(12-5) = 86%
     assert 'var(--up) 100%' in tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d}})  # +120% → 완전 빨강
     assert "<svg" in chart_svg(d) and "class=\"tgt\"" not in chart_svg(d)
     assert chart_svg(d | {"target": [1, 20]}).count('class="tgt"') == 2   # 목표 여러 개
