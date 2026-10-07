@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-관심종목 차트 보드 + 전저점 알림.
+관심종목 차트 보드 + 목표가 알림.
 
     python watch.py          한 번 갱신 → index.html 생성
     python watch.py --loop   refresh_min 분마다 계속 갱신
-    python watch.py --test   전저점 로직 자체 점검
+    python watch.py --test   자체 점검
     python watch.py --ping   텔레그램 테스트 메시지 1건
 
-시세: 야후 파이낸스(일봉 6개월), 비트코인은 업비트 원화.
-전저점 = 앞뒤 swing 봉 안에서 가장 낮은, 가장 최근 저점(오늘 제외). 현재가가 그 아래로 내려가면
-텔레그램 알림(종목당 하루 1번) + 보드에 '전저점 이탈' 표시.
+시세: 야후 파이낸스, 비트코인은 업비트 원화. 60분/일/주/월 보기.
+현재가가 목표가 이하로 내려가면 텔레그램 알림(종목당 하루 1번) + 보드에 '목표 도달' 표시.
 """
 from __future__ import annotations
 
@@ -42,28 +41,17 @@ VIEWS = {"60": ("1mo", "60m", "minutes/60", 170, "60분봉 1개월"),
 
 
 def fetch(sym: str, view: str = "일") -> dict:
-    """{'lows': [...], 'closes': [...], 'currency': str} — 오래된 것부터, 마지막 봉 = 현재가."""
+    """{'closes': [...], 'currency': str} — 오래된 것부터, 마지막 봉 = 현재가."""
     rng, itv, unit, cnt, _ = VIEWS[view]
     if sym.startswith("upbit:"):
         rows = get_json(f"https://api.upbit.com/v1/candles/{unit}?market={sym[6:]}&count={cnt}")[::-1]
-        return {"lows": [r["low_price"] for r in rows], "closes": [r["trade_price"] for r in rows], "currency": "KRW"}
+        return {"closes": [r["trade_price"] for r in rows], "currency": "KRW"}
     d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range={rng}&interval={itv}")
     d = d["chart"]["result"][0]
     q = d["indicators"]["quote"][0]
-    bars = [(lo, c) for lo, c in zip(q["low"], q["close"]) if lo is not None and c is not None]
-    closes = [c for _, c in bars]
+    closes = [c for c in q["close"] if c is not None]
     closes[-1] = d["meta"].get("regularMarketPrice") or closes[-1]
-    return {"lows": [lo for lo, _ in bars], "closes": closes, "currency": d["meta"].get("currency", "USD")}
-
-
-def prev_low(lows: list[float], n: int) -> tuple[float, int]:
-    """가장 최근 저점(전저점): 앞뒤 n봉 중 가장 낮은 봉. 오늘(마지막 봉)은 제외. 없으면 전체 최저."""
-    past = lows[:-1]
-    for i in range(len(past) - 1 - n, -1, -1):
-        if past[i] == min(past[max(0, i - n): i + n + 1]):
-            return past[i], i
-    i = min(range(len(past)), key=past.__getitem__)
-    return past[i], i
+    return {"closes": closes, "currency": d["meta"].get("currency", "USD")}
 
 
 # ---------------------------------------------------------------- 알림
@@ -87,33 +75,27 @@ def fmt(v: float, cur: str) -> str:
     return f"{v:,.0f}" if cur == "KRW" else f"{v:,.2f}"
 
 
+COLS, ROWS, CELL = 30, 13, 10  # 러프함이 핵심: 30x13 칸 격자에 블록처럼 맞춤
+
+
 def chart_svg(d: dict) -> str:
-    W, H, P = 300, 130, 4
-    closes, lows = d["closes"], d["lows"]
-    lo_v, lo_i = d["low"], d["low_i"]
-    vmin, vmax = min(min(closes), lo_v), max(closes)
-    tgt = d.get("target")
-    if tgt and vmin - (vmax - vmin) * 0.3 <= tgt < vmin:  # 조금 아래면 범위를 넓혀 보여줌
-        vmin = tgt
+    W, H = COLS * CELL, ROWS * CELL
+    closes, tgt = d["closes"], d.get("target")
+    n = len(closes)
+    cols = [closes[round(c * (n - 1) / (COLS - 1))] for c in range(COLS)]  # 봉을 30칸으로 뭉갬(마지막 칸=현재가)
+    vals = cols + ([tgt] if tgt else [])  # 목표가는 멀어도 항상 화면 안에
+    vmin, vmax = min(vals), max(vals)
     span = (vmax - vmin) or 1
-    x = lambda i: P + i * (W - 2 * P) / (len(closes) - 1)
-    y = lambda v: P + (vmax - v) * (H - 2 * P) / span
-    # 계단식 선 → 레트로 픽셀 느낌
-    pts = [f"{x(0):.1f},{y(closes[0]):.1f}"]
-    for i in range(1, len(closes)):
-        pts += [f"{x(i):.1f},{y(closes[i - 1]):.1f}", f"{x(i):.1f},{y(closes[i]):.1f}"]
-    line = " ".join(pts)
-    grid = "".join(f'<line x1="0" y1="{g}" x2="{W}" y2="{g}"/>' for g in range(0, H, 13)) + \
-           "".join(f'<line x1="{g}" y1="0" x2="{g}" y2="{H}"/>' for g in range(0, W, 15))
-    ly = y(lo_v)
+    y = lambda v: H - CELL / 2 - round((v - vmin) / span * (ROWS - 1)) * CELL  # 칸 단위로 스냅
+    pts = " ".join(f"{c * CELL},{y(v)} {(c + 1) * CELL},{y(v)}" for c, v in enumerate(cols))
+    grid = "".join(f'<line x1="0" y1="{g}" x2="{W}" y2="{g}"/>' for g in range(0, H, CELL)) + \
+           "".join(f'<line x1="{g}" y1="0" x2="{g}" y2="{H}"/>' for g in range(0, W, CELL))
     cur = d["currency"]
     return f'''<span class="ax top">{fmt(vmax, cur)}</span><span class="ax bot">{fmt(vmin, cur)}</span><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none">
 <g class="grid">{grid}</g>
-<polygon class="area" points="{x(0):.1f},{H} {line} {x(len(closes) - 1):.1f},{H}"/>
-<polyline class="line" points="{line}"/>
-<line class="low" x1="0" y1="{ly:.1f}" x2="{W}" y2="{ly:.1f}"/>
-{f'<line class="tgt" x1="0" y1="{y(tgt):.1f}" x2="{W}" y2="{y(tgt):.1f}"/>' if tgt and vmin <= tgt <= vmax else ''}
-<rect class="lowdot" x="{x(lo_i) - 3:.1f}" y="{ly - 3:.1f}" width="6" height="6"/>
+<polygon class="area" points="0,{H} {pts} {W},{H}"/>
+<polyline class="line" points="{pts}"/>
+{f'<line class="tgt" x1="0" y1="{y(tgt)}" x2="{W}" y2="{y(tgt)}"/>' if tgt else ''}
 </svg>'''
 
 
@@ -124,18 +106,15 @@ def tile(d: dict) -> str:
     chg = price - prev
     pct = chg / prev * 100
     cls = "up" if chg >= 0 else "down"
-    hit = price <= day["low"]
     thit = bool(d.get("target")) and price <= d["target"]
     views = ""
     for k, v in d["views"].items():
         v = v | {"target": d.get("target"), "currency": cur}
-        views += (f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div>'
-                  f'<div class="lowtxt">전저점({k}) {fmt(v["low"], cur)} <b>{(price / v["low"] - 1) * 100:+.1f}%</b>'
-                  f'{"<i>이탈</i>" if price <= v["low"] else ""}</div></div>')
-    badges = ('<span class="badge">일봉 전저점 이탈</span>' if hit else '') + ('<span class="badge t">목표 도달</span>' if thit else '')
+        views += f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div></div>'
+    badges = '<span class="badge t">목표 도달</span>' if thit else ''
     tgt = (f'<div class="tgttxt">목표 {fmt(d["target"], cur)} <b>{(price / d["target"] - 1) * 100:+.1f}%</b></div>'
            if d.get("target") else '')
-    return (f'<div class="tile {cls}{" hit" if hit or thit else ""}" onclick="this.classList.toggle(\'zoom\')">'
+    return (f'<div class="tile {cls}{" hit" if thit else ""}" onclick="this.classList.toggle(\'zoom\')">'
             f'<div class="name">{html.escape(d["name"])}{badges}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
@@ -158,11 +137,11 @@ def render(items: list[dict], errors: list[str]) -> None:
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:12px;padding:8px 16px 0}}
 .grid-wrap{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
-@media(max-width:600px){{.grid-wrap{{grid-template-columns:1fr 1fr;gap:8px;padding:10px}}}}
+@media(max-width:600px){{.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:10px}}.price{{font-size:18px!important}}h1{{font-size:18px!important}}.tabs button{{font-size:13px!important;padding:3px 7px!important}}.tile{{padding:8px}}}}
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}
 .name{{font-size:15px}}.price{{font-size:22px;margin:4px 0 2px}}.chg{{font-size:12px}}
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
-.chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:#0a1020;aspect-ratio:300/130}}
+.chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:#0a1020;aspect-ratio:30/13}}
 .ax{{position:absolute;left:3px;font-size:9px;color:var(--sub);pointer-events:none}}.ax.top{{top:2px}}.ax.bot{{bottom:2px}}
 .view{{display:none}}body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
 .tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 10px;cursor:pointer}}
@@ -170,25 +149,20 @@ body[data-v="60"] .tabs [data-v="60"],body[data-v="일"] .tabs [data-v="일"],bo
 .tile{{cursor:zoom-in}}.x{{display:none;float:right;color:var(--sub)}}
 .tile.zoom{{position:fixed;inset:0;z-index:9;overflow:auto;cursor:zoom-out;padding:16px}}.tile.zoom .x{{display:inline}}
 .tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:30px}}
-.tile.zoom .lowtxt,.tile.zoom .tgttxt{{font-size:14px}}.tile.zoom .ax{{font-size:12px}}
+.tile.zoom .tgttxt{{font-size:14px}}.tile.zoom .ax{{font-size:12px}}
 svg{{width:100%;height:100%;display:block}}
 .grid line{{stroke:var(--grid);stroke-width:1}}
-.line{{fill:none;stroke-width:3;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
+.line{{fill:none;stroke-width:4;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
 .up .line{{stroke:var(--up)}}.down .line{{stroke:var(--dn)}}.up .area{{fill:var(--upf)}}.down .area{{fill:var(--dnf)}}
-.low{{stroke:var(--low);stroke-width:1.5;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}}
-.lowdot{{fill:var(--low)}}
 .tgt{{stroke:var(--tgt);stroke-width:1.5;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}}
-.tgttxt{{margin-top:2px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
+.tgttxt{{margin-top:6px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
 .badge.t{{background:var(--tgt)}}
-.lowtxt{{margin-top:6px;font-size:11px;color:var(--low)}}.lowtxt b{{font-weight:normal;color:var(--sub)}}
-.lowtxt i{{font-style:normal;background:var(--low);color:#000;padding:0 4px;margin-left:4px;animation:blink2 1s steps(2) infinite}}
-@keyframes blink2{{50%{{opacity:.3}}}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
-.hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--low)}}}}
+.hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--tgt)}}}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
 <header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}</div></header>
-<div class="note">{now} 기준 · <span id="vdesc"></span> · <i style="color:var(--low)">┄ 전저점</i> <i style="color:var(--tgt)">┈ 목표가</i> · 카드를 누르면 크게</div>
+<div class="note">{now} 기준 · <span id="vdesc"></span> · <i style="color:var(--tgt)">┈ 목표가</i> · 카드를 누르면 크게</div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
@@ -217,19 +191,10 @@ def run_once() -> None:
                         raise
                     continue  # 주·월 실패는 그 보기만 생략
                 if len(v["closes"]) >= 3:
-                    v["low"], v["low_i"] = prev_low(v["lows"], CFG["swing"])
                     views[k] = v
             cur = views["일"]["currency"]
             items.append({"name": s["name"], "target": s.get("target"), "currency": cur, "views": views})
             price = views["일"]["closes"][-1]
-            for k in CFG.get("alert_views", ["일"]):
-                v = views.get(k)
-                key = f"{s['sym']}:{k}"
-                # 같은 전저점은 한 번만 알림, 새 전저점이 생겨 또 깨지면 다시 알림
-                if v and price <= v["low"] and state.get(key) != v["low"]:
-                    alerts.append(f"🔻 <b>{html.escape(s['name'])}</b> {VIEWS[k][4].split()[0]} 전저점 이탈\n"
-                                  f"현재 {fmt(price, cur)} / 전저점 {fmt(v['low'], cur)}")
-                    state[key] = v["low"]
             tgt = s.get("target")
             if tgt and price <= tgt and state.get(s["sym"] + ":목표") != today:
                 alerts.append(f"🎯 <b>{html.escape(s['name'])}</b> 목표가 도달\n"
@@ -248,15 +213,12 @@ def run_once() -> None:
 
 
 def self_test() -> None:
-    lows = [10, 8, 9, 12, 11, 13, 12, 14, 7]   # 마지막(오늘) 7 은 제외
-    assert prev_low(lows, 1) == (12, 6)        # 가장 최근 골짜기
-    assert prev_low(lows, 2) == (8, 1)         # 넓게 보면 12·11 은 저점 아님
-    assert prev_low(lows, 10) == (8, 1)        # 확정 저점 없으면 전체 최저
-    d = {"closes": [10, 9, 12, 11], "lows": lows[:4], "low": 8, "low_i": 1, "currency": "USD"}
+    d = {"closes": [10, 9, 12, 11], "currency": "USD"}
     t = tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d, "주": d}})
-    assert t.count('class="view"') == 2 and "목표 5.00" in t
-    assert "<svg" in chart_svg(d) and 'class="tgt"' not in chart_svg(d)
-    assert 'class="tgt"' in chart_svg(d | {"target": 7.5})   # 차트 바로 아래 목표가는 범위 넓혀 표시
+    assert t.count('class="view"') == 2 and "목표 5.00" in t and "목표 도달" not in t
+    assert "목표 도달" in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})
+    assert "<svg" in chart_svg(d) and "class=\"tgt\"" not in chart_svg(d)
+    assert "class=\"tgt\"" in chart_svg(d | {"target": 1})   # 멀리 있는 목표가도 항상 표시
     print("OK")
 
 
