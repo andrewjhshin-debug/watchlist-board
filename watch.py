@@ -69,15 +69,15 @@ def fetch(sym: str, view: str = "일") -> dict:
         return fetch_ecos(sym[5:])  # 월간 지표라 모든 보기에서 같은 10년 차트
     if sym.startswith("upbit:"):
         rows = get_json(f"https://api.upbit.com/v1/candles/{unit}?market={sym[6:]}&count={cnt}")[::-1]
-        return {"closes": [r["trade_price"] for r in rows], "dates": [r["candle_date_time_kst"][:10] for r in rows], "currency": "KRW"}
+        return {"closes": [r["trade_price"] for r in rows], "highs": [r["high_price"] for r in rows], "dates": [r["candle_date_time_kst"][:10] for r in rows], "currency": "KRW"}
     d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range={rng}&interval={itv}")
     d = d["chart"]["result"][0]
     q = d["indicators"]["quote"][0]
-    bars = [(t, c) for t, c in zip(d["timestamp"], q["close"]) if c is not None]
-    closes = [c for _, c in bars]
+    bars = [(t, c, h or c) for t, c, h in zip(d["timestamp"], q["close"], q["high"]) if c is not None]
+    closes = [c for _, c, _ in bars]
     closes[-1] = d["meta"].get("regularMarketPrice") or closes[-1]
-    dates = [datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d") for t, _ in bars]
-    return {"closes": closes, "dates": dates, "currency": d["meta"].get("currency", "USD")}
+    dates = [datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d") for t, _, _ in bars]
+    return {"closes": closes, "highs": [h for _, _, h in bars], "dates": dates, "currency": d["meta"].get("currency", "USD")}
 
 
 # ---------------------------------------------------------------- 알림
@@ -152,12 +152,13 @@ def tile(d: dict) -> str:
     # 가장 가까운 목표까지 거리: far_pct(기본 100%) 이상 멀면 이름 완전 빨강·게이지 빈칸, 0%면 원래 색·게이지 꽉 참
     far = max(0.0, min(1.0, min(price / t - 1 for t in tgts) * 100 / CFG.get("far_pct", 100))) if tgts else None
     name_style = f' style="color:color-mix(in srgb,var(--up) {far * 100:.0f}%,var(--txt))"' if far is not None else ""
-    # 거리 막대: 종목마다 자기 기준. gauge_since(2026-07-31) 이후 최고가 = 100%, 목표가 = 0%.
+    # 거리 막대: 종목마다 자기 기준. gauge_since(2026-07-31) 이후 장중 최고가 = 100%, 목표가 = 0%.
     # 최고가 근처면 꽉 참, 목표에 다가올수록 줄어듦, 도달하면 빈칸
     if tgts:
         since = CFG.get("gauge_since", "")
         t = max(tgts)  # 여러 목표면 가장 가까운(높은) 목표
-        hi = max([c for c, dt in zip(day["closes"], day.get("dates", [])) if dt >= since] or day["closes"])
+        highs = day.get("highs", day["closes"])  # 월간 지표는 고가가 없어 값 그대로
+        hi = max([h for h, dt in zip(highs, day.get("dates", [])) if dt >= since] or highs)
         left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
         gauge = f'<div class="gauge"><i style="width:{left * 100:.0f}%;background:color-mix(in srgb,var(--up) {left * 100:.0f}%,var(--txt))"></i></div>'
     else:
