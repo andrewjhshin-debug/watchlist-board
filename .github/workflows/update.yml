@@ -3,6 +3,11 @@ on:
   schedule:
     - cron: "*/30 * * * *"   # 30분마다 (GitHub 사정으로 몇 분~십여 분 늦을 수 있음)
   workflow_dispatch:
+    inputs:
+      ping:
+        description: "텔레그램 테스트 메시지만 보내기"
+        type: boolean
+        default: false
 permissions:
   pages: write
   id-token: write
@@ -19,6 +24,11 @@ jobs:
           path: state.json
           key: state-${{ github.run_id }}
           restore-keys: state-
+      - if: inputs.ping
+        run: python watch.py --ping
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
       - run: python watch.py
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}

@@ -5,6 +5,7 @@
     python watch.py          한 번 갱신 → index.html 생성
     python watch.py --loop   refresh_min 분마다 계속 갱신
     python watch.py --test   전저점 로직 자체 점검
+    python watch.py --ping   텔레그램 테스트 메시지 1건
 
 시세: 야후 파이낸스(일봉 6개월), 비트코인은 업비트 원화.
 전저점 = 앞뒤 swing 봉 안에서 가장 낮은, 가장 최근 저점(오늘 제외). 현재가가 그 아래로 내려가면
@@ -252,7 +253,9 @@ def self_test() -> None:
 
 
 if __name__ == "__main__":
-    if "--test" in sys.argv:
+    if "--ping" in sys.argv:
+        send_telegram("✅ 관심종목 보드 알림 연결 테스트")
+    elif "--test" in sys.argv:
         self_test()
     elif "--loop" in sys.argv:
         while True:
