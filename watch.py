@@ -75,7 +75,7 @@ def fmt(v: float, cur: str) -> str:
     return f"{v:,.0f}" if cur == "KRW" else f"{v:,.2f}"
 
 
-COLS, ROWS, CELL = 60, 26, 5  # 러프함이 핵심: 작은 사각형을 이어붙인 느낌(아이밧 차트)
+COLS, ROWS, CELL = 75, 32, 4  # 러프함이 핵심: 작은 사각형을 이어붙인 느낌(아이밧 차트)
 
 
 def chart_svg(d: dict) -> str:
