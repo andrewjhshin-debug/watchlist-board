@@ -163,7 +163,12 @@ def tile(d: dict) -> str:
         gauge = f'<div class="gauge"><i style="width:{left * 100:.0f}%;background:color-mix(in srgb,var(--up) {left * 100:.0f}%,var(--txt))"></i></div>'
     else:
         gauge = ""
-    when = f' <small>{d["last"][:4]}.{d["last"][4:]}</small>' if d.get("last") else ""  # 월간 지표 기준월
+    # 월간 지표: 몇 월분인지 + 언제 발표됐는지(통계청 산업활동동향은 다음 달 말에 나온다)
+    if d.get("last"):
+        m = int(d["last"][4:])
+        when = f' <small>{m}월분 · {m % 12 + 1}월 말 발표</small>'
+    else:
+        when = ""
     return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}" onclick="this.classList.toggle(\'zoom\')">'
             f'<div class="name"{name_style}>{html.escape(d["name"])}{when}{badges}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
