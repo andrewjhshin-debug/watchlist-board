@@ -10,6 +10,6 @@
   ],
   "swing": 5,
   "alert_views": ["60", "일"],
-  "refresh_min": 30,
+  "refresh_min": 10,
   "telegram_config": "../lp-notice-monitor/config/notify.json"
 }
