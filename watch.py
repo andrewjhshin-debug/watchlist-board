@@ -192,6 +192,7 @@ function setV(v){{document.body.dataset.v=v;document.getElementById('vdesc').tex
 let saved;try{{saved=localStorage.v}}catch(e){{}}
 setV(D[saved]?saved:'일');
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setV(b.dataset.v));
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
 
