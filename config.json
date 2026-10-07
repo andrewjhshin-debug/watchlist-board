@@ -1,5 +1,5 @@
 {
-  "_설명": "symbols 에 종목 추가/삭제. 비트코인은 업비트 원화 시세(upbit:KRW-BTC). swing = 전저점 판단 폭(앞뒤 몇 거래일보다 낮아야 저점인지, 클수록 굵직한 저점). refresh_min = 갱신 주기(분). target = 목표가(이하로 내려오면 알림, 빼면 표시 안 함)",
+  "_설명": "symbols 에 종목 추가/삭제. 비트코인은 업비트 원화 시세(upbit:KRW-BTC). swing = 전저점 판단 폭(앞뒤 몇 거래일보다 낮아야 저점인지, 클수록 굵직한 저점). refresh_min = 갱신 주기(분). alert_views = 전저점 알림 받을 봉(60/일/주/월). target = 목표가(이하로 내려오면 알림, 빼면 표시 안 함)",
   "symbols": [
     {"sym": "^IXIC", "name": "나스닥 종합"},
     {"sym": "upbit:KRW-BTC", "name": "비트코인", "target": 90000000},
@@ -9,6 +9,7 @@
     {"sym": "SDEV", "name": "SDEV", "target": 0.8}
   ],
   "swing": 5,
+  "alert_views": ["60", "일"],
   "refresh_min": 30,
   "telegram_config": "../lp-notice-monitor/config/notify.json"
 }

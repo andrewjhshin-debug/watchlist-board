@@ -35,7 +35,7 @@ def get_json(url: str):
 
 
 # 보기: (야후 기간, 야후 간격, 업비트 단위, 업비트 개수, 설명)
-VIEWS = {"60분": ("1mo", "60m", "minutes/60", 170, "60분봉 1개월"),
+VIEWS = {"60": ("1mo", "60m", "minutes/60", 170, "60분봉 1개월"),
          "일": ("6mo", "1d", "days", 130, "일봉 6개월"),
          "주": ("2y", "1wk", "weeks", 104, "주봉 2년"),
          "월": ("10y", "1mo", "months", 120, "월봉 10년")}
@@ -130,8 +130,9 @@ def tile(d: dict) -> str:
     for k, v in d["views"].items():
         v = v | {"target": d.get("target"), "currency": cur}
         views += (f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div>'
-                  f'<div class="lowtxt">전저점({k}) {fmt(v["low"], cur)} <b>{(price / v["low"] - 1) * 100:+.1f}%</b></div></div>')
-    badges = ('<span class="badge">전저점 이탈</span>' if hit else '') + ('<span class="badge t">목표 도달</span>' if thit else '')
+                  f'<div class="lowtxt">전저점({k}) {fmt(v["low"], cur)} <b>{(price / v["low"] - 1) * 100:+.1f}%</b>'
+                  f'{"<i>이탈</i>" if price <= v["low"] else ""}</div></div>')
+    badges = ('<span class="badge">일봉 전저점 이탈</span>' if hit else '') + ('<span class="badge t">목표 도달</span>' if thit else '')
     tgt = (f'<div class="tgttxt">목표 {fmt(d["target"], cur)} <b>{(price / d["target"] - 1) * 100:+.1f}%</b></div>'
            if d.get("target") else '')
     return (f'<div class="tile {cls}{" hit" if hit or thit else ""}" onclick="this.classList.toggle(\'zoom\')">'
@@ -163,9 +164,9 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-siz
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
 .chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:#0a1020;aspect-ratio:300/130}}
 .ax{{position:absolute;left:3px;font-size:9px;color:var(--sub);pointer-events:none}}.ax.top{{top:2px}}.ax.bot{{bottom:2px}}
-.view{{display:none}}body[data-v="60분"] .view[data-v="60분"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
+.view{{display:none}}body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
 .tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 10px;cursor:pointer}}
-body[data-v="60분"] .tabs [data-v="60분"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
+body[data-v="60"] .tabs [data-v="60"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
 .tile{{cursor:zoom-in}}.x{{display:none;float:right;color:var(--sub)}}
 .tile.zoom{{position:fixed;inset:0;z-index:9;overflow:auto;cursor:zoom-out;padding:16px}}.tile.zoom .x{{display:inline}}
 .tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:30px}}
@@ -180,6 +181,8 @@ svg{{width:100%;height:100%;display:block}}
 .tgttxt{{margin-top:2px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
 .badge.t{{background:var(--tgt)}}
 .lowtxt{{margin-top:6px;font-size:11px;color:var(--low)}}.lowtxt b{{font-weight:normal;color:var(--sub)}}
+.lowtxt i{{font-style:normal;background:var(--low);color:#000;padding:0 4px;margin-left:4px;animation:blink2 1s steps(2) infinite}}
+@keyframes blink2{{50%{{opacity:.3}}}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
 .hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--low)}}}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
@@ -218,16 +221,19 @@ def run_once() -> None:
                     views[k] = v
             cur = views["일"]["currency"]
             items.append({"name": s["name"], "target": s.get("target"), "currency": cur, "views": views})
-            d = views["일"] | {"currency": cur}
-            price = d["closes"][-1]
-            if price <= d["low"] and state.get(s["sym"]) != today:
-                alerts.append(f"🔻 <b>{html.escape(s['name'])}</b> 전저점 이탈\n"
-                              f"현재 {fmt(price, d['currency'])} / 전저점 {fmt(d['low'], d['currency'])}")
-                state[s["sym"]] = today
+            price = views["일"]["closes"][-1]
+            for k in CFG.get("alert_views", ["일"]):
+                v = views.get(k)
+                key = f"{s['sym']}:{k}"
+                # 같은 전저점은 한 번만 알림, 새 전저점이 생겨 또 깨지면 다시 알림
+                if v and price <= v["low"] and state.get(key) != v["low"]:
+                    alerts.append(f"🔻 <b>{html.escape(s['name'])}</b> {VIEWS[k][4].split()[0]} 전저점 이탈\n"
+                                  f"현재 {fmt(price, cur)} / 전저점 {fmt(v['low'], cur)}")
+                    state[key] = v["low"]
             tgt = s.get("target")
             if tgt and price <= tgt and state.get(s["sym"] + ":목표") != today:
                 alerts.append(f"🎯 <b>{html.escape(s['name'])}</b> 목표가 도달\n"
-                              f"현재 {fmt(price, d['currency'])} / 목표 {fmt(tgt, d['currency'])}")
+                              f"현재 {fmt(price, cur)} / 목표 {fmt(tgt, cur)}")
                 state[s["sym"] + ":목표"] = today
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
             errors.append(f"{s['name']} 불러오기 실패: {e}")
