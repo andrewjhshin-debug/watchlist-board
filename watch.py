@@ -101,12 +101,16 @@ def fmt(v: float, cur: str) -> str:
 COLS, ROWS, CELL = 75, 32, 4  # 러프함이 핵심: 작은 사각형을 이어붙인 느낌(아이밧 차트)
 
 
+def targets(t) -> list[float]:
+    return t if isinstance(t, list) else [t] if t else []
+
+
 def chart_svg(d: dict) -> str:
     W, H = COLS * CELL, ROWS * CELL
-    closes, tgt = d["closes"], d.get("target")
+    closes, tgts = d["closes"], targets(d.get("target"))
     n = len(closes)
     cols = [closes[round(c * (n - 1) / (COLS - 1))] for c in range(COLS)]  # 봉을 30칸으로 뭉갬(마지막 칸=현재가)
-    vals = cols + ([tgt] if tgt else [])  # 목표가는 멀어도 항상 화면 안에
+    vals = cols + tgts  # 목표가는 멀어도 항상 화면 안에
     vmin, vmax = min(vals), max(vals)
     span = (vmax - vmin) or 1
     y = lambda v: H - CELL / 2 - round((v - vmin) / span * (ROWS - 1)) * CELL  # 칸 단위로 스냅
@@ -118,7 +122,7 @@ def chart_svg(d: dict) -> str:
 <g class="grid">{grid}</g>
 <polygon class="area" points="0,{H} {pts} {W},{H}"/>
 <polyline class="line" points="{pts}"/>
-{f'<line class="tgt" x1="0" y1="{y(tgt)}" x2="{W}" y2="{y(tgt)}"/>' if tgt else ''}
+{"".join(f'<line class="tgt" x1="0" y1="{y(t)}" x2="{W}" y2="{y(t)}"/>' for t in tgts)}
 </svg>'''
 
 
@@ -129,14 +133,14 @@ def tile(d: dict) -> str:
     chg = price - prev
     pct = chg / prev * 100
     cls = "up" if chg >= 0 else "down"
-    thit = bool(d.get("target")) and price <= d["target"]
+    tgts = targets(d.get("target"))
+    thit = any(price <= t for t in tgts)
     views = ""
     for k, v in d["views"].items():
         v = v | {"target": d.get("target"), "currency": cur}
         views += f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div></div>'
     badges = '<span class="badge t">목표 도달</span>' if thit else ''
-    tgt = (f'<div class="tgttxt">목표 {fmt(d["target"], cur)} <b>{(price / d["target"] - 1) * 100:+.1f}%</b></div>'
-           if d.get("target") else '')
+    tgt = "".join(f'<div class="tgttxt">목표 {fmt(t, cur)} <b>{(price / t - 1) * 100:+.1f}%</b></div>' for t in tgts)
     when = f' <small>{d["last"][:4]}.{d["last"][4:]}</small>' if d.get("last") else ""  # 월간 지표 기준월
     return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}" onclick="this.classList.toggle(\'zoom\')">'
             f'<div class="name">{html.escape(d["name"])}{when}{badges}<span class="x">✕</span></div>'
@@ -156,7 +160,10 @@ def render(items: list[dict], errors: list[str]) -> None:
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css">
 <style>
 :root{{--bg:#0d1424;--tile:#121b30;--edge:#26355a;--grid:#1d2a48;--txt:#e6ecff;--sub:#8a96b8;
---up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0}}
+--up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0;--cbg:#0a1020}}
+body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;--sub:#6b7694;
+--up:#e8304f;--upf:#ffe3e8;--dn:#2468e0;--dnf:#dce8ff;--low:#c98a00;--tgt:#0f9e6e;--cbg:#fafcff}}
+#theme{{margin-left:6px}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
@@ -166,7 +173,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-siz
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}
 .name{{font-size:15px}}.price{{font-size:22px;margin:4px 0 2px}}.chg{{font-size:12px}}
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
-.chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:#0a1020;aspect-ratio:30/11}}
+.chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:var(--cbg);aspect-ratio:30/11}}
 .ax{{position:absolute;left:3px;font-size:9px;color:var(--sub);pointer-events:none}}.ax.top{{top:2px}}.ax.bot{{bottom:2px}}
 .view{{display:none}}body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
 .tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 10px;cursor:pointer}}
@@ -186,7 +193,7 @@ svg{{width:100%;height:100%;display:block}}
 .hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--tgt)}}}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
-<header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}</div></header>
+<header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="theme">☀</button></div></header>
 <div class="note">{now} 기준 · <span id="vdesc"></span> · <i style="color:var(--tgt)">┈ 목표가</i></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
@@ -194,7 +201,11 @@ const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
 function setV(v){{document.body.dataset.v=v;document.getElementById('vdesc').textContent=D[v];try{{localStorage.v=v}}catch(e){{}}}}
 let saved;try{{saved=localStorage.v}}catch(e){{}}
 setV(D[saved]?saved:'일');
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setV(b.dataset.v));
+document.querySelectorAll('.tabs button[data-v]').forEach(b=>b.onclick=()=>setV(b.dataset.v));
+const th=document.getElementById('theme');
+function setT(day){{document.body.classList.toggle('day',day);th.textContent=day?'☾':'☀';try{{localStorage.day=day?1:''}}catch(e){{}}}}
+let sd;try{{sd=localStorage.day}}catch(e){{}}
+setT(!!sd);th.onclick=()=>setT(!document.body.classList.contains('day'));
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
@@ -221,11 +232,12 @@ def run_once() -> None:
             items.append({"name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
                           "wide": s["sym"].startswith("ecos:"), "last": views["일"].get("last")})
             price = views["일"]["closes"][-1]
-            tgt = s.get("target")
-            if tgt and price <= tgt and state.get(s["sym"] + ":목표") != today:
-                alerts.append(f"🎯 <b>{html.escape(s['name'])}</b> 목표가 도달\n"
-                              f"현재 {fmt(price, cur)} / 목표 {fmt(tgt, cur)}")
-                state[s["sym"] + ":목표"] = today
+            for tgt in targets(s.get("target")):
+                key = f"{s['sym']}:목표:{tgt}"
+                if price <= tgt and state.get(key) != today:
+                    alerts.append(f"🎯 <b>{html.escape(s['name'])}</b> 목표가 도달\n"
+                                  f"현재 {fmt(price, cur)} / 목표 {fmt(tgt, cur)}")
+                    state[key] = today
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
             errors.append(f"{s['name']} 불러오기 실패: {e}")
     render(items, errors)
@@ -244,6 +256,7 @@ def self_test() -> None:
     assert t.count('class="view"') == 2 and "목표 5.00" in t and "목표 도달" not in t
     assert "목표 도달" in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})
     assert "<svg" in chart_svg(d) and "class=\"tgt\"" not in chart_svg(d)
+    assert chart_svg(d | {"target": [1, 20]}).count('class="tgt"') == 2   # 목표 여러 개
     assert "class=\"tgt\"" in chart_svg(d | {"target": 1})   # 멀리 있는 목표가도 항상 표시
     print("OK")
 
