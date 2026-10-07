@@ -156,45 +156,57 @@ def render(items: list[dict], errors: list[str]) -> None:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="{CFG["refresh_min"] * 60}">
 <title>관심종목 보드</title>
-<link rel="manifest" href="manifest.json"><link rel="icon" href="icon.png"><link rel="apple-touch-icon" href="icon.png"><meta name="theme-color" content="#0d1424">
+<link rel="manifest" href="manifest.json"><link rel="icon" href="icon.png"><link rel="apple-touch-icon" href="icon.png"><meta name="theme-color" content="#0a1128">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css">
 <style>
-:root{{--bg:#0d1424;--tile:#121b30;--edge:#26355a;--grid:#1d2a48;--txt:#e6ecff;--sub:#8a96b8;
---up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0;--cbg:#0a1020}}
-body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;--sub:#6b7694;
---up:#e8304f;--upf:#ffe3e8;--dn:#2468e0;--dnf:#dce8ff;--low:#c98a00;--tgt:#0f9e6e;--cbg:#fafcff}}
-#theme{{margin-left:6px}}
-*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace;-webkit-font-smoothing:none;font-smooth:never}}
-header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
-h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
-.grid-wrap{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
-@media(max-width:600px){{.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
-.wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/7}}.name small{{color:var(--sub);font-size:.8em}}
-.tile{{background:var(--tile);border:3px solid var(--edge);box-shadow:inset 0 0 0 2px var(--bg),inset 0 0 0 3px var(--edge);padding:10px}}
-.name{{font-size:15px}}.price{{font-size:22px;margin:4px 0 2px;font-family:'GalmuriMono11','Galmuri11',monospace;letter-spacing:1px}}.chg,.ax,.tgttxt{{font-family:'GalmuriMono9','Galmuri11',monospace}}.chg{{font-size:12px}}
-.up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
-.chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:var(--cbg);aspect-ratio:30/11}}
-.ax{{position:absolute;left:3px;font-size:9px;color:var(--sub);pointer-events:none}}.ax.top{{top:2px}}.ax.bot{{bottom:2px}}
-.view{{display:none}}body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
-.tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid;border-color:var(--grid) var(--bg) var(--bg) var(--grid);box-shadow:0 0 0 1px var(--edge);padding:4px 10px;cursor:pointer}}
-body[data-v="60"] .tabs [data-v="60"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
-.tile{{cursor:zoom-in}}.x{{display:none;float:right;color:var(--sub)}}
-.tile.zoom{{position:fixed;inset:0;z-index:9;overflow:auto;cursor:zoom-out;padding:16px}}.tile.zoom .x{{display:inline}}
-.tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:30px}}
-.tile.zoom .tgttxt{{font-size:14px}}.tile.zoom .ax{{font-size:12px}}
+:root{{--bg:#0a1128;--tile:#111a36;--out:#05091a;--edge:#34477a;--hi:#5a70aa;--grid:#1a2650;--txt:#ffffff;--sub:#a9b6dc;
+--up:#ff4f66;--upf:#4a1528;--dn:#4f9dff;--dnf:#12306a;--acc:#ffd23f;--tgt:#3dffb0;--cbg:#070d22}}
+body.day{{--bg:#dfe5f1;--tile:#ffffff;--out:#0d1838;--edge:#24345f;--hi:#8fa0c8;--grid:#dfe5f2;--txt:#0a1128;--sub:#3e4a6c;
+--up:#d8102e;--upf:#ffd3da;--dn:#0b4fd6;--dnf:#cfdfff;--acc:#a86b00;--tgt:#00865a;--cbg:#f6f8fd}}
+*{{box-sizing:border-box}}
+body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace;-webkit-font-smoothing:none;font-smooth:never}}
+header{{display:flex;gap:10px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:3px solid var(--out);box-shadow:0 2px 0 var(--edge)}}
+h1{{margin:0;font-size:22px;white-space:nowrap;letter-spacing:1px}}
+.note{{color:var(--sub);font-size:11px;padding:6px 10px 0}}
+.grid-wrap{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:10px 14px}}
+/* 아이밧식 이중 테두리: 바깥 진한 선 + 안쪽 밝은 선 */
+.tile{{background:var(--tile);border:3px solid var(--edge);box-shadow:0 0 0 3px var(--out);margin:3px;padding:9px;cursor:zoom-in}}
+.name{{font-size:15px}}.name small{{color:var(--sub);font-size:.8em}}
+.price{{font-size:24px;margin:5px 0 2px;font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:700;letter-spacing:1px}}
+.chg,.ax,.tgttxt{{font-family:'GalmuriMono11','Galmuri11',monospace}}
+.chg{{font-size:13px}}.up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
+/* 차트 창은 움푹 들어간 느낌 */
+.chart{{position:relative;margin-top:7px;border:3px solid;border-color:var(--out) var(--hi) var(--hi) var(--out);background:var(--cbg);aspect-ratio:30/11}}
+.ax{{position:absolute;left:2px;font-size:10px;color:var(--txt);background:var(--cbg);padding:0 2px;pointer-events:none;z-index:1}}.ax.top{{top:1px}}.ax.bot{{bottom:1px}}
+.view{{display:none}}
+body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
+/* 볼록 버튼 */
+.tabs{{display:flex;gap:5px}}
+.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid;border-color:var(--hi) var(--out) var(--out) var(--hi);padding:3px 10px;cursor:pointer}}
+body[data-v="60"] .tabs [data-v="60"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--acc);background:var(--cbg);border-color:var(--out) var(--hi) var(--hi) var(--out)}}
+#theme{{margin-left:4px}}
+.x{{display:none;float:right;color:var(--sub)}}
+.tile.zoom{{position:fixed;inset:0;z-index:9;overflow:auto;cursor:zoom-out;padding:16px;margin:0}}.tile.zoom .x{{display:inline}}
+.tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:32px}}
+.tile.zoom .tgttxt,.tile.zoom .chg{{font-size:15px}}.tile.zoom .ax{{font-size:13px}}
 svg{{width:100%;height:100%;display:block}}
 .grid line{{stroke:var(--grid);stroke-width:1}}
 .line{{fill:none;stroke-width:4;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
 .up .line{{stroke:var(--up)}}.down .line{{stroke:var(--dn)}}.up .area{{fill:var(--upf)}}.down .area{{fill:var(--dnf)}}
-.tgt{{stroke:var(--tgt);stroke-width:1.5;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}}
-.tgttxt{{margin-top:3px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
-.badge.t{{background:var(--tgt)}}
-.badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
+.tgt{{stroke:var(--tgt);stroke-width:2.5;stroke-dasharray:6 4;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
+.tgttxt{{margin-top:4px;font-size:12px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--txt)}}
+.badge{{margin-left:6px;font-size:11px;background:var(--tgt);color:var(--out);padding:1px 4px}}
 .hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--tgt)}}}}
+.wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/7}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
+@media(max-width:600px){{
+.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;padding:4px}}
+h1{{font-size:17px}}.tabs button{{font-size:13px;padding:2px 7px}}.note{{font-size:10px;padding:3px 8px 0}}
+.tile{{padding:5px 6px}}.name{{font-size:13px}}.price{{font-size:18px;margin:2px 0 1px}}
+.chg,.tgttxt{{font-size:11px}}.chart{{margin-top:4px}}.ax{{font-size:9px}}}}
 </style></head><body>
 <header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="theme">☀</button></div></header>
-<div class="note">{now} 기준 · <span id="vdesc"></span> · <i style="color:var(--tgt)">┈ 목표가</i></div>
+<div class="note">{now} 기준 · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
