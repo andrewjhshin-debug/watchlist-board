@@ -149,28 +149,25 @@ def tile(d: dict) -> str:
         views += f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div></div>'
     badges = '<span class="badge t">목표 도달</span>' if thit else ''
     tgt = "".join(f'<div class="tgttxt">목표 {fmt_short(t, cur)} <b>{(price / t - 1) * 100:+.1f}%</b></div>' for t in tgts)
-    # 가장 가까운 목표까지 거리: far_pct(기본 100%) 이상 멀면 이름 완전 빨강·게이지 빈칸, 0%면 원래 색·게이지 꽉 참
-    far = max(0.0, min(1.0, min(price / t - 1 for t in tgts) * 100 / CFG.get("far_pct", 100))) if tgts else None
-    name_style = f' style="color:color-mix(in srgb,var(--up) {far * 100:.0f}%,var(--txt))"' if far is not None else ""
     # 거리 막대: 종목마다 자기 기준. gauge_since(2026-07-31) 이후 장중 최고가 = 100%, 목표가 = 0%.
-    # 최고가 근처면 꽉 참, 목표에 다가올수록 줄어듦, 도달하면 빈칸
+    # 다가올수록 줄어듦. 이름과 막대는 같은 4단계 색: 75%↑ 빨강, 50%↑ 주황, 25%↑ 노랑, 그 아래 흰색(임박)
+    lv, gauge = "", ""
     if tgts:
         since = CFG.get("gauge_since", "")
         t = max(tgts)  # 여러 목표면 가장 가까운(높은) 목표
         highs = day.get("highs", day["closes"])  # 월간 지표는 고가가 없어 값 그대로
         hi = max([h for h, dt in zip(highs, day.get("dates", [])) if dt >= since] or highs)
         left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
-        gauge = f'<div class="gauge"><i style="width:{left * 100:.0f}%;background:color-mix(in srgb,var(--up) {left * 100:.0f}%,var(--txt))"></i></div>'
-    else:
-        gauge = ""
+        lv = f" lv{4 if left >= .75 else 3 if left >= .5 else 2 if left >= .25 else 1}"
+        gauge = f'<div class="gauge"><i style="width:{left * 100:.0f}%"></i></div>'
     # 월간 지표: 몇 월분인지 + 언제 발표됐는지(통계청 산업활동동향은 다음 달 말에 나온다)
     if d.get("last"):
         m = int(d["last"][4:])
         when = f' <small>{m}월분 · {m % 12 + 1}월 말 발표</small>'
     else:
         when = ""
-    return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}" onclick="this.classList.toggle(\'zoom\')">'
-            f'<div class="name"{name_style}>{html.escape(d["name"])}{when}{badges}<span class="x">✕</span></div>'
+    return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}{lv}" onclick="this.classList.toggle(\'zoom\')">'
+            f'<div class="name">{html.escape(d["name"])}{when}{badges}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
             f'{views}{gauge}{tgt}</div>')
@@ -214,7 +211,10 @@ svg{{width:100%;height:100%;display:block}}
 .line{{fill:none;stroke-width:4;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
 .up .line{{stroke:var(--up)}}.down .line{{stroke:var(--dn)}}.up .area{{fill:var(--upf)}}.down .area{{fill:var(--dnf)}}
 .tgt{{stroke:var(--tgt);stroke-width:1.5;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}}
-.gauge{{height:4px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%;background:var(--tgt)}}
+.gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
+.lv4{{--lv:#ff4d6d}}.lv3{{--lv:#ff9a3c}}.lv2{{--lv:#ffd23f}}.lv1{{--lv:#ffffff}}
+body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a87d00}}body.day .lv1{{--lv:#17213b}}
+.tile[class*=" lv"] .name{{color:var(--lv)}}.gauge i{{background:var(--lv)}}
 .tgttxt{{margin-top:3px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
 .badge.t{{background:var(--tgt)}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
@@ -284,8 +284,8 @@ def self_test() -> None:
     assert t.count('class="view"') == 2 and "목표 5.00" in t and "목표 도달" not in t
     assert "목표 도달" in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})
     assert 'width:0%' in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})     # 도달 → 막대 빈칸
+    assert " lv4" in tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d}})          # 86% → 빨강 단계
     assert 'width:86%' in tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d}})     # (11-5)/(12-5) = 86%
-    assert 'var(--up) 100%' in tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d}})  # +120% → 완전 빨강
     assert "<svg" in chart_svg(d) and "class=\"tgt\"" not in chart_svg(d)
     assert chart_svg(d | {"target": [1, 20]}).count('class="tgt"') == 2   # 목표 여러 개
     assert "class=\"tgt\"" in chart_svg(d | {"target": 1})   # 멀리 있는 목표가도 항상 표시
