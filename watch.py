@@ -93,6 +93,22 @@ def quote(sym: str) -> tuple[float, float]:
     return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
 
 
+def peak(sym: str, day: dict) -> tuple[float, str]:
+    """gauge_since 이후 최고점(값, 날짜). 미국 종목은 프리·애프터장 포함(60분봉).
+    시간외 봉은 거래량 0 인 잘못 찍힌 꼬리(예: AXTX 9/22 150.56)가 있어 시가·종가만 본다."""
+    since = CFG.get("gauge_since", "")
+    if sym.startswith(("upbit:", "ecos:")):
+        rows = list(zip(day.get("highs", day["closes"]), day["dates"]))
+    else:
+        d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}"
+                     "?range=3mo&interval=60m&includePrePost=true")["chart"]["result"][0]
+        q = d["indicators"]["quote"][0]
+        rows = [(h if v else max(o, c), datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d"))
+                for t, o, h, c, v in zip(d["timestamp"], q["open"], q["high"], q["close"], q["volume"])
+                if None not in (o, h, c)]
+    return max([r for r in rows if r[1] >= since] or rows)
+
+
 def target_alerts(s: dict, price: float, cur: str, state: dict, today: str) -> list[str]:
     out = []
     for tgt in targets(s.get("target")):
@@ -172,7 +188,15 @@ def chart_svg(d: dict) -> str:
     grid = "".join(f'<line x1="0" y1="{g}" x2="{W}" y2="{g}"/>' for g in range(0, H, CELL)) + \
            "".join(f'<line x1="{g}" y1="0" x2="{g}" y2="{H}"/>' for g in range(0, W, CELL))
     cur = d["currency"]
-    return f'''<span class="ax top">{fmt(vmax, cur)}</span><span class="ax bot">{fmt(vmin, cur)}</span><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none">
+    # 전고(막대 100% 기준) 자리에 숫자만. 펼쳤을 때만 보임. 이 보기 기간 밖이면 생략
+    peak, dates = "", d.get("dates", [])
+    if d.get("peak") and dates and dates[0] <= d["peak"][1]:
+        pv, pd = d["peak"]
+        i = max(j for j, dt in enumerate(dates) if dt <= pd)
+        px = (round(i * (COLS - 1) / (n - 1)) + .5) / COLS * 100
+        py = max(CELL / 2, y(pv)) / H * 100
+        peak = f'<span class="peak{" r" if px > 80 else ""}" style="left:{px:.1f}%;top:{py:.1f}%">{fmt(pv, cur)}</span>'
+    return f'''{peak}<span class="ax top">{fmt(vmax, cur)}</span><span class="ax bot">{fmt(vmin, cur)}</span><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none">
 <g class="grid">{grid}</g>
 <polygon class="area" points="0,{H} {pts} {W},{H}"/>
 <polyline class="line" points="{pts}"/>
@@ -191,7 +215,7 @@ def tile(d: dict) -> str:
     thit = any(price <= t for t in tgts)
     views = ""
     for k, v in d["views"].items():
-        v = v | {"target": d.get("target"), "currency": cur}
+        v = v | {"target": d.get("target"), "currency": cur, "peak": d.get("peak")}
         views += f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div></div>'
     badges = '<span class="badge t">목표 도달</span>' if thit else ''
     tgt = "".join(f'<div class="tgttxt" data-t="{t}">목표 {fmt_short(t, cur)} <b>{(price / t - 1) * 100:+.1f}%</b></div>' for t in tgts)
@@ -199,10 +223,8 @@ def tile(d: dict) -> str:
     # 다가올수록 줄어듦. 이름과 막대는 같은 4단계 색: 75%↑ 빨강, 50%↑ 주황, 25%↑ 노랑, 그 아래 흰색(임박)
     lv, gauge, live_attr = "", "", ""
     if tgts:
-        since = CFG.get("gauge_since", "")
         t = max(tgts)  # 여러 목표면 가장 가까운(높은) 목표
-        highs = day.get("highs", day["closes"])  # 월간 지표는 고가가 없어 값 그대로
-        hi = max([h for h, dt in zip(highs, day.get("dates", [])) if dt >= since] or highs)
+        hi = d["peak"][0] if d.get("peak") else max(day["closes"])
         left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
         live_attr = f' data-hi="{hi}" data-tgts="{json.dumps(tgts)}"'
         lv = f" lv{4 if left >= .75 else 3 if left >= .5 else 2 if left >= .25 else 1}"
@@ -258,6 +280,9 @@ svg{{width:100%;height:100%;display:block}}
 .line{{fill:none;stroke-width:4;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
 .up .line{{stroke:var(--up)}}.down .line{{stroke:var(--dn)}}.up .area{{fill:var(--upf)}}.down .area{{fill:var(--dnf)}}
 .tgt{{stroke:var(--tgt);stroke-width:1.5;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}}
+.peak{{display:none;position:absolute;z-index:2;transform:translate(-50%,-140%);font-size:13px;color:var(--txt);background:var(--cbg);padding:0 3px;white-space:nowrap;pointer-events:none}}
+.peak.r{{transform:translate(-95%,-140%)}}.peak::after{{content:"";position:absolute;left:50%;bottom:-9px;width:7px;height:7px;margin-left:-3px;background:var(--txt)}}
+.peak.r::after{{left:auto;right:2px}}.tile.zoom .peak{{display:block}}
 .gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
 .lv4{{--lv:#ff4d6d}}.lv3{{--lv:#ff9a3c}}.lv2{{--lv:#ffd23f}}.lv1{{--lv:#ffffff}}
 body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a87d00}}body.day .lv1{{--lv:#17213b}}
@@ -269,11 +294,11 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
 <header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="theme">☀</button></div></header>
-<div class="note"><b id="live" style="font-weight:normal">{now} 기준</b> · <i style="color:var(--tgt)">╍ 목표가</i></div>
+<div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
-function setV(v){{document.body.dataset.v=v;try{{localStorage.v=v}}catch(e){{}}}}
+function setV(v){{document.body.dataset.v=v;document.getElementById('vdesc').textContent=D[v];try{{localStorage.v=v}}catch(e){{}}}}
 let saved;try{{saved=localStorage.v}}catch(e){{}}
 setV(D[saved]?saved:'일');
 document.querySelectorAll('.tabs button[data-v]').forEach(b=>b.onclick=()=>setV(b.dataset.v));
@@ -326,7 +351,7 @@ def run_once() -> None:
                 if len(v["closes"]) >= 3:
                     views[k] = v
             cur = views["일"]["currency"]
-            items.append({"sym": s["sym"], "name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
+            items.append({"sym": s["sym"], "peak": peak(s["sym"], views["일"]), "name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
                           "wide": s["sym"].startswith("ecos:"), "last": views["일"].get("last")})
             alerts += target_alerts(s, views["일"]["closes"][-1], cur, state, today)
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
