@@ -35,7 +35,8 @@ def get_json(url: str):
 
 
 # 보기: (야후 기간, 야후 간격, 업비트 단위, 업비트 개수, 설명)
-VIEWS = {"일": ("6mo", "1d", "days", 130, "일봉 6개월"),
+VIEWS = {"60분": ("1mo", "60m", "minutes/60", 170, "60분봉 1개월"),
+         "일": ("6mo", "1d", "days", 130, "일봉 6개월"),
          "주": ("2y", "1wk", "weeks", 104, "주봉 2년"),
          "월": ("10y", "1mo", "months", 120, "월봉 10년")}
 
@@ -162,9 +163,9 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-siz
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
 .chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:#0a1020;aspect-ratio:300/130}}
 .ax{{position:absolute;left:3px;font-size:9px;color:var(--sub);pointer-events:none}}.ax.top{{top:2px}}.ax.bot{{bottom:2px}}
-.view{{display:none}}body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
-.tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 14px;cursor:pointer}}
-body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
+.view{{display:none}}body[data-v="60분"] .view[data-v="60분"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
+.tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 10px;cursor:pointer}}
+body[data-v="60분"] .tabs [data-v="60분"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
 .tile{{cursor:zoom-in}}.x{{display:none;float:right;color:var(--sub)}}
 .tile.zoom{{position:fixed;inset:0;z-index:9;overflow:auto;cursor:zoom-out;padding:16px}}.tile.zoom .x{{display:inline}}
 .tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:30px}}
