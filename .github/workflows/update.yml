@@ -1,0 +1,30 @@
+name: update
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # 30분마다 (GitHub 사정으로 몇 분~십여 분 늦을 수 있음)
+  workflow_dispatch:
+permissions:
+  pages: write
+  id-token: write
+concurrency: update
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      # 같은 날 같은 종목 알림 중복 방지 기록(state.json)을 실행 사이에 이어받기
+      - uses: actions/cache@v4
+        with:
+          path: state.json
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+      - run: python watch.py
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      - run: mkdir site && cp index.html site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4
