@@ -7,7 +7,7 @@
     {"sym": "AXTX", "name": "AXTX", "target": 12.00},
     {"sym": "USDE", "name": "USDE", "target": 1.4},
     {"sym": "SDEV", "name": "SDEV", "target": 0.8},
-    {"sym": "ecos:901Y067/I16E", "name": "선행지수 순환변동치"}
+    {"sym": "ecos:901Y067/I16E", "name": "선행지수 순환변동치", "target": 100}
   ],
   "refresh_min": 10,
   "telegram_config": "../lp-notice-monitor/config/notify.json"
