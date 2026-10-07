@@ -133,7 +133,14 @@ def run_live() -> None:
             alerts += target_alerts(s, price, "KRW" if s["sym"].startswith("upbit:") else "USD", state, today)
         except Exception as e:
             print("  실시간 실패:", s["name"], e)
-    (ROOT / "live.json").write_text(json.dumps({"t": datetime.now(KST).strftime("%H:%M:%S"), "q": q}), encoding="utf-8")
+    # 분마다 새 파일(livedir/m/YYYYMMDDHHMM.json). 같은 주소를 덮어쓰면 GitHub raw 가 5분 캐시해서,
+    # 새 이름으로 올리고 보드는 '1분 전 파일'을 받는다. 최근 10개만 남김
+    now = datetime.now(KST)
+    out = ROOT / "livedir" / "m"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{now:%Y%m%d%H%M}.json").write_text(json.dumps({"t": f"{now:%H:%M:%S}", "q": q}), encoding="utf-8")
+    for old in sorted(out.glob("*.json"))[:-10]:
+        old.unlink()
     if alerts:
         try:
             send_telegram("\n\n".join(alerts))
@@ -306,7 +313,9 @@ const th=document.getElementById('theme');
 function setT(day){{document.body.classList.toggle('day',day);th.textContent=day?'☾':'☀';try{{localStorage.day=day?1:''}}catch(e){{}}}}
 let sd;try{{sd=localStorage.day}}catch(e){{}}
 setT(!!sd);th.onclick=()=>setT(!document.body.classList.contains('day'));
-const LIVE='https://api.github.com/repos/{CFG.get("repo", "andrewjhshin-debug/watchlist-board")}/contents/live.json?ref=live';
+const RAW='https://raw.githubusercontent.com/{CFG.get("repo", "andrewjhshin-debug/watchlist-board")}/live/m/';
+const pad=n=>String(n).padStart(2,'0');
+const slot=k=>{{const d=new Date(Date.now()+9*36e5-k*6e4);return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+pad(d.getUTCHours())+pad(d.getUTCMinutes());}};
 const f2=(v,c)=>c==='KRW'?Math.round(v).toLocaleString('en-US'):v.toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}});
 function apply(sym,price,prev){{
   document.querySelectorAll('.tile[data-sym="'+sym+'"]').forEach(el=>{{
@@ -322,12 +331,12 @@ function apply(sym,price,prev){{
   }});
 }}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;}};
-async function pollLive(){{try{{const r=await fetch(LIVE,{{cache:'no-cache',headers:{{Accept:'application/vnd.github.raw'}}}});
-  if(r.ok){{const j=await r.json();for(const k in j.q)if(!k.startsWith('upbit:'))apply(k,j.q[k][0],j.q[k][1]);stamp(j.t);}}}}catch(e){{}}}}
+async function pollLive(){{for(let k=1;k<=6;k++){{try{{const r=await fetch(RAW+slot(k)+'.json',{{cache:'no-store'}});
+  if(r.ok){{const j=await r.json();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return;}}}}catch(e){{}}}}}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(!UP.length)return;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','));
   for(const x of await r.json())apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);}}catch(e){{}}}}
-pollLive();pollUpbit();setInterval(pollLive,75000);setInterval(pollUpbit,5000);
+pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
