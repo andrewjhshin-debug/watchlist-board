@@ -21,7 +21,9 @@ jobs:
       # 같은 날 같은 종목 알림 중복 방지 기록(state.json)을 실행 사이에 이어받기
       - uses: actions/cache@v4
         with:
-          path: state.json
+          path: |
+            state.json
+            ecos.json
           key: state-${{ github.run_id }}
           restore-keys: state-
       - if: inputs.ping

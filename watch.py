@@ -40,9 +40,32 @@ VIEWS = {"60": ("1mo", "60m", "minutes/60", 170, "60분봉 1개월"),
          "월": ("10y", "1mo", "months", 120, "월봉 10년")}
 
 
+def fetch_ecos(code: str) -> dict:
+    """한국은행 ECOS 월간 지표 10년치. code = '통계표/항목'. 월 1회 발표라 하루 한 번만 받는다."""
+    cache = ROOT / "ecos.json"
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    saved = json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else {}
+    if saved.get(code, {}).get("date") != today:
+        table, item = code.split("/")
+        ym = datetime.now(KST).year * 12 + datetime.now(KST).month - 1  # 이번 달
+        vals = []
+        # ponytail: 공개 sample 키는 한 번에 10행까지라 10개월씩 12번 요청. 본인 ECOS 키 받으면 1번으로 줄일 수 있음
+        for end in range(ym - 110, ym + 1, 10):
+            a, b = end - 9, end
+            url = (f"https://ecos.bok.or.kr/api/StatisticSearch/sample/json/kr/1/10/{table}/M/"
+                   f"{a // 12}{a % 12 + 1:02d}/{b // 12}{b % 12 + 1:02d}/{item}")
+            rows = get_json(url).get("StatisticSearch", {}).get("row", [])
+            vals += [(r["TIME"], float(r["DATA_VALUE"])) for r in rows]
+        saved[code] = {"date": today, "vals": sorted(set(vals))}
+        cache.write_text(json.dumps(saved), encoding="utf-8")
+    return {"closes": [v for _, v in saved[code]["vals"]], "currency": "pt", "last": saved[code]["vals"][-1][0]}
+
+
 def fetch(sym: str, view: str = "일") -> dict:
     """{'closes': [...], 'currency': str} — 오래된 것부터, 마지막 봉 = 현재가."""
     rng, itv, unit, cnt, _ = VIEWS[view]
+    if sym.startswith("ecos:"):
+        return fetch_ecos(sym[5:])  # 월간 지표라 모든 보기에서 같은 10년 차트
     if sym.startswith("upbit:"):
         rows = get_json(f"https://api.upbit.com/v1/candles/{unit}?market={sym[6:]}&count={cnt}")[::-1]
         return {"closes": [r["trade_price"] for r in rows], "currency": "KRW"}
@@ -114,8 +137,9 @@ def tile(d: dict) -> str:
     badges = '<span class="badge t">목표 도달</span>' if thit else ''
     tgt = (f'<div class="tgttxt">목표 {fmt(d["target"], cur)} <b>{(price / d["target"] - 1) * 100:+.1f}%</b></div>'
            if d.get("target") else '')
-    return (f'<div class="tile {cls}{" hit" if thit else ""}" onclick="this.classList.toggle(\'zoom\')">'
-            f'<div class="name">{html.escape(d["name"])}{badges}<span class="x">✕</span></div>'
+    when = f' <small>{d["last"][:4]}.{d["last"][4:]}</small>' if d.get("last") else ""  # 월간 지표 기준월
+    return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}" onclick="this.classList.toggle(\'zoom\')">'
+            f'<div class="name">{html.escape(d["name"])}{when}{badges}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
             f'{views}{tgt}</div>')
@@ -134,14 +158,15 @@ def render(items: list[dict], errors: list[str]) -> None:
 :root{{--bg:#0d1424;--tile:#121b30;--edge:#26355a;--grid:#1d2a48;--txt:#e6ecff;--sub:#8a96b8;
 --up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
-header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--edge)}}
-h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:12px;padding:8px 16px 0}}
+header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
+h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
 .grid-wrap{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
-@media(max-width:600px){{.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:10px}}.price{{font-size:18px!important}}h1{{font-size:18px!important}}.tabs button{{font-size:13px!important;padding:3px 7px!important}}.tile{{padding:8px}}}}
+@media(max-width:600px){{.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
+.wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/7}}.name small{{color:var(--sub);font-size:.8em}}
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}
 .name{{font-size:15px}}.price{{font-size:22px;margin:4px 0 2px}}.chg{{font-size:12px}}
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
-.chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:#0a1020;aspect-ratio:30/13}}
+.chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:#0a1020;aspect-ratio:30/11}}
 .ax{{position:absolute;left:3px;font-size:9px;color:var(--sub);pointer-events:none}}.ax.top{{top:2px}}.ax.bot{{bottom:2px}}
 .view{{display:none}}body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
 .tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 10px;cursor:pointer}}
@@ -155,7 +180,7 @@ svg{{width:100%;height:100%;display:block}}
 .line{{fill:none;stroke-width:4;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
 .up .line{{stroke:var(--up)}}.down .line{{stroke:var(--dn)}}.up .area{{fill:var(--upf)}}.down .area{{fill:var(--dnf)}}
 .tgt{{stroke:var(--tgt);stroke-width:1.5;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}}
-.tgttxt{{margin-top:6px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
+.tgttxt{{margin-top:3px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
 .badge.t{{background:var(--tgt)}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
 .hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--tgt)}}}}
@@ -193,7 +218,8 @@ def run_once() -> None:
                 if len(v["closes"]) >= 3:
                     views[k] = v
             cur = views["일"]["currency"]
-            items.append({"name": s["name"], "target": s.get("target"), "currency": cur, "views": views})
+            items.append({"name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
+                          "wide": s["sym"].startswith("ecos:"), "last": views["일"].get("last")})
             price = views["일"]["closes"][-1]
             tgt = s.get("target")
             if tgt and price <= tgt and state.get(s["sym"] + ":목표") != today:
