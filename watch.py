@@ -250,7 +250,7 @@ def tile(d: dict) -> str:
 
 
 def render(items: list[dict], errors: list[str]) -> None:
-    now = datetime.now(KST).strftime("%y년 %m월 %d일 %H:%M")
+    now = datetime.now(KST).strftime("%m/%d %H:%M")
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -263,13 +263,13 @@ def render(items: list[dict], errors: list[str]) -> None:
 --up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0;--cbg:#0a1020}}
 body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;--sub:#6b7694;
 --up:#e8304f;--upf:#ffe3e8;--dn:#2468e0;--dnf:#dce8ff;--low:#c98a00;--tgt:#0f9e6e;--cbg:#fafcff}}
-#theme{{margin-left:6px}}
+#reload{{margin-left:6px}}#theme{{margin-left:6px}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
 .grid-wrap{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
 @media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
-.wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/7}}.wide .tgttxt{{display:inline-block;margin-right:14px}}.tgttxt{{white-space:nowrap}}.name small{{color:var(--sub);font-size:.8em}}
+.wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/5}}.wide .tgttxt{{display:inline-block;margin-right:14px}}.tgttxt{{white-space:nowrap}}.name small{{color:var(--sub);font-size:.8em}}
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}
 .name{{font-size:15px}}.price{{font-size:22px;margin:4px 0 2px}}.chg{{font-size:12px}}
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
@@ -300,7 +300,7 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a
 .hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--tgt)}}}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
-<header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="theme">☀</button></div></header>
+<header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="location.reload()" aria-label="새로고침">⟳</button><button id="theme">☀</button></div></header>
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
