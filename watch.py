@@ -214,7 +214,8 @@ def chart_svg(d: dict) -> str:
 def tile(d: dict) -> str:
     """d = {'name','target','currency','views': {'일': {...}, '주': ..., '월': ...}}. 시세·알림은 일봉 기준."""
     day = d["views"]["일"]
-    cur, price, prev = d["currency"], day["closes"][-1], day["closes"][-2]
+    cur = d["currency"]
+    price, prev = d.get("now") or (day["closes"][-1], day["closes"][-2])  # 실시간과 같은 값이라 새로고침해도 안 튐
     chg = price - prev
     pct = chg / prev * 100
     cls = "up" if chg >= 0 else "down"
@@ -331,8 +332,9 @@ function apply(sym,price,prev){{
   }});
 }}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;}};
-async function pollLive(){{for(let k=1;k<=6;k++){{try{{const r=await fetch(RAW+slot(k)+'.json',{{cache:'no-store'}});
-  if(r.ok){{const j=await r.json();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return;}}}}catch(e){{}}}}}}
+let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
+async function pollLive(){{for(let k=1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return;try{{const r=await fetch(RAW+sl+'.json',{{cache:'no-store'}});
+  if(r.ok){{lastSlot=sl;const j=await r.json();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return;}}}}catch(e){{}}}}}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(!UP.length)return;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','));
   for(const x of await r.json())apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);}}catch(e){{}}}}
@@ -360,7 +362,11 @@ def run_once() -> None:
                 if len(v["closes"]) >= 3:
                     views[k] = v
             cur = views["일"]["currency"]
-            items.append({"sym": s["sym"], "peak": peak(s["sym"], views["일"]), "name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
+            try:
+                now_q = None if s["sym"].startswith("ecos:") else quote(s["sym"])
+            except Exception:
+                now_q = None
+            items.append({"sym": s["sym"], "now": now_q, "peak": peak(s["sym"], views["일"]), "name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
                           "wide": s["sym"].startswith("ecos:"), "last": views["일"].get("last")})
             alerts += target_alerts(s, views["일"]["closes"][-1], cur, state, today)
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
