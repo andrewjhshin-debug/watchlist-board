@@ -264,7 +264,7 @@ def render(items: list[dict], errors: list[str]) -> None:
 --up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0;--cbg:#0a1020}}
 body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;--sub:#6b7694;
 --up:#e8304f;--upf:#ffe3e8;--dn:#2468e0;--dnf:#dce8ff;--low:#c98a00;--tgt:#0f9e6e;--cbg:#fafcff}}
-#reload{{margin-left:6px}}#theme{{margin-left:6px}}
+#reload{{margin-left:6px}}.toast{{position:fixed;left:50%;top:60px;transform:translateX(-50%);z-index:20;background:var(--tile);color:var(--txt);border:2px solid var(--tgt);padding:6px 14px;font-size:14px}}#theme{{margin-left:6px}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
@@ -301,7 +301,7 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a
 .hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--tgt)}}}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
-<header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="location.reload()" aria-label="새로고침">⟳</button><button id="theme">☀</button></div></header>
+<header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="theme">☀</button></div></header>
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
@@ -339,6 +339,7 @@ const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.da
 async function pollUpbit(){{if(!UP.length)return;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','));
   for(const x of await r.json())apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);}}catch(e){{}}}}
 pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
+try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');const t=document.createElement('div');t.className='toast';t.textContent='새로고침했습니다';document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}}}}catch(e){{}}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
