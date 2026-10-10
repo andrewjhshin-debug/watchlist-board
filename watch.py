@@ -9,7 +9,7 @@
     python watch.py --live   실시간 시세만 live.json 에 + 목표가 알림
 
 시세: 야후 파이낸스, 비트코인은 업비트 원화. 60분/일/주/월 보기.
-현재가가 목표가 이하로 내려가면 텔레그램 알림(종목당 하루 1번) + 보드에 '목표 도달' 표시.
+목표가 +10%·+5% 이내로 들어오거나 도달하면 텔레그램 알림(단계별 하루 1번). 목표 아래면 이름·가격·막대가 초록.
 """
 from __future__ import annotations
 
@@ -112,10 +112,14 @@ def peak(sym: str, day: dict) -> tuple[float, str]:
 def target_alerts(s: dict, price: float, cur: str, state: dict, today: str) -> list[str]:
     out = []
     for tgt in targets(s.get("target")):
-        key = f"{s['sym']}:목표:{tgt}"
-        if price <= tgt and state.get(key) != today:
-            out.append(f"🎯 <b>{html.escape(s['name'])}</b> 목표가 도달\n현재 {fmt(price, cur)} / 목표 {fmt(tgt, cur)}")
-            state[key] = today
+        hit = [lv for lv in (10, 5, 0) if price <= tgt * (1 + lv / 100)]  # 들어온 단계들
+        new = [lv for lv in hit if state.get(f"{s['sym']}:목표:{tgt}:{lv}") != today]
+        if new:
+            lv = min(new)  # 가장 깊은 단계만 알림
+            head = "🎯 목표가 도달" if lv == 0 else f"🔔 목표 +{lv}% 접근"
+            out.append(f"{head} <b>{html.escape(s['name'])}</b>\n현재 {fmt(price, cur)} / 목표 {fmt(tgt, cur)} ({(price / tgt - 1) * 100:+.1f}%)")
+            for h in hit:
+                state[f"{s['sym']}:목표:{tgt}:{h}"] = today
     return out
 
 
@@ -220,12 +224,10 @@ def tile(d: dict) -> str:
     pct = chg / prev * 100
     cls = "up" if chg >= 0 else "down"
     tgts = targets(d.get("target"))
-    thit = any(price <= t for t in tgts)
     views = ""
     for k, v in d["views"].items():
         v = v | {"target": d.get("target"), "currency": cur, "peak": d.get("peak")}
         views += f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div></div>'
-    badges = '<span class="badge t">목표 도달</span>' if thit else ''
     tgt = "".join(f'<div class="tgttxt" data-t="{t}">목표 {fmt_short(t, cur)} <b>{(price / t - 1) * 100:+.1f}%</b></div>' for t in tgts)
     # 거리 막대: 종목마다 자기 기준. gauge_since(2026-07-31) 이후 장중 최고가 = 100%, 목표가 = 0%.
     # 다가올수록 줄어듦. 이름과 막대는 같은 4단계 색: 75%↑ 빨강, 50%↑ 주황, 25%↑ 노랑, 그 아래 흰색(임박)
@@ -235,7 +237,11 @@ def tile(d: dict) -> str:
         hi = d["peak"][0] if d.get("peak") else max(day["closes"])
         left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
         live_attr = f' data-hi="{hi}" data-tgts="{json.dumps(tgts)}"'
-        lv = f" lv{4 if left >= .75 else 3 if left >= .5 else 2 if left >= .25 else 1}"
+        if price < t:  # 목표 아래: 0에서 다시 초록으로 차오름, 목표보다 30% 아래면 꽉 참·가장 진한 초록
+            depth = min(1.0, (t - price) / t / 0.30)
+            lv, left = f' below" style="--gp:{35 + 65 * depth:.0f}%', depth
+        else:
+            lv = f" lv{4 if left >= .75 else 3 if left >= .5 else 2 if left >= .25 else 1}"
         gauge = f'<div class="gauge"><i style="width:{left * 100:.0f}%"></i></div>'
     # 월간 지표: 몇 월분인지 + 언제 발표됐는지(통계청 산업활동동향은 다음 달 말에 나온다)
     if d.get("last"):
@@ -243,8 +249,8 @@ def tile(d: dict) -> str:
         when = f' <small>{m}월분 · {m % 12 + 1}월 말 발표</small>'
     else:
         when = ""
-    return (f'<div class="tile {cls}{" hit" if thit else ""}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="this.classList.toggle(\'zoom\')">'
-            f'<div class="name">{html.escape(d["name"])}{when}{badges}<span class="x">✕</span></div>'
+    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="this.classList.toggle(\'zoom\')">'
+            f'<div class="name">{html.escape(d["name"])}{when}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
             f'{views}{gauge}{tgt}</div>')
@@ -294,11 +300,11 @@ svg{{width:100%;height:100%;display:block}}
 .gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
 .lv4{{--lv:#ff4d6d}}.lv3{{--lv:#ff9a3c}}.lv2{{--lv:#ffd23f}}.lv1{{--lv:#ffffff}}
 body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a87d00}}body.day .lv1{{--lv:#17213b}}
-.tile[class*=" lv"] .name{{color:var(--lv)}}.gauge i{{background:var(--lv)}}
+.tile[class*=" lv"] .name{{color:var(--lv)}}
+.below .name,.below .price,.below .tgttxt b{{color:color-mix(in srgb,var(--tgt) var(--gp),var(--txt))}}.below .gauge i{{background:color-mix(in srgb,var(--tgt) var(--gp),var(--txt))}}.gauge i{{background:var(--lv)}}
 .tgttxt{{margin-top:3px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
 .badge.t{{background:var(--tgt)}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
-.hit{{animation:blink 1s steps(2) infinite}}@keyframes blink{{50%{{border-color:var(--tgt)}}}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 </style></head><body>
 <header><h1>📈 관심종목</h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="theme">☀</button></div></header>
@@ -326,9 +332,11 @@ function apply(sym,price,prev){{
     el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
     el.querySelectorAll('.tgttxt').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
     if(el.dataset.tgts){{const t=Math.max(...JSON.parse(el.dataset.tgts)),hi=+el.dataset.hi;
-      const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;
-      el.querySelector('.gauge i').style.width=Math.round(left*100)+'%';
-      el.classList.remove('lv1','lv2','lv3','lv4');el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));}}
+      el.classList.remove('lv1','lv2','lv3','lv4','below');
+      if(price<t){{const dp=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(35+65*dp)+'%');
+        el.querySelector('.gauge i').style.width=Math.round(dp*100)+'%';}}
+      else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;
+        el.querySelector('.gauge i').style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));}}}}
   }});
 }}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;}};
@@ -386,8 +394,12 @@ def self_test() -> None:
     d = {"closes": [10, 9, 12, 11], "currency": "USD"}
     t = tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d, "주": d}})
     assert t.count('class="view"') == 2 and "목표 5.00" in t and "목표 도달" not in t
-    assert "목표 도달" in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})
-    assert 'width:0%' in tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})     # 도달 → 막대 빈칸
+    below = tile({"name": "T", "target": 12, "currency": "USD", "views": {"일": d}})                  # 11 < 12: 목표 아래
+    assert ' below"' in below and 'width:28%' in below and "목표 도달" not in below            # (12-11)/12/0.3 = 28%
+    st = {}
+    assert "+10%" in target_alerts({"sym": "X", "name": "X", "target": 100}, 109, "USD", st, "d")[0]
+    assert target_alerts({"sym": "X", "name": "X", "target": 100}, 108, "USD", st, "d") == []      # 같은 날 같은 단계 X
+    assert "도달" in target_alerts({"sym": "X", "name": "X", "target": 100}, 99, "USD", st, "d")[0]
     assert " lv4" in tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d}})          # 86% → 빨강 단계
     assert 'width:86%' in tile({"name": "T", "target": 5, "currency": "USD", "views": {"일": d}})     # (11-5)/(12-5) = 86%
     assert "<svg" in chart_svg(d) and "class=\"tgt\"" not in chart_svg(d)
