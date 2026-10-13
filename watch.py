@@ -299,8 +299,8 @@ svg{{width:100%;height:100%;display:block}}
 .peak.r{{transform:translate(-95%,-140%)}}.peak::after{{content:"";position:absolute;left:50%;bottom:-9px;width:7px;height:7px;margin-left:-3px;background:var(--txt)}}
 .peak.r::after{{left:auto;right:2px}}.tile.zoom .peak{{display:block}}
 .gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
-.lv4{{--lv:#ff4d6d}}.lv3{{--lv:#ff9a3c}}.lv2{{--lv:#ffd23f}}.lv1{{--lv:#ffffff}}
-body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#a87d00}}body.day .lv1{{--lv:#17213b}}
+.lv4{{--lv:#ff4d6d}}.lv3{{--lv:#ff9a3c}}.lv2{{--lv:#c8f04a}}.lv1{{--lv:#5dff6e}}
+body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6f9a00}}body.day .lv1{{--lv:#1f9e3a}}
 .tile[class*=" lv"] .name{{color:var(--lv)}}
 .below .name,.below .price,.below .tgttxt b{{color:color-mix(in srgb,var(--tgt) var(--gp),var(--txt))}}.below .gauge i{{background:color-mix(in srgb,var(--tgt) var(--gp),var(--txt))}}.gauge i{{background:var(--lv)}}
 .tgttxt{{margin-top:3px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
