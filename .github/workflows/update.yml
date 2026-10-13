@@ -6,11 +6,6 @@ on:
   schedule:
     - cron: "17 */2 * * *"
   workflow_dispatch:
-    inputs:
-      ping:
-        description: "텔레그램 테스트 메시지만 보내기"
-        type: boolean
-        default: false
 permissions:
   contents: write   # gh-pages 브랜치에 화면 올리기
   actions: write    # 다음 회차 실행
@@ -20,21 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 340
     env:
-      TG_TOKEN: ${{ secrets.TG_TOKEN }}
-      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      # 알림 중복 방지 기록(state.json)·한국은행 지표(ecos.json)를 회차 사이에 이어받기
+      # 한국은행 지표(ecos.json, 하루 1번 받음)를 회차 사이에 이어받기
       - uses: actions/cache@v4
         with:
-          path: |
-            state.json
-            ecos.json
+          path: ecos.json
           key: state-${{ github.run_id }}
           restore-keys: state-
-      - if: inputs.ping
-        run: python watch.py --ping
       - name: 1분마다 시세(live 브랜치, 분마다 새 파일), 10분마다 차트(gh-pages) — 약 5시간
         run: |
           git config --global user.name watchlist-bot
