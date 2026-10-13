@@ -271,7 +271,7 @@ def render(items: list[dict], errors: list[str]) -> None:
 --up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0;--cbg:#0a1020}}
 body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;--sub:#6b7694;
 --up:#e8304f;--upf:#ffe3e8;--dn:#2468e0;--dnf:#dce8ff;--low:#c98a00;--tgt:#0f9e6e;--cbg:#fafcff}}
-#reload{{margin-left:6px}}.toast{{position:fixed;left:50%;top:60px;transform:translateX(-50%);z-index:20;background:var(--tile);color:var(--txt);border:2px solid var(--tgt);padding:6px 14px;font-size:14px}}#theme{{margin-left:6px}}
+#reload{{margin-left:6px}}.toast{{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;background:var(--tile);color:var(--txt);border:3px solid #00ff3c;padding:8px 18px;font-size:15px;white-space:nowrap}}#theme{{margin-left:6px}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
