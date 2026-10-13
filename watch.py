@@ -35,7 +35,8 @@ def get_json(url: str):
 
 
 # 보기: (야후 기간, 야후 간격, 업비트 단위, 업비트 개수, 설명)
-VIEWS = {"60": ("1mo", "60m", "minutes/60", 170, "60분봉 1개월"),
+VIEWS = {"30": ("5d", "30m", "minutes/30", 200, "30분봉 5일"),
+         "60": ("1mo", "60m", "minutes/60", 170, "60분봉 1개월"),
          "일": ("6mo", "1d", "days", 130, "일봉 6개월"),
          "주": ("2y", "1wk", "weeks", 104, "주봉 2년"),
          "월": ("10y", "1mo", "months", 120, "월봉 10년")}
@@ -275,16 +276,16 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
 .grid-wrap{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
-@media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
+@media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.tabs{{gap:3px}}.tabs button{{padding:2px 5px!important}}#reload,#theme{{margin-left:2px!important}}header{{padding:6px 4px!important;gap:4px!important}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
 .wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/5}}.wide .tgttxt{{display:inline-block;margin-right:14px}}.tgttxt{{white-space:nowrap}}.name small{{color:var(--sub);font-size:.8em}}
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}
 .name{{font-size:15px}}.price{{font-size:22px;margin:4px 0 2px}}.chg{{font-size:12px}}
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
 .chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:var(--cbg);aspect-ratio:30/11}}
 .ax{{position:absolute;left:3px;font-size:9px;color:var(--sub);pointer-events:none}}.ax.top{{top:2px}}.ax.bot{{bottom:2px}}
-.view{{display:none}}body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
+.view{{display:none}}body[data-v="30"] .view[data-v="30"],body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
 .tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 10px;cursor:pointer}}
-body[data-v="60"] .tabs [data-v="60"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
+body[data-v="30"] .tabs [data-v="30"],body[data-v="60"] .tabs [data-v="60"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
 .tile{{cursor:zoom-in}}.x{{display:none;float:right;color:var(--sub)}}
 .tile.zoom{{position:fixed;inset:0;z-index:9;overflow:auto;cursor:zoom-out;padding:16px}}.tile.zoom .x{{display:inline}}
 .tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:30px}}
