@@ -145,8 +145,11 @@ def quote(sym: str) -> tuple[float, float]:
     if day_market_now() and not sym.startswith("^"):  # 지수(나스닥 종합)는 주간거래 없음
         try:
             dq = day_quote(sym)
-            if dq:  # 전일 종가는 한투 값, 없으면 야후 마지막 정규장 종가
-                return dq[0], dq[1] or m["regularMarketPrice"]
+            reg = m["regularMarketPrice"]  # 낮에는 = 직전 정규장 종가
+            # 주간거래 값은 새 체결 전까지 지난 회차 값이 남는다(예: 금 낮 105.48 vs 그날 밤 종가 93.67).
+            # 한투의 기준가(base)가 직전 정규장 종가와 같을 때만 '이번 회차' 값으로 보고 쓴다
+            if dq and dq[1] and abs(dq[1] / reg - 1) < 0.005:
+                return dq[0], dq[1]
         except Exception as e:
             print("  한투 주간거래 실패:", sym, type(e).__name__)  # 키·토큰이 로그에 찍히지 않게 종류만
     return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
