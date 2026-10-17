@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 340
     env:
       GH_TOKEN: ${{ github.token }}
+      KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+      KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
     steps:
       - uses: actions/checkout@v4
       # 한국은행 지표(ecos.json, 하루 1번 받음)를 회차 사이에 이어받기

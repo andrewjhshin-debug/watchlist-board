@@ -4,3 +4,4 @@ __pycache__/
 ecos.json
 live.json
 livedir/
+.kis.json

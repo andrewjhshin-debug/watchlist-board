@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 관심종목 차트 보드. 목표가는 보드에서 직접 입력(그 폰에 저장).
 
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -79,8 +80,61 @@ def fetch(sym: str, view: str = "일") -> dict:
     return {"closes": closes, "highs": [h for _, _, h in bars], "dates": dates, "currency": d["meta"].get("currency", "USD")}
 
 
+# ---------------------------------------------------------------- 한투 주간거래(한국 낮 시간)
+# 야후에는 주간거래(블루오션) 시세가 없어 한국투자증권 Open API 로 받는다. 키는 GitHub 비밀값.
+# 토큰은 발급할 때마다 한투가 알림톡을 보내므로, 실행 중에는 파일(.kis.json)에 두고 재사용한다.
+# 이 파일은 커밋·캐시·화면 어디에도 안 올라간다(토큰으로 주문도 가능해서 밖에 두면 안 됨).
+KIS = "https://openapi.koreainvestment.com:9443"
+KIS_FILE = ROOT / ".kis.json"
+
+
+def kis_state() -> dict:
+    return json.loads(KIS_FILE.read_text(encoding="utf-8")) if KIS_FILE.exists() else {}
+
+
+def kis_headers(tr_id: str) -> dict | None:
+    key, secret = os.environ.get("KIS_APP_KEY"), os.environ.get("KIS_APP_SECRET")
+    if not (key and secret):
+        return None
+    st = kis_state()
+    if st.get("exp", "") <= datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S"):
+        body = json.dumps({"grant_type": "client_credentials", "appkey": key, "appsecret": secret}).encode()
+        req = urllib.request.Request(KIS + "/oauth2/tokenP", data=body, headers={"content-type": "application/json"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            j = json.load(r)
+        st.update(tok=j["access_token"], exp=j["access_token_token_expired"])  # 'YYYY-MM-DD HH:MM:SS' (KST)
+        KIS_FILE.write_text(json.dumps(st), encoding="utf-8")
+    return {"authorization": f"Bearer {st['tok']}", "appkey": key, "appsecret": secret,
+            "tr_id": tr_id, "custtype": "P", "content-type": "application/json; charset=utf-8"}
+
+
+def day_quote(sym: str) -> tuple[float, float] | None:
+    """주간거래 (현재가, 전일 종가). 거래소 코드는 나스닥/뉴욕/아멕스 주간(BAQ/BAY/BAA) 중 값이 나오는 것."""
+    h = kis_headers("HHDFS00000300")
+    if not h:
+        return None
+    st = kis_state()
+    for ex in [st.get("ex", {}).get(sym)] if st.get("ex", {}).get(sym) else ["BAQ", "BAY", "BAA"]:
+        url = f"{KIS}/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD={ex}&SYMB={urllib.request.quote(sym)}"
+        with urllib.request.urlopen(urllib.request.Request(url, headers=h), timeout=20) as r:
+            out = json.load(r).get("output") or {}
+        last = float(out.get("last") or 0)
+        if last > 0:
+            st = kis_state()
+            st.setdefault("ex", {})[sym] = ex
+            KIS_FILE.write_text(json.dumps(st), encoding="utf-8")
+            return last, float(out.get("base") or 0)
+    return None
+
+
+def day_market_now() -> bool:
+    """한국 평일 낮(주간거래 시간). ponytail: 서머타임 기준 09:00~17:00, 11월 서머타임 끝나면 10:00~18:00 으로."""
+    n = datetime.now(KST)
+    return n.weekday() < 5 and 9 <= n.hour < 17
+
+
 def quote(sym: str) -> tuple[float, float]:
-    """(현재가, 전일 종가). 미국 종목은 시간외 거래까지 포함한 마지막 1분 가격."""
+    """(현재가, 전일 종가). 미국 종목은 시간외 거래까지 포함한 마지막 1분 가격, 한국 낮에는 한투 주간거래 가격."""
     if sym.startswith("upbit:"):
         r = get_json(f"https://api.upbit.com/v1/ticker?markets={sym[6:]}")[0]
         return r["trade_price"], r["prev_closing_price"]
@@ -88,6 +142,13 @@ def quote(sym: str) -> tuple[float, float]:
                  "?range=1d&interval=1m&includePrePost=true")["chart"]["result"][0]
     closes = [c for c in d["indicators"]["quote"][0]["close"] if c is not None]
     m = d["meta"]
+    if day_market_now() and not sym.startswith("^"):  # 지수(나스닥 종합)는 주간거래 없음
+        try:
+            dq = day_quote(sym)
+            if dq:  # 전일 종가는 한투 값, 없으면 야후 마지막 정규장 종가
+                return dq[0], dq[1] or m["regularMarketPrice"]
+        except Exception as e:
+            print("  한투 주간거래 실패:", sym, type(e).__name__)  # 키·토큰이 로그에 찍히지 않게 종류만
     return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
 
 
