@@ -271,7 +271,7 @@ def tile(d: dict) -> str:
         when = f' <small>{m}월분·{m % 12 + 1}월말 발표</small>'  # 통계청은 다음 달 말 발표
     else:
         when = ""
-    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="this.classList.toggle(\'zoom\')">'
+    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{" hl" if d.get("hl") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="this.classList.toggle(\'zoom\')">'
             f'<div class="name">{html.escape(d["name"])}{when}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
@@ -301,7 +301,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-siz
 @media(min-width:601px){{.grid-wrap{{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:auto auto;grid-auto-flow:column}}}}
 @media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.tabs{{gap:3px}}.tabs button{{padding:2px 5px!important}}#reload,#theme{{margin-left:2px!important}}header{{padding:6px 4px!important;gap:4px!important}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
 .wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/5}}.wide .tgttxt{{display:inline-block;margin-right:14px}}.tgttxt{{white-space:nowrap}}.name small{{color:var(--sub);font-size:.72em;white-space:nowrap}}.name{{white-space:nowrap;overflow:hidden}}
-.tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}
+.tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}.tile.hl{{border-color:#ffb300}}
 .name{{font-size:15px}}.price{{font-size:22px;margin:4px 0 2px}}.chg{{font-size:12px}}
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
 .chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:var(--cbg);aspect-ratio:30/11}}
@@ -417,7 +417,7 @@ def run_once() -> None:
             except Exception:
                 now_q = None
             items.append({"sym": s["sym"], "now": now_q, "peak": peak(s["sym"], views["일"]), "name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
-                          "wide": False, "last": views["일"].get("last")})
+                          "wide": False, "hl": s.get("hl"), "last": views["일"].get("last")})
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
             errors.append(f"{s['name']} 불러오기 실패: {e}")
     render(items, errors)
