@@ -20,12 +20,18 @@ jobs:
       KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
     steps:
       - uses: actions/checkout@v4
-      # 한국은행 지표(ecos.json, 하루 1번 받음)를 회차 사이에 이어받기
+      # 한국은행 지표(ecos.json, 하루 1번)와 한투 토큰(.kis.enc, 24시간)을 회차 사이에 이어받기.
+      # 한투 토큰은 '1일 1회 발급 원칙'이라 재사용해야 함. 주문도 가능한 토큰이라 APP SECRET 으로 암호화해서만 보관
       - uses: actions/cache@v4
         with:
-          path: ecos.json
+          path: |
+            ecos.json
+            .kis.enc
           key: state-${{ github.run_id }}
           restore-keys: state-
+      - name: 한투 토큰 복원
+        run: |
+          [ -f .kis.enc ] && openssl enc -d -aes-256-cbc -pbkdf2 -pass env:KIS_APP_SECRET -in .kis.enc -out .kis.json || true
       - name: 1분마다 시세(live 브랜치, 분마다 새 파일), 10분마다 차트(gh-pages) — 약 5시간
         run: |
           git config --global user.name watchlist-bot
@@ -41,6 +47,10 @@ jobs:
             (cd livedir && rm -rf .git && git init -q -b live && git add -A && git commit -qm "시세" && git push -qf "$REPO" live) || true
             sleep 50
           done
+      - name: 한투 토큰 암호화해서 보관
+        if: always()
+        run: |
+          [ -f .kis.json ] && openssl enc -aes-256-cbc -pbkdf2 -pass env:KIS_APP_SECRET -in .kis.json -out .kis.enc && rm -f .kis.json || true
       - name: 다음 회차 실행
         if: always()
         run: gh workflow run update.yml -R ${{ github.repository }}
