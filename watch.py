@@ -268,7 +268,7 @@ def tile(d: dict) -> str:
     # 월간 지표: 몇 월분인지 + 언제 발표됐는지(통계청 산업활동동향은 다음 달 말에 나온다)
     if d.get("last"):
         m = int(d["last"][4:])
-        when = f' <small>{m}월분 · {m % 12 + 1}월 말 발표</small>'
+        when = f' <small>{m}월분</small>'  # 칸이 작아져 발표 시기는 생략(다음 달 말 발표)
     else:
         when = ""
     return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="this.classList.toggle(\'zoom\')">'
@@ -416,7 +416,7 @@ def run_once() -> None:
             except Exception:
                 now_q = None
             items.append({"sym": s["sym"], "now": now_q, "peak": peak(s["sym"], views["일"]), "name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
-                          "wide": s["sym"].startswith("ecos:"), "last": views["일"].get("last")})
+                          "wide": False, "last": views["일"].get("last")})
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
             errors.append(f"{s['name']} 불러오기 실패: {e}")
     render(items, errors)
