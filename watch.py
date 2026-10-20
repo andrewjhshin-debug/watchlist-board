@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 관심종목 차트 보드. 목표가는 보드에서 직접 입력(그 폰에 저장).
 
@@ -262,7 +262,7 @@ def tile(d: dict) -> str:
         left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
         if price < t:  # 목표 아래: 0에서 다시 초록으로 차오름, 목표보다 30% 아래면 꽉 참·가장 진한 초록
             depth = min(1.0, (t - price) / t / 0.30)
-            lv, left = f' below" style="--gp:{35 + 65 * depth:.0f}%', depth
+            lv, left = f' below" style="--gp:{75 + 25 * depth:.0f}%', depth
         else:
             lv = f" lv{4 if left >= .75 else 3 if left >= .5 else 2 if left >= .25 else 1}"
     # 월간 지표: 몇 월분인지 + 언제 발표됐는지(통계청 산업활동동향은 다음 달 말에 나온다)
@@ -325,7 +325,7 @@ svg{{width:100%;height:100%;display:block}}
 .lv4{{--lv:#ff4d6d}}.lv3{{--lv:#ff9a3c}}.lv2{{--lv:#c8f04a}}.lv1{{--lv:#5dff6e}}
 body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6f9a00}}body.day .lv1{{--lv:#1f9e3a}}
 .tile[class*=" lv"] .name{{color:var(--lv)}}
-.below .name,.below .price,.below .tgttxt b{{color:color-mix(in srgb,var(--tgt) var(--gp),var(--txt))}}.below .gauge i{{background:color-mix(in srgb,var(--tgt) var(--gp),var(--txt))}}.gauge i{{background:var(--lv)}}
+.below{{--win:#00ff3c}}body.day .below{{--win:#00a82a}}.below .name,.below .price,.below .tgttxt b{{color:color-mix(in srgb,var(--win) var(--gp),var(--txt))}}.below .gauge i{{margin-left:auto;background:color-mix(in srgb,var(--win) var(--gp),var(--txt))}}.gauge i{{background:var(--lv)}}
 .tgttxt{{margin-top:3px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
 .badge.t{{background:var(--tgt)}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
@@ -374,7 +374,7 @@ function apply(sym,price,prev){{
     el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
     const ts=JSON.parse(el.dataset.tgts||'[]');el.classList.remove('lv1','lv2','lv3','lv4','below');
     if(ts.length){{const t=Math.max(...ts),hi=+el.dataset.hi;
-      if(price<t){{const dp=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(35+65*dp)+'%');
+      if(price<t){{const dp=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*dp)+'%');
         el.querySelector('.gauge i').style.width=Math.round(dp*100)+'%';}}
       else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;
         el.querySelector('.gauge i').style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));}}}}
