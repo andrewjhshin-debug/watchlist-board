@@ -22,7 +22,8 @@ jobs:
       - uses: actions/checkout@v4
       # 한국은행 지표(ecos.json, 하루 1번)와 한투 토큰(.kis.enc, 24시간)을 회차 사이에 이어받기.
       # 한투 토큰은 '1일 1회 발급 원칙'이라 재사용해야 함. 주문도 가능한 토큰이라 APP SECRET 으로 암호화해서만 보관
-      - uses: actions/cache@v4
+      # 복원/저장을 나눔: actions/cache 기본 저장은 성공 때만이라, 재시작(취소) 때 토큰이 날아가 다시 발급됐음
+      - uses: actions/cache/restore@v4
         with:
           path: |
             ecos.json
@@ -51,6 +52,13 @@ jobs:
         if: always()
         run: |
           [ -f .kis.json ] && openssl enc -aes-256-cbc -pbkdf2 -pass env:KIS_APP_SECRET -in .kis.json -out .kis.enc && rm -f .kis.json || true
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            ecos.json
+            .kis.enc
+          key: state-${{ github.run_id }}
       - name: 다음 회차 실행
         if: always()
         run: gh workflow run update.yml -R ${{ github.repository }}
