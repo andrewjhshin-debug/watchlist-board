@@ -281,6 +281,9 @@ def tile(d: dict) -> str:
 
 def render(items: list[dict], errors: list[str]) -> None:
     now = datetime.now(KST).strftime("%m/%d %H:%M")
+    # PC 배치: 휴대폰 2열 순서(A1,B1,A2,B2…)를 4칸×2줄로 세워서(윗줄 A, 아랫줄 B), 9번째부터는 그 아래 줄 왼쪽부터
+    pc_order = "".join(
+        f'.tile[data-sym="{d["sym"]}"]{{order:{i // 2 + 4 * (i % 2) if i < 8 else i}}}' for i, d in enumerate(items))
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -298,7 +301,7 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
 .grid-wrap{{display:grid;grid-auto-flow:dense;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
-@media(min-width:601px){{.grid-wrap{{grid-template-columns:repeat({(len(items) + 1) // 2},minmax(0,1fr));grid-template-rows:auto auto;grid-auto-flow:column}}}}
+@media(min-width:601px){{.grid-wrap{{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:row}}{pc_order}}}
 @media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.tabs{{gap:3px}}.tabs button{{padding:2px 5px!important}}#reload,#theme{{margin-left:2px!important}}header{{padding:6px 4px!important;gap:4px!important}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
 .wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/5}}.wide .tgttxt{{display:inline-block;margin-right:14px}}.tgttxt{{white-space:nowrap}}.name small{{color:var(--sub);font-size:.72em;white-space:nowrap}}.name{{white-space:nowrap;overflow:hidden}}
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}.tile.hl{{border-color:#ffb300}}
