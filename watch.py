@@ -142,7 +142,7 @@ def quote(sym: str) -> tuple[float, float]:
                  "?range=1d&interval=1m&includePrePost=true")["chart"]["result"][0]
     closes = [c for c in d["indicators"]["quote"][0]["close"] if c is not None]
     m = d["meta"]
-    if day_market_now() and not sym.startswith("^"):  # 지수(나스닥 종합)는 주간거래 없음
+    if day_market_now() and not sym.startswith("^") and "=" not in sym:  # 지수·선물 제외  # 지수(나스닥 종합)는 주간거래 없음
         try:
             dq = day_quote(sym)
             reg = m["regularMarketPrice"]  # 낮에는 = 직전 정규장 종가
@@ -298,7 +298,7 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
 .grid-wrap{{display:grid;grid-auto-flow:dense;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
-@media(min-width:601px){{.grid-wrap{{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:auto auto;grid-auto-flow:column}}}}
+@media(min-width:601px){{.grid-wrap{{grid-template-columns:repeat({(len(items) + 1) // 2},minmax(0,1fr));grid-template-rows:auto auto;grid-auto-flow:column}}}}
 @media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.tabs{{gap:3px}}.tabs button{{padding:2px 5px!important}}#reload,#theme{{margin-left:2px!important}}header{{padding:6px 4px!important;gap:4px!important}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
 .wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/5}}.wide .tgttxt{{display:inline-block;margin-right:14px}}.tgttxt{{white-space:nowrap}}.name small{{color:var(--sub);font-size:.72em;white-space:nowrap}}.name{{white-space:nowrap;overflow:hidden}}
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}.tile.hl{{border-color:#ffb300}}

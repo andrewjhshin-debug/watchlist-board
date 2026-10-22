@@ -8,7 +8,9 @@
     {"sym": "AXTX", "name": "AXTX", "hl": true, "target": 12.00},
     {"sym": "SDEV", "name": "SDEV", "hl": true, "target": 0.8},
     {"sym": "^IXIC", "name": "나스닥 종합"},
-    {"sym": "ecos:901Y067/I16E", "name": "선행지수", "target": [100, 98]}
+    {"sym": "ecos:901Y067/I16E", "name": "선행지수", "target": [100, 98]},
+    {"sym": "CL=F", "name": "WTI 선물"},
+    {"sym": "BATL", "name": "BATL"}
   ],
   "refresh_min": 10,
   "gauge_since": "2026-07-31"
