@@ -281,9 +281,9 @@ def tile(d: dict) -> str:
 
 def render(items: list[dict], errors: list[str]) -> None:
     now = datetime.now(KST).strftime("%m/%d %H:%M")
-    # PC 배치: 휴대폰 2열 순서(A1,B1,A2,B2…)를 4칸×2줄로 세워서(윗줄 A, 아랫줄 B), 9번째부터는 그 아래 줄 왼쪽부터
-    pc_order = "".join(
-        f'.tile[data-sym="{d["sym"]}"]{{order:{i // 2 + 4 * (i % 2) if i < 8 else i}}}' for i, d in enumerate(items))
+    # PC 배치는 config 의 pc_order(4칸, 왼→오, 위→아래). 휴대폰은 symbols 순서 그대로
+    pc = CFG.get("pc_order", [])
+    pc_order = "".join(f'.tile[data-sym="{d["sym"]}"]{{order:{pc.index(d["sym"]) if d["sym"] in pc else 99}}}' for d in items)
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
