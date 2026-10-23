@@ -70,6 +70,13 @@ def fetch(sym: str, view: str = "일") -> dict:
         rows = get_json(f"https://api.upbit.com/v1/candles/{unit}?market={sym[6:]}&count={cnt}")[::-1]
         return {"closes": [r["trade_price"] for r in rows], "highs": [r["high_price"] for r in rows],
                 "opens": [r["opening_price"] for r in rows], "lows": [r["low_price"] for r in rows], "dates": [r["candle_date_time_kst"][:10] for r in rows], "currency": "KRW"}
+    if view == "240" and not sym.startswith("^") and "=" not in sym:  # 미국 개별 종목은 한투 240분봉 우선
+        try:
+            kb = kis_240(sym)
+            if kb:
+                return kb
+        except Exception as e:
+            print("  한투 240분봉 실패:", sym, type(e).__name__)
     pp = "&includePrePost=true" if view == "240" else ""  # 240분봉은 시간외까지(증권 앱처럼)
     d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range={rng}&interval={itv}{pp}")
     d = d["chart"]["result"][0]
@@ -152,6 +159,34 @@ def kr_index_quote(sym: str) -> tuple[float, float] | None:
         o = json.load(r).get("output") or {}
     now, chg = float(o.get("bstp_nmix_prpr") or 0), float(o.get("bstp_nmix_prdy_vrss") or 0)
     return (now, now - chg) if now > 0 else None
+
+
+DAY_TO_REG = {"BAQ": "NAS", "BAY": "NYS", "BAA": "AMS"}  # 주간거래 거래소 → 정규장 거래소
+
+
+def kis_240(sym: str) -> dict | None:
+    """한투 240분봉(정규·시간외 + 주간거래) 최근 3주. 증권 앱과 같은 기준으로 4시간을 잘라 봉 색이 같다."""
+    h = kis_headers("HHDFS76950200")
+    if not h:
+        return None
+    ex = kis_state().get("ex", {}).get(sym)
+    pairs = [(DAY_TO_REG[ex], ex)] if ex else [("NAS", "BAQ"), ("NYS", "BAY"), ("AMS", "BAA")]
+    rows = []
+    for reg, day in pairs:
+        for code in (reg, day):
+            url = (f"{KIS}/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice"
+                   f"?AUTH=&EXCD={code}&SYMB={urllib.request.quote(sym)}&NMIN=240&PINC=1&NEXT=&NREC=120&FILL=&KEYB=")
+            with urllib.request.urlopen(urllib.request.Request(url, headers=h), timeout=20) as r:
+                rows += json.load(r).get("output2") or []
+        if rows:
+            break
+    since = (datetime.now(KST) - timedelta(days=21)).strftime("%Y%m%d")
+    bars = sorted({x["kymd"] + x["khms"]: x for x in rows if x.get("kymd", "") >= since and float(x.get("last") or 0) > 0}.items())
+    if len(bars) < 3:
+        return None
+    f = lambda key: [float(x[key]) for _, x in bars]
+    return {"closes": f("last"), "highs": f("high"), "opens": f("open"), "lows": f("low"),
+            "dates": [f"{k[:4]}-{k[4:6]}-{k[6:8]}" for k, _ in bars], "currency": "USD"}
 
 
 def day_market_now() -> bool:
