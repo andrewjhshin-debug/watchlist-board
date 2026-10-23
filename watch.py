@@ -77,7 +77,7 @@ def fetch(sym: str, view: str = "일") -> dict:
     closes = [c for _, c, _ in bars]
     closes[-1] = d["meta"].get("regularMarketPrice") or closes[-1]
     dates = [datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d") for t, _, _ in bars]
-    return {"closes": closes, "highs": [h for _, _, h in bars], "dates": dates, "currency": d["meta"].get("currency", "USD")}
+    return {"closes": closes, "highs": [h for _, _, h in bars], "dates": dates, "currency": "pt" if sym.startswith("^") else d["meta"].get("currency", "USD")}
 
 
 # ---------------------------------------------------------------- 한투 주간거래(한국 낮 시간)
@@ -127,6 +127,22 @@ def day_quote(sym: str) -> tuple[float, float] | None:
     return None
 
 
+KR_INDEX = {"^KS11": "0001", "^KQ11": "1001"}  # 한투 업종 코드: 코스피, 코스닥
+
+
+def kr_index_quote(sym: str) -> tuple[float, float] | None:
+    """코스피·코스닥 실시간 지수(한투). 야후는 20분 늦어서 장중엔 이걸 쓴다."""
+    h = kis_headers("FHPUP02100000")
+    if not h:
+        return None
+    url = (f"{KIS}/uapi/domestic-stock/v1/quotations/inquire-index-price"
+           f"?FID_COND_MRKT_DIV_CODE=U&FID_INPUT_ISCD={KR_INDEX[sym]}")
+    with urllib.request.urlopen(urllib.request.Request(url, headers=h), timeout=20) as r:
+        o = json.load(r).get("output") or {}
+    now, chg = float(o.get("bstp_nmix_prpr") or 0), float(o.get("bstp_nmix_prdy_vrss") or 0)
+    return (now, now - chg) if now > 0 else None
+
+
 def day_market_now() -> bool:
     """한국 평일 낮(주간거래 시간). ponytail: 서머타임 기준 09:00~17:00, 11월 서머타임 끝나면 10:00~18:00 으로."""
     n = datetime.now(KST)
@@ -138,6 +154,14 @@ def quote(sym: str) -> tuple[float, float]:
     if sym.startswith("upbit:"):
         r = get_json(f"https://api.upbit.com/v1/ticker?markets={sym[6:]}")[0]
         return r["trade_price"], r["prev_closing_price"]
+    n = datetime.now(KST)
+    if sym in KR_INDEX and n.weekday() < 5 and 9 <= n.hour < 16:  # 한국 장중
+        try:
+            kq = kr_index_quote(sym)
+            if kq:
+                return kq
+        except Exception as e:
+            print("  한투 지수 실패:", sym, type(e).__name__)
     d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}"
                  "?range=1d&interval=1m&includePrePost=true")["chart"]["result"][0]
     closes = [c for c in d["indicators"]["quote"][0]["close"] if c is not None]
