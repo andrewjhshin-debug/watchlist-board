@@ -68,24 +68,27 @@ def fetch(sym: str, view: str = "일") -> dict:
         return fetch_ecos(sym[5:])  # 월간 지표라 모든 보기에서 같은 10년 차트
     if sym.startswith("upbit:"):
         rows = get_json(f"https://api.upbit.com/v1/candles/{unit}?market={sym[6:]}&count={cnt}")[::-1]
-        return {"closes": [r["trade_price"] for r in rows], "highs": [r["high_price"] for r in rows], "dates": [r["candle_date_time_kst"][:10] for r in rows], "currency": "KRW"}
+        return {"closes": [r["trade_price"] for r in rows], "highs": [r["high_price"] for r in rows],
+                "opens": [r["opening_price"] for r in rows], "lows": [r["low_price"] for r in rows], "dates": [r["candle_date_time_kst"][:10] for r in rows], "currency": "KRW"}
     pp = "&includePrePost=true" if view == "240" else ""  # 240분봉은 시간외까지(증권 앱처럼)
     d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range={rng}&interval={itv}{pp}")
     d = d["chart"]["result"][0]
     q = d["indicators"]["quote"][0]
-    bars = [(t, c, h or c) for t, c, h in zip(d["timestamp"], q["close"], q["high"]) if c is not None]
+    bars = [(t, c, h or c, o or c, lo or c) for t, c, h, o, lo
+            in zip(d["timestamp"], q["close"], q["high"], q["open"], q["low"]) if c is not None]
     if view == "240":
         four = {}
-        for t, c, h in bars:  # 4시간 구간별: 마지막 종가, 최고가
+        for t, c, h, o, lo in bars:  # 4시간 구간별: 첫 시가, 마지막 종가, 최고·최저
             k = t // 14400
-            four[k] = (t, c, max(h, four[k][2]) if k in four else h)
+            f = four.get(k)
+            four[k] = (t, c, max(h, f[2]), f[3], min(lo, f[4])) if f else (t, c, h, o, lo)
         since = time.time() - 7 * 86400
         bars = [b for b in four.values() if b[0] >= since]
-    closes = [c for _, c, _ in bars]
+    closes = [b[1] for b in bars]
     if view != "240":
         closes[-1] = d["meta"].get("regularMarketPrice") or closes[-1]
-    dates = [datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d") for t, _, _ in bars]
-    return {"closes": closes, "highs": [h for _, _, h in bars], "dates": dates, "currency": "pt" if sym.startswith("^") else d["meta"].get("currency", "USD")}
+    dates = [datetime.fromtimestamp(b[0], KST).strftime("%Y-%m-%d") for b in bars]
+    return {"closes": closes, "highs": [b[2] for b in bars], "opens": [b[3] for b in bars], "lows": [b[4] for b in bars], "dates": dates, "currency": "pt" if sym.startswith("^") else d["meta"].get("currency", "USD")}
 
 
 # ---------------------------------------------------------------- 한투 주간거래(한국 낮 시간)
@@ -241,16 +244,29 @@ def targets(t) -> list[float]:
     return t if isinstance(t, list) else [t] if t else []
 
 
+MAX_CANDLES = 50  # 봉이 많으면 몇 개씩 묶어서 이 수 이하로
+
+
 def chart_svg(d: dict) -> str:
     W, H = COLS * CELL, ROWS * CELL
     closes, tgts = d["closes"], targets(d.get("target"))
     n = len(closes)
-    cols = [closes[round(c * (n - 1) / (COLS - 1))] for c in range(COLS)]  # 봉을 30칸으로 뭉갬(마지막 칸=현재가)
-    vals = cols + tgts  # 목표가는 멀어도 항상 화면 안에
-    vmin, vmax = min(vals), max(vals)
+    opens = d.get("opens") or [closes[0]] + closes[:-1]  # 월간 지표처럼 시가가 없으면 직전 값
+    highs = d.get("highs") or [max(o, c) for o, c in zip(opens, closes)]
+    lows = d.get("lows") or [min(o, c) for o, c in zip(opens, closes)]
+    k = -(-n // MAX_CANDLES)  # 묶음 크기
+    cs = [(opens[i], max(highs[i:i + k]), min(lows[i:i + k]), closes[min(i + k, n) - 1]) for i in range(0, n, k)]
+    m = len(cs)
+    vmin, vmax = min([c[2] for c in cs] + tgts), max(c[1] for c in cs)
     span = (vmax - vmin) or 1
     y = lambda v: H - CELL / 2 - round((v - vmin) / span * (ROWS - 1)) * CELL  # 칸 단위로 스냅
-    pts = " ".join(f"{c * CELL},{y(v)} {(c + 1) * CELL},{y(v)}" for c, v in enumerate(cols))
+    cw = W / m
+    body = ""
+    for j, (o, hi, lo, c) in enumerate(cs):
+        x, cls = j * cw, "cu" if c >= o else "cd"
+        top, bot = min(y(o), y(c)), max(y(o), y(c))
+        body += (f'<line class="{cls}" x1="{x + cw / 2:.1f}" y1="{y(hi)}" x2="{x + cw / 2:.1f}" y2="{y(lo)}"/>'
+                 f'<rect class="{cls}" x="{x + cw * .15:.1f}" y="{top - CELL / 2}" width="{cw * .7:.1f}" height="{bot - top + CELL}"/>')
     grid = "".join(f'<line x1="0" y1="{g}" x2="{W}" y2="{g}"/>' for g in range(0, H, CELL)) + \
            "".join(f'<line x1="{g}" y1="0" x2="{g}" y2="{H}"/>' for g in range(0, W, CELL))
     cur = d["currency"]
@@ -259,13 +275,12 @@ def chart_svg(d: dict) -> str:
     if d.get("peak") and dates and dates[0] <= d["peak"][1]:
         pv, pd = d["peak"]
         i = max(j for j, dt in enumerate(dates) if dt <= pd)
-        px = (round(i * (COLS - 1) / (n - 1)) + .5) / COLS * 100
+        px = (i // k + .5) / m * 100
         py = max(CELL / 2, y(pv)) / H * 100
         peak = f'<span class="peak{" r" if px > 80 else ""}" style="left:{px:.1f}%;top:{py:.1f}%">{fmt(pv, cur)}</span>'
     return f'''{peak}<span class="ax top">{fmt(vmax, cur)}</span><span class="ax bot">{fmt(vmin, cur)}</span><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" data-vmin="{vmin}" data-vmax="{vmax}">
 <g class="grid">{grid}</g>
-<polygon class="area" points="0,{H} {pts} {W},{H}"/>
-<polyline class="line" points="{pts}"/>
+{body}
 {"".join(f'<line class="tgt" x1="0" y1="{y(t)}" x2="{W}" y2="{y(t)}"/>' for t in tgts)}
 </svg>'''
 
@@ -357,6 +372,8 @@ svg{{width:100%;height:100%;display:block}}
 .peak.r{{transform:translate(-95%,-140%)}}.peak::after{{content:"";position:absolute;left:50%;bottom:-9px;width:7px;height:7px;margin-left:-3px;background:var(--txt)}}
 .peak.r::after{{left:auto;right:2px}}.tile.zoom .peak{{display:block}}
 .tgts{{cursor:pointer}}.gauge[hidden]{{display:none}}
+rect.cu{{fill:var(--up)}}rect.cd{{fill:var(--dn)}}line.cu{{stroke:var(--up)}}line.cd{{stroke:var(--dn)}}
+line.cu,line.cd{{stroke-width:1.5;vector-effect:non-scaling-stroke}}
 .gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
 .lv4{{--lv:#ff4d6d}}.lv3{{--lv:#ff9a3c}}.lv2{{--lv:#c8f04a}}.lv1{{--lv:#5dff6e}}
 body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6f9a00}}body.day .lv1{{--lv:#1f9e3a}}
