@@ -33,8 +33,7 @@ def get_json(url: str):
 
 
 # 보기: (야후 기간, 야후 간격, 업비트 단위, 업비트 개수, 설명)
-VIEWS = {"30": ("5d", "30m", "minutes/30", 200, "30분봉 5일"),
-         "60": ("1mo", "60m", "minutes/60", 170, "60분봉 1개월"),
+VIEWS = {"240": ("1mo", "60m", "minutes/240", 42, "240분봉 7일"),  # 야후엔 4시간봉이 없어 60분봉 4개씩 묶음
          "일": ("6mo", "1d", "days", 130, "일봉 6개월"),
          "주": ("2y", "1wk", "weeks", 104, "주봉 2년"),
          "월": ("10y", "1mo", "months", 120, "월봉 10년")}
@@ -70,12 +69,21 @@ def fetch(sym: str, view: str = "일") -> dict:
     if sym.startswith("upbit:"):
         rows = get_json(f"https://api.upbit.com/v1/candles/{unit}?market={sym[6:]}&count={cnt}")[::-1]
         return {"closes": [r["trade_price"] for r in rows], "highs": [r["high_price"] for r in rows], "dates": [r["candle_date_time_kst"][:10] for r in rows], "currency": "KRW"}
-    d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range={rng}&interval={itv}")
+    pp = "&includePrePost=true" if view == "240" else ""  # 240분봉은 시간외까지(증권 앱처럼)
+    d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range={rng}&interval={itv}{pp}")
     d = d["chart"]["result"][0]
     q = d["indicators"]["quote"][0]
     bars = [(t, c, h or c) for t, c, h in zip(d["timestamp"], q["close"], q["high"]) if c is not None]
+    if view == "240":
+        four = {}
+        for t, c, h in bars:  # 4시간 구간별: 마지막 종가, 최고가
+            k = t // 14400
+            four[k] = (t, c, max(h, four[k][2]) if k in four else h)
+        since = time.time() - 7 * 86400
+        bars = [b for b in four.values() if b[0] >= since]
     closes = [c for _, c, _ in bars]
-    closes[-1] = d["meta"].get("regularMarketPrice") or closes[-1]
+    if view != "240":
+        closes[-1] = d["meta"].get("regularMarketPrice") or closes[-1]
     dates = [datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d") for t, _, _ in bars]
     return {"closes": closes, "highs": [h for _, _, h in bars], "dates": dates, "currency": "pt" if sym.startswith("^") else d["meta"].get("currency", "USD")}
 
@@ -333,9 +341,9 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-siz
 .up .chg{{color:var(--up)}}.down .chg{{color:var(--dn)}}
 .chart{{position:relative;margin-top:8px;border:3px solid var(--edge);background:var(--cbg);aspect-ratio:30/11}}
 .ax{{position:absolute;left:3px;font-size:9px;color:var(--sub);pointer-events:none}}.ax.top{{top:2px}}.ax.bot{{bottom:2px}}
-.view{{display:none}}body[data-v="30"] .view[data-v="30"],body[data-v="60"] .view[data-v="60"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
+.view{{display:none}}body[data-v="240"] .view[data-v="240"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
 .tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 10px;cursor:pointer}}
-body[data-v="30"] .tabs [data-v="30"],body[data-v="60"] .tabs [data-v="60"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
+body[data-v="240"] .tabs [data-v="240"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
 .tile{{cursor:zoom-in}}.x{{display:none;float:right;color:var(--sub)}}
 .tile.zoom{{position:fixed;inset:0;z-index:9;overflow:auto;cursor:zoom-out;padding:16px}}.tile.zoom .x{{display:inline}}
 .tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:30px}}
