@@ -33,7 +33,7 @@ def get_json(url: str):
 
 
 # 보기: (야후 기간, 야후 간격, 업비트 단위, 업비트 개수, 설명)
-VIEWS = {"240": ("1mo", "60m", "minutes/240", 42, "240분봉 7일"),  # 야후엔 4시간봉이 없어 60분봉 4개씩 묶음
+VIEWS = {"240": ("1mo", "60m", "minutes/240", 126, "240분봉 3주"),  # 야후엔 4시간봉이 없어 60분봉 4개씩 묶음
          "일": ("6mo", "1d", "days", 130, "일봉 6개월"),
          "주": ("2y", "1wk", "weeks", 104, "주봉 2년"),
          "월": ("10y", "1mo", "months", 120, "월봉 10년")}
@@ -82,7 +82,7 @@ def fetch(sym: str, view: str = "일") -> dict:
             k = t // 14400
             f = four.get(k)
             four[k] = (t, c, max(h, f[2]), f[3], min(lo, f[4])) if f else (t, c, h, o, lo)
-        since = time.time() - 7 * 86400
+        since = time.time() - 21 * 86400  # 최근 3주
         bars = [b for b in four.values() if b[0] >= since]
     closes = [b[1] for b in bars]
     if view != "240":
@@ -244,7 +244,7 @@ def targets(t) -> list[float]:
     return t if isinstance(t, list) else [t] if t else []
 
 
-MAX_CANDLES = 50  # 봉이 많으면 몇 개씩 묶어서 이 수 이하로
+MAX_CANDLES = 70  # 봉이 많으면 몇 개씩 묶어서 이 수 이하로
 
 
 def chart_svg(d: dict) -> str:
