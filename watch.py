@@ -364,7 +364,7 @@ def tile(d: dict) -> str:
         when = f' <small>{m}월분·{m % 12 + 1}월말 발표</small>'  # 통계청은 다음 달 말 발표
     else:
         when = ""
-    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="this.classList.toggle(\'zoom\')">'
+    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="tap(this)">'
             f'<div class="name">{html.escape(d["name"])}{when}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
@@ -405,7 +405,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}.note{{color:var(--sub);font-siz
 .view{{display:none}}body[data-v="240"] .view[data-v="240"],body[data-v="일"] .view[data-v="일"],body[data-v="주"] .view[data-v="주"],body[data-v="월"] .view[data-v="월"]{{display:block}}
 .tabs{{display:flex;gap:6px}}.tabs button{{font:inherit;font-size:15px;color:var(--txt);background:var(--tile);border:3px solid var(--edge);padding:4px 10px;cursor:pointer}}
 body[data-v="240"] .tabs [data-v="240"],body[data-v="일"] .tabs [data-v="일"],body[data-v="주"] .tabs [data-v="주"],body[data-v="월"] .tabs [data-v="월"]{{color:var(--low);border-color:var(--low)}}
-.tile{{cursor:zoom-in}}.x{{display:none;float:right;color:var(--sub)}}
+.tile{{cursor:zoom-in;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}}.tile.hl{{border-color:#ffb300}}.x{{display:none;float:right;color:var(--sub)}}
 #fold,#sync{{font:inherit;font-size:inherit;color:var(--low);background:none;border:1px solid var(--edge);padding:0 6px;cursor:pointer}}
 body.nochart .tile:not(.zoom) .view{{display:none!important}}body.nochart .tile:not(.zoom){{padding-top:6px;padding-bottom:6px}}
 body.nochart .tile:not(.zoom) .gauge{{margin-top:6px;height:7px}}
@@ -474,8 +474,8 @@ function repaint(){{tiles().forEach(el=>{{renderT(el);apply(el.dataset.sym,+el.d
 async function pullT(){{const c=ls('sync');if(!c)return null;
   try{{const r=await fetch(FS+c+'?key='+FK,{{cache:'no-store'}});if(!r.ok)return null;
     const m=JSON.parse((await r.json()).fields.json.stringValue||'{{}}');
-    if(Object.keys(m).length){{for(const s in m)ls('tg:'+s,JSON.stringify(m[s]));repaint();}}return m;}}catch(e){{return null;}}}}
-async function pushT(){{const c=ls('sync');if(!c)return;const m={{}};tiles().forEach(el=>m[el.dataset.sym]=getT(el));
+    if(Object.keys(m).length){{for(const s in m)ls(s==='_hl'?'hl':'tg:'+s,JSON.stringify(m[s]));repaint();paintHL();}}return m;}}catch(e){{return null;}}}}
+async function pushT(){{const c=ls('sync');if(!c)return;const m={{}};tiles().forEach(el=>m[el.dataset.sym]=getT(el));m._hl=getHL();
   try{{await fetch(FS+c+'?key='+FK,{{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{fields:{{json:{{stringValue:JSON.stringify(m)}}}}}})}});}}catch(e){{}}}}
 async function askSync(force){{if(!force&&(ls('sync')||ls('syncAsked')))return;ls('syncAsked','1');
   const c=prompt('동기화 코드를 입력하세요\\n(PC 다운로드 폴더의 관심종목_동기화코드.txt)',ls('sync')||'');
@@ -517,6 +517,20 @@ function setF(on){{document.body.classList.toggle('nochart',on);fold.textContent
 fold.onclick=()=>setF(!document.body.classList.contains('nochart'));
 setF(ls('fold')?ls('fold')==='1':innerWidth<601);
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
+// 노란 테두리: 휴대폰은 꾹 누르기(0.6초), PC 는 오른쪽 클릭으로 켜고 끔. 폰끼리 동기화
+function getHL(){{try{{return JSON.parse(ls('hl')||'[]');}}catch(e){{return [];}}}}
+function paintHL(){{const h=getHL();tiles().forEach(el=>el.classList.toggle('hl',h.includes(el.dataset.sym)));}}
+function toggleHL(el){{const h=getHL(),s=el.dataset.sym,i=h.indexOf(s);i<0?h.push(s):h.splice(i,1);ls('hl',JSON.stringify(h));paintHL();pushT();
+  if(navigator.vibrate)navigator.vibrate(30);}}
+function tap(el){{if(el.dataset.lp){{delete el.dataset.lp;return;}}el.classList.toggle('zoom');}}
+tiles().forEach(el=>{{let t=null,x=0,y=0;
+  const stop=()=>{{clearTimeout(t);t=null;}};
+  el.addEventListener('pointerdown',e=>{{if(e.button||el.classList.contains('zoom')||e.target.closest('.tgts'))return;x=e.clientX;y=e.clientY;
+    t=setTimeout(()=>{{t=null;el.dataset.lp='1';toggleHL(el);}},600);}});
+  el.addEventListener('pointermove',e=>{{if(t&&Math.hypot(e.clientX-x,e.clientY-y)>10)stop();}});
+  ['pointerup','pointercancel','pointerleave'].forEach(n=>el.addEventListener(n,stop));
+  el.addEventListener('contextmenu',e=>{{e.preventDefault();if(el.dataset.lp)return;toggleHL(el);}});}});
+paintHL();
 repaint();pullT();setInterval(pullT,60000);  // 다른 폰에서 바꾼 목표가를 1분마다 가져옴
 pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');const t=document.createElement('div');t.className='toast';t.textContent='새로고침했습니다';document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}}}}catch(e){{}}
