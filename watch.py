@@ -432,7 +432,7 @@ svg{{width:100%;height:100%;display:block}}
 rect.cu{{fill:var(--up)}}rect.cd{{fill:var(--dn)}}line.cu{{stroke:var(--up)}}line.cd{{stroke:var(--dn)}}
 line.cu,line.cd{{stroke-width:1.5;vector-effect:non-scaling-stroke}}
 .gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
-.lv4{{--lv:#ff0033}}.lv3{{--lv:#ff7700}}.lv2{{--lv:#ccff00}}.lv1{{--lv:#00ff2a}}
+.lv4{{--lv:#ff0033}}.lv3{{--lv:#ff5500}}.lv2{{--lv:#66ff00}}.lv1{{--lv:#00ff2a}}
 body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6f9a00}}body.day .lv1{{--lv:#1f9e3a}}
 .tile[class*=" lv"] .name{{color:var(--lv)}}
 .below{{--win:#00ff3c}}body.day .below{{--win:#00a82a}}.below .name,.below .price,.below .tgttxt b{{color:color-mix(in srgb,var(--win) var(--gp),var(--txt))}}.below .gauge i{{margin-left:auto;background:var(--win)}}.gauge i{{background:var(--lv)}}
@@ -504,7 +504,7 @@ function apply(sym,price,prev){{
         el.querySelector('.gauge i').style.width=Math.round(dp*100)+'%';}}
       else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;el.dataset.left=left;
         el.querySelector('.gauge i').style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));
-        el.style.setProperty('--lv',['#00ff2a','#33ff00','#88ff00','#ccff00','#ffee00','#ffcc00','#ffa200','#ff7700','#ff3c00','#ff0033'][Math.min(9,Math.floor(left*10))]);}}}}
+        el.style.setProperty('--lv',['#00ff2a','#22ff00','#55ff00','#88ff00','#ffee00','#ffbb00','#ff8000','#ff5500','#ff2a00','#ff0033'][Math.min(9,Math.floor(left*10))]);}}}}
   }});
   showAvg();
 }}
