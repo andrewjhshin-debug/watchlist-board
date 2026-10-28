@@ -534,7 +534,11 @@ paintHL();
 repaint();pullT();setInterval(pullT,60000);  // 다른 폰에서 바꾼 목표가를 1분마다 가져옴
 pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');const t=document.createElement('div');t.className='toast';t.textContent='새로고침했습니다';document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}}}}catch(e){{}}
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+// 앱을 껐다 켜면 휴대폰이 메모리에 남은 옛 화면을 그대로 보여줌 → 1분 넘게 쉬었다 돌아오면 새로 받음
+const loadedAt=Date.now();
+document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='visible'&&Date.now()-loadedAt>60000)location.reload();}});
+addEventListener('pageshow',e=>{{if(e.persisted)location.reload();}});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{{updateViaCache:'none'}});
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
 
