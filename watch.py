@@ -515,10 +515,12 @@ document.getElementById('ttl').onclick=()=>{{const a=document.getElementById('av
   const d=document.createElement('div');d.className='avgpop';
   d.innerHTML='<b style="color:'+a.style.color+'">'+a.textContent+'</b>';
   d.onclick=()=>d.remove();document.body.appendChild(d);}};
+// 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
+const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
 // 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균. 0=목표 근처(초록) ~ 100=멀다(빨강)
 function showAvg(){{const v=tiles().map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
   if(!a)return;if(!v.length){{a.textContent='';return;}}const m=v.reduce((x,y)=>x+y,0)/v.length;
-  a.textContent=Math.round(m*100)+'%';a.style.color=m<.4?'#5dff6e':'color-mix(in srgb,#ff4d6d '+Math.round((m-.4)/.6*100)+'%,#5dff6e)';}}
+  a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];}}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(){{for(let k=1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return;try{{const r=await fetch(RAW+sl+'.json',{{cache:'no-store'}});
