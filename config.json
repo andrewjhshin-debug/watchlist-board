@@ -14,7 +14,7 @@
     {"sym": "^KS11", "name": "코스피"},
     {"sym": "^KQ11", "name": "코스닥"}
   ],
-  "pc_order": ["SOXL", "AXTI", "AXTX", "^IXIC",
+  "pc_order": ["AXTI", "SOXL", "AXTX", "^IXIC",
                "upbit:KRW-BTC", "USDE", "SDEV", "ecos:901Y067/I16E",
                "CL=F", "BATL", "^KS11", "^KQ11"],
   "sync_project": "watchlist-board-f89b61",
