@@ -84,9 +84,14 @@ def fetch(sym: str, view: str = "일") -> dict:
     bars = [(t, c, h or c, o or c, lo or c) for t, c, h, o, lo
             in zip(d["timestamp"], q["close"], q["high"], q["open"], q["low"]) if c is not None]
     if view == "240":
-        four = {}
-        for t, c, h, o, lo in bars:  # 4시간 구간별: 첫 시가, 마지막 종가, 최고·최저
-            k = t // 14400
+        # 증권 앱처럼 '장 시작'부터 4시간씩 자른다(코스피 09~13·13~15:30, 나스닥 09:30~13:30…).
+        # 1시간 넘게 봉이 비면 새 장(세션)으로 본다(선물은 매일 1시간 쉬는 시간 뒤 새 장)
+        four, start, prev = {}, None, None
+        for t, c, h, o, lo in bars:  # 구간별: 첫 시가, 마지막 종가, 최고·최저
+            if prev is None or t - prev > 3600:
+                start = t
+            prev = t
+            k = (start, (t - start) // 14400)
             f = four.get(k)
             four[k] = (t, c, max(h, f[2]), f[3], min(lo, f[4])) if f else (t, c, h, o, lo)
         since = time.time() - 21 * 86400  # 최근 3주
