@@ -459,11 +459,27 @@ function renderT(el){{
       const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('class','tgt');
       l.setAttribute('x1',0);l.setAttribute('x2',vb.width);l.setAttribute('y1',y);l.setAttribute('y2',y);s.appendChild(l);}});}});
 }}
-function editT(ev,box){{ev.stopPropagation();const el=box.closest('.tile');
+// 목표가 폰끼리 공유: 본인 Firebase(watchlist-board) 문서 1개. 문서 이름 = 동기화 코드(폰마다 한 번 입력)
+const FS='https://firestore.googleapis.com/v1/projects/{CFG["sync_project"]}/databases/(default)/documents/targets/';
+const FK='{CFG["sync_key"]}';  // 웹용 공개 키(접근 제한은 코드+보안 규칙)
+const ls=(k,v)=>{{try{{if(v===undefined)return localStorage[k];localStorage[k]=v;}}catch(e){{}}}};
+const tiles=()=>[...document.querySelectorAll('.tile[data-sym]')];
+function repaint(){{tiles().forEach(el=>{{renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}});}}
+async function pullT(){{const c=ls('sync');if(!c)return null;
+  try{{const r=await fetch(FS+c+'?key='+FK,{{cache:'no-store'}});if(!r.ok)return null;
+    const m=JSON.parse((await r.json()).fields.json.stringValue||'{{}}');
+    if(Object.keys(m).length){{for(const s in m)ls('tg:'+s,JSON.stringify(m[s]));repaint();}}return m;}}catch(e){{return null;}}}}
+async function pushT(){{const c=ls('sync');if(!c)return;const m={{}};tiles().forEach(el=>m[el.dataset.sym]=getT(el));
+  try{{await fetch(FS+c+'?key='+FK,{{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{fields:{{json:{{stringValue:JSON.stringify(m)}}}}}})}});}}catch(e){{}}}}
+async function askSync(){{if(ls('sync')||ls('syncAsked'))return;ls('syncAsked','1');
+  const c=prompt('다른 폰과 목표가를 맞추려면 동기화 코드를 입력하세요\\n(취소하면 이 폰에만 저장)');
+  if(!c)return;ls('sync',c.trim());const m=await pullT();if(m&&!Object.keys(m).length)await pushT();}}  // 처음이면 이 폰 값을 올림
+function editT(ev,box){{ev.stopPropagation();editT2(box.closest('.tile'));}}
+async function editT2(el){{await askSync();
   const v=prompt(el.querySelector('.name').firstChild.textContent.trim()+' 목표가\\n여러 개는 쉼표로 (예: 100, 98)\\n비우면 목표 없음',getT(el).join(', '));
   if(v===null)return;const t=v.split(/[ ,]+/).map(x=>parseFloat(x.replace(/[^0-9.]/g,''))).filter(x=>x>0);
-  try{{localStorage['tg:'+el.dataset.sym]=JSON.stringify(t);}}catch(e){{}}
-  renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}}
+  ls('tg:'+el.dataset.sym,JSON.stringify(t));
+  renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);pushT();}}
 function apply(sym,price,prev){{
   document.querySelectorAll('.tile[data-sym="'+sym+'"]').forEach(el=>{{
     const c=el.dataset.cur,ch=price-prev;el.dataset.p=price;el.dataset.pv=prev;
@@ -486,7 +502,7 @@ async function pollLive(){{for(let k=1;k<=6;k++){{const sl=slot(k);if(sl<lastSlo
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(!UP.length)return;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','));
   for(const x of await r.json())apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);}}catch(e){{}}}}
-document.querySelectorAll('.tile[data-sym]').forEach(el=>{{renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}});
+repaint();pullT();setInterval(pullT,60000);  // 다른 폰에서 바꾼 목표가를 1분마다 가져옴
 pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');const t=document.createElement('div');t.className='toast';t.textContent='새로고침했습니다';document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}}}}catch(e){{}}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');

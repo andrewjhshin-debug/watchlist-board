@@ -1,5 +1,5 @@
 {
-  "_설명": "symbols 에 종목 추가/삭제(이 순서 = 휴대폰 2열 순서). pc_order = PC 웹 4칸 배치 순서(왼쪽→오른쪽, 위→아래). 비트코인은 업비트 원화 시세(upbit:KRW-BTC), 한국은행 월간 지표는 ecos:통계표/항목. refresh_min = 갱신 주기(분). gauge_since = 거리 막대 100% 기준(이 날짜 이후 최고가). target = 기본 목표가(여러 개면 [100, 98]). 보드에서 목표를 누르면 그 폰에서 바꿀 수 있음. hl = 황금 테두리로 강조",
+  "_설명": "symbols 에 종목 추가/삭제(이 순서 = 휴대폰 2열 순서). pc_order = PC 웹 4칸 배치 순서(왼쪽→오른쪽, 위→아래). 비트코인은 업비트 원화 시세(upbit:KRW-BTC), 한국은행 월간 지표는 ecos:통계표/항목. refresh_min = 갱신 주기(분). gauge_since = 거리 막대 100% 기준(이 날짜 이후 최고가). target = 기본 목표가(여러 개면 [100, 98]). 보드에서 목표를 누르면 그 폰에서 바꿀 수 있음. hl = 황금 테두리로 강조. sync_* = 목표가 폰끼리 공유용 Firebase(웹 공개 키, 접근은 동기화 코드+보안 규칙으로 제한)",
   "symbols": [
     {"sym": "SOXL", "name": "SOXL", "target": 102},
     {"sym": "upbit:KRW-BTC", "name": "비트코인", "target": 90000000},
@@ -17,6 +17,8 @@
   "pc_order": ["SOXL", "AXTI", "AXTX", "^IXIC",
                "upbit:KRW-BTC", "USDE", "SDEV", "ecos:901Y067/I16E",
                "CL=F", "BATL", "^KS11", "^KQ11"],
+  "sync_project": "watchlist-board-f89b61",
+  "sync_key": "AIzaSyD9x_af0VUakIbNevofS_zheNC68Lz2OOk",
   "refresh_min": 10,
   "gauge_since": "2026-07-31"
 }
