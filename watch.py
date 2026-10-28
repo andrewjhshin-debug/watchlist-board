@@ -190,9 +190,15 @@ def kis_240(sym: str) -> dict | None:
 
 
 def day_market_now() -> bool:
-    """한국 평일 낮(주간거래 시간). ponytail: 서머타임 기준 09:00~17:00, 11월 서머타임 끝나면 10:00~18:00 으로."""
+    """한국 평일 주간거래 시간. 미국 서머타임이면 09~17시, 아니면 10~18시(11월 첫 일요일~3월)."""
     n = datetime.now(KST)
-    return n.weekday() < 5 and 9 <= n.hour < 17
+    try:
+        from zoneinfo import ZoneInfo
+        dst = bool(datetime.now(ZoneInfo("America/New_York")).dst())
+    except Exception:  # 시간대 정보가 없는 PC 등: 3~10월을 서머타임으로
+        dst = 3 <= n.month <= 10
+    start = 9 if dst else 10
+    return n.weekday() < 5 and start <= n.hour < start + 8
 
 
 def quote(sym: str) -> tuple[float, float]:
@@ -210,7 +216,7 @@ def quote(sym: str) -> tuple[float, float]:
             print("  한투 지수 실패:", sym, type(e).__name__)
     d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}"
                  "?range=1d&interval=1m&includePrePost=true")["chart"]["result"][0]
-    closes = [c for c in d["indicators"]["quote"][0]["close"] if c is not None]
+    closes = [c for c in d["indicators"]["quote"][0].get("close") or [] if c is not None]  # 선물은 빈 응답이 가끔 옴
     m = d["meta"]
     if day_market_now() and not sym.startswith("^") and "=" not in sym:  # 지수·선물 제외  # 지수(나스닥 종합)는 주간거래 없음
         try:
