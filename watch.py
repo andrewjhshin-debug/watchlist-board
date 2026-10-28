@@ -432,10 +432,10 @@ svg{{width:100%;height:100%;display:block}}
 rect.cu{{fill:var(--up)}}rect.cd{{fill:var(--dn)}}line.cu{{stroke:var(--up)}}line.cd{{stroke:var(--dn)}}
 line.cu,line.cd{{stroke-width:1.5;vector-effect:non-scaling-stroke}}
 .gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
-.lv4{{--lv:#ff4d6d}}.lv3{{--lv:#ff9a3c}}.lv2{{--lv:#c8f04a}}.lv1{{--lv:#5dff6e}}
+.lv4{{--lv:#ff1f4b}}.lv3{{--lv:#ff8c00}}.lv2{{--lv:#c6ff00}}.lv1{{--lv:#39ff14}}
 body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6f9a00}}body.day .lv1{{--lv:#1f9e3a}}
 .tile[class*=" lv"] .name{{color:var(--lv)}}
-.below{{--win:#00ff3c}}body.day .below{{--win:#00a82a}}.below .name,.below .price,.below .tgttxt b{{color:color-mix(in srgb,var(--win) var(--gp),var(--txt))}}.below .gauge i{{margin-left:auto;background:color-mix(in srgb,var(--win) var(--gp),var(--txt))}}.gauge i{{background:var(--lv)}}
+.below{{--win:#00ff3c}}body.day .below{{--win:#00a82a}}.below .name,.below .price,.below .tgttxt b{{color:color-mix(in srgb,var(--win) var(--gp),var(--txt))}}.below .gauge i{{margin-left:auto;background:var(--win);box-shadow:0 0 4px var(--win),0 0 10px var(--win)}}.gauge i{{background:var(--lv);box-shadow:0 0 4px var(--lv),0 0 10px var(--lv)}}
 .tgttxt{{margin-top:3px;font-size:11px;color:var(--tgt)}}.tgttxt b{{font-weight:normal;color:var(--sub)}}
 .badge.t{{background:var(--tgt)}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
