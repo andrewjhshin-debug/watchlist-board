@@ -10,15 +10,15 @@
     {"sym": "CL=F", "name": "WTI 선물"},
     {"sym": "BATL", "name": "BATL"},
     {"sym": "^IXIC", "name": "나스닥 종합"},
-    {"sym": "ecos:901Y067/I16E", "name": "선행지수", "target": [100, 98]},
     {"sym": "^KS11", "name": "코스피"},
     {"sym": "^KQ11", "name": "코스닥"}
   ],
   "pc_order": ["AXTI", "SOXL", "AXTX", "^IXIC",
-               "upbit:KRW-BTC", "USDE", "SDEV", "ecos:901Y067/I16E",
+               "upbit:KRW-BTC", "USDE", "SDEV",
                "CL=F", "BATL", "^KS11", "^KQ11"],
   "sync_project": "watchlist-board-f89b61",
   "sync_key": "AIzaSyD9x_af0VUakIbNevofS_zheNC68Lz2OOk",
   "refresh_min": 10,
   "gauge_since": "2026-07-31"
 }
+
