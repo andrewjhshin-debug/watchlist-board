@@ -445,7 +445,14 @@ body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-templ
 body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;align-content:start;min-height:0;gap:clamp(8px,2.4dvh,24px);padding-block:clamp(6px,1.2dvh,12px)}}
 .baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(30vw,18dvh,200px);line-height:1;overflow:hidden}}
-/* 바 모드: 지수 4종은 숨기고 지정한 8종목이 화면 높이를 균등하게 사용. */
+.bar-footer{{display:none}}
+body.baronly .bar-footer{{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:0;padding:0 clamp(8px,2vw,16px) 4px}}
+body.baronly .bar-footer:has(.bar-leading:not([hidden])){{grid-template-columns:minmax(0,1fr) clamp(100px,31vw,160px);column-gap:clamp(8px,2vw,20px)}}
+.bar-footer .baravg{{min-width:0}}.bar-leading[hidden]{{display:none}}
+.bar-leading{{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;color:var(--txt);line-height:1.2;text-align:center}}
+.bar-leading-value{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:clamp(22px,6.5vw,38px);font-variant-numeric:tabular-nums;white-space:nowrap}}
+.bar-leading-meta{{font-size:clamp(9px,2.6vw,12px);color:var(--sub);line-height:1.4;word-break:keep-all}}
+/* 바 모드: 막대 8종목과 평균 옆 선행지수 숫자 요약. */
 body.baronly .tile:not(.zoom){{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:zoom-in}}body.baronly .tile:not(.zoom)>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
 body.baronly .tile:not(.zoom):has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile:not(.zoom)[data-sym="ecos:901Y067/I16E"],body.baronly .tile:not(.zoom)[data-sym="^KS11"],body.baronly .tile:not(.zoom)[data-sym="^KQ11"],body.baronly .tile:not(.zoom)[data-sym="^IXIC"]{{display:none}}
 body.baronly .grid-wrap .tile:not(.zoom){{padding-block:0!important}}
@@ -461,7 +468,7 @@ body.baronly .grid-wrap .tile:not(.zoom)[data-sym="CL=F"] .gauge[hidden]{{displa
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button></div>
-{err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div id="baravg" class="baravg"></div>
+{err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><div id="baravg" class="baravg"></div><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
 function setV(v){{document.body.dataset.v=v;document.getElementById('vdesc').textContent=D[v];try{{localStorage.v=v}}catch(e){{}}}}
@@ -509,10 +516,18 @@ async function editT2(el){{await askSync();
   if(v===null)return;const t=v.split(/[ ,]+/).map(x=>parseFloat(x.replace(/[^0-9.]/g,''))).filter(x=>x>0);
   ls('tg:'+el.dataset.sym,JSON.stringify(t));
   renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);pushT();}}
+function paintBarLeading(el){{
+  const b=document.getElementById('bar-leading');if(!b)return;
+  const value=el.querySelector('.price')?.textContent.trim()||'',note=el.querySelector('.name small')?.textContent.trim()||'';
+  b.hidden=!value;
+  document.getElementById('bar-leading-value').textContent=value;
+  document.getElementById('bar-leading-meta').textContent=note?'('+note+')':'';
+}}
 function apply(sym,price,prev){{
   document.querySelectorAll('.tile[data-sym="'+sym+'"]').forEach(el=>{{
     const c=el.dataset.cur,ch=price-prev;el.dataset.p=price;el.dataset.pv=prev;
     el.querySelector('.price').textContent=f2(price,c);
+    if(sym==='ecos:901Y067/I16E')paintBarLeading(el);
     el.classList.toggle('up',ch>=0);el.classList.toggle('down',ch<0);
     el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
     el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
