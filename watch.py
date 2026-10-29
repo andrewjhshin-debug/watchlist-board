@@ -400,7 +400,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .grid-wrap{{display:grid;grid-auto-flow:dense;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
 @media(min-width:601px){{.grid-wrap{{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:row}}{pc_order}
 .grid-wrap .tile:not(.zoom) .chart{{aspect-ratio:auto;height:max(36px,calc((100vh - 132px) / {(len(items) + 3) // 4} - 132px))}}}}
-@media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.tabs{{gap:3px}}.tabs button{{padding:2px 5px!important}}#reload,#pct{{margin-left:2px!important}}header{{padding:6px 4px!important;gap:4px!important}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 7px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
+@media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.tabs{{gap:3px}}.tabs button{{padding:2px 5px!important}}#reload,#pct,#bar{{margin-left:2px!important}}header{{padding:6px 4px!important;gap:4px!important}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 4px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
 .wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/5}}.wide .tgttxt{{display:inline-block;margin-right:14px}}.tgttxt{{white-space:nowrap}}.name small{{color:var(--sub);font-size:.72em;white-space:nowrap}}.name{{white-space:nowrap;overflow:hidden}}
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}
 .name{{font-size:15px}}.price{{font-size:22px;margin:4px 0 2px}}.chg{{font-size:12px}}
@@ -440,8 +440,12 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .badge.t{{background:var(--tgt)}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
+#bar{{margin-left:6px}}body.baronly{{background:#000}}body.baronly .note,body.baronly .err{{display:none}}
+body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;gap:14px}}
+body.baronly .tile{{background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.gauge),body.baronly .name small{{display:none!important}}
+body.baronly .tile:has(.gauge[hidden]){{display:none}}body.baronly .tile .gauge{{height:22px!important;margin-top:4px!important}}body.baronly .tile .name{{font-size:15px!important}}
 </style></head><body>
-<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기">📈 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button></div></header>
+<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기">📈 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
@@ -518,8 +522,8 @@ addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEac
   document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
-// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균. 0=목표 근처(초록) ~ 100=멀다(빨강)
-function showAvg(){{const v=tiles().map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
+// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
+function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
   if(!a)return;if(!v.length){{a.textContent='';return;}}const m=v.reduce((x,y)=>x+y,0)/v.length;
   a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];}}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;}};
@@ -534,6 +538,9 @@ const fold=document.getElementById('fold');
 function setF(on){{document.body.classList.toggle('nochart',on);fold.textContent=on?'차트 펴기':'차트 접기';ls('fold',on?'1':'0');}}
 fold.onclick=()=>setF(!document.body.classList.contains('nochart'));
 setF(innerWidth<601&&ls('fold')!=='0');
+const barB=document.getElementById('bar');
+function setB(on){{document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');}}
+barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
 function getHL(){{try{{return JSON.parse(ls('hl')||'[]');}}catch(e){{return [];}}}}
@@ -541,7 +548,7 @@ function paintHL(){{const h=getHL();tiles().forEach(el=>el.classList.toggle('hl'
 function toggleHL(el){{const h=getHL(),s=el.dataset.sym,i=h.indexOf(s);i<0?h.push(s):h.splice(i,1);ls('hl',JSON.stringify(h));paintHL();pushT();
   if(navigator.vibrate)navigator.vibrate(30);}}
 let tapT=null,tapEl=null;
-function tap(el){{if(el.classList.contains('zoom')){{history.back();return;}}
+function tap(el){{if(document.body.classList.contains('baronly'))return;if(el.classList.contains('zoom')){{history.back();return;}}
   if(tapT&&tapEl===el){{clearTimeout(tapT);tapT=null;toggleHL(el);return;}}  // 두 번째 탭 → 테두리
   clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;el.classList.add('zoom');history.pushState({{pop:1}},'');}},300);}}  // 한 번 → 잠깐 기다렸다 펼침
 paintHL();
