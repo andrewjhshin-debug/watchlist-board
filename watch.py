@@ -441,9 +441,10 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 #bar{{margin-left:6px}}.bar-live{{display:none}}
-body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto minmax(0,1fr)}}body.baronly .note,body.baronly .err{{display:none}}
+body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto auto minmax(0,1fr)}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
-body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:minmax(0,1fr);min-height:0;gap:clamp(3px,1dvh,10px);padding-block:clamp(4px,.8dvh,8px)}}
+body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;align-content:start;min-height:0;gap:clamp(8px,2dvh,18px);padding-block:clamp(6px,1.2dvh,12px)}}
+.baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(30vw,22dvh,200px);line-height:1}}
 /* 바 모드: 지수 4종은 숨기고 지정한 8종목이 화면 높이를 균등하게 사용. */
 body.baronly .tile{{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
 body.baronly .tile:has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile[data-sym="ecos:901Y067/I16E"],body.baronly .tile[data-sym="^KS11"],body.baronly .tile[data-sym="^KQ11"],body.baronly .tile[data-sym="^IXIC"]{{display:none}}
@@ -460,7 +461,7 @@ body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden]{{display:block!imp
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기">📈 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button></div>
-{err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
+{err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div id="baravg" class="baravg"></div>
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
 function setV(v){{document.body.dataset.v=v;document.getElementById('vdesc').textContent=D[v];try{{localStorage.v=v}}catch(e){{}}}}
@@ -538,7 +539,8 @@ const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33',
 // 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수·WTI·나스닥 종합·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
 function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')&&!['CL=F','^IXIC','^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
   if(!a)return;if(!v.length){{a.textContent='';return;}}const m=v.reduce((x,y)=>x+y,0)/v.length;
-  a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];}}
+  a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];
+  const b=document.getElementById('baravg');if(b){{b.textContent=a.textContent;b.style.color=a.style.color;}}}}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-live');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(){{for(let k=1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return;try{{const r=await fetch(RAW+sl+'.json',{{cache:'no-store'}});
