@@ -444,14 +444,14 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto minmax(0,1fr)}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:minmax(0,1fr);min-height:0;gap:clamp(3px,1dvh,10px);padding-block:clamp(4px,.8dvh,8px)}}
-/* 바 모드: 국내지수와 선행지수를 숨기고 나머지 종목이 화면 높이를 균등하게 사용. WTI도 표시. */
+/* 바 모드: 지수 4종은 숨기고 지정한 8종목이 화면 높이를 균등하게 사용. */
 body.baronly .tile{{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
-body.baronly .tile:has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile[data-sym="ecos:901Y067/I16E"],body.baronly .tile[data-sym="^KS11"],body.baronly .tile[data-sym="^KQ11"]{{display:none}}
+body.baronly .tile:has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile[data-sym="ecos:901Y067/I16E"],body.baronly .tile[data-sym="^KS11"],body.baronly .tile[data-sym="^KQ11"],body.baronly .tile[data-sym="^IXIC"]{{display:none}}
 body.baronly .grid-wrap .tile{{padding-block:0!important}}
 body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:15px!important;line-height:1.1}}
 body.baronly .grid-wrap .tile .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:16px!important;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:#000;text-shadow:none;pointer-events:none}}
 body.baronly .grid-wrap .tile .gauge{{grid-area:2 / 1 / 3 / -1;z-index:0;height:22px!important;margin:0!important;min-width:0}}
-body.baronly .grid-wrap .tile[data-sym="CL=F"]{{order:90}}body.baronly .grid-wrap .tile[data-sym="^KS11"]{{order:91}}body.baronly .grid-wrap .tile[data-sym="^KQ11"]{{order:92}}
+body.baronly .grid-wrap .tile[data-sym="upbit:KRW-BTC"]{{order:0}}body.baronly .grid-wrap .tile[data-sym="USDE"]{{order:1}}body.baronly .grid-wrap .tile[data-sym="SDEV"]{{order:2}}body.baronly .grid-wrap .tile[data-sym="AXTI"]{{order:3}}body.baronly .grid-wrap .tile[data-sym="SOXL"]{{order:4}}body.baronly .grid-wrap .tile[data-sym="AXTX"]{{order:5}}body.baronly .grid-wrap .tile[data-sym="BATL"]{{order:6}}body.baronly .grid-wrap .tile[data-sym="CL=F"]{{order:7}}
 body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden]{{display:block!important}}body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden] i{{width:0!important}}
 @media(max-width:600px){{body.baronly header{{flex-wrap:wrap;row-gap:6px!important}}}}
 @media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile{{row-gap:3px}}body.baronly .grid-wrap .tile .name{{font-size:14px!important}}body.baronly .grid-wrap .tile .gauge{{height:20px!important}}}}
@@ -535,8 +535,8 @@ addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEac
   document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
-// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수·WTI·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
-function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')&&!['CL=F','^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
+// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수·WTI·나스닥 종합·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
+function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')&&!['CL=F','^IXIC','^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
   if(!a)return;if(!v.length){{a.textContent='';return;}}const m=v.reduce((x,y)=>x+y,0)/v.length;
   a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];}}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-live');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
