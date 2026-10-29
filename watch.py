@@ -444,9 +444,9 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto minmax(0,1fr)}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:minmax(0,1fr);min-height:0;gap:clamp(3px,1dvh,10px);padding-block:clamp(4px,.8dvh,8px)}}
-/* 바 모드: 현재가만 작게 표시하고 목표가 없는 WTI도 코스피 바로 위에 표시. */
+/* 바 모드: 국내지수와 선행지수를 숨기고 나머지 종목이 화면 높이를 균등하게 사용. WTI도 표시. */
 body.baronly .tile{{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
-body.baronly .tile:has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile[data-sym="ecos:901Y067/I16E"]{{display:none}}
+body.baronly .tile:has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile[data-sym="ecos:901Y067/I16E"],body.baronly .tile[data-sym="^KS11"],body.baronly .tile[data-sym="^KQ11"]{{display:none}}
 body.baronly .grid-wrap .tile{{padding-block:0!important}}
 body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:15px!important;line-height:1.1}}
 body.baronly .grid-wrap .tile .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:16px!important;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:#000;text-shadow:none;pointer-events:none}}
