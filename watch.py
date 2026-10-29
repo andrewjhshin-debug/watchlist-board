@@ -449,7 +449,7 @@ body.baronly .tile{{display:grid;grid-template-columns:minmax(0,1fr);grid-templa
 body.baronly .tile:has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile[data-sym="ecos:901Y067/I16E"]{{display:none}}
 body.baronly .grid-wrap .tile{{padding-block:0!important}}
 body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:15px!important;line-height:1.1}}
-body.baronly .grid-wrap .tile .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:16px!important;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:var(--txt);text-shadow:none;pointer-events:none}}
+body.baronly .grid-wrap .tile .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:16px!important;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:#000;text-shadow:none;pointer-events:none}}
 body.baronly .grid-wrap .tile .gauge{{grid-area:2 / 1 / 3 / -1;z-index:0;height:22px!important;margin:0!important;min-width:0}}
 body.baronly .grid-wrap .tile[data-sym="CL=F"]{{order:90}}body.baronly .grid-wrap .tile[data-sym="^KS11"]{{order:91}}body.baronly .grid-wrap .tile[data-sym="^KQ11"]{{order:92}}
 body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden]{{display:block!important}}body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden] i{{width:0!important}}
