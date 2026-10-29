@@ -442,8 +442,14 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 #bar{{margin-left:6px}}body.baronly{{background:#000}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;gap:14px}}
-body.baronly .tile{{background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.gauge),body.baronly .name small{{display:none!important}}
-body.baronly .tile:has(.gauge[hidden]){{display:none}}body.baronly .tile .gauge{{height:22px!important;margin-top:4px!important}}body.baronly .tile .name{{font-size:15px!important}}
+/* 바 모드 C안: 종목명·막대·현재가 한 줄. 선행지수는 차트에 남기고 여기서만 숨김. */
+body.baronly .grid-wrap .tile{{display:grid;grid-template-columns:84px minmax(32px,1fr) 114px;grid-template-areas:"name gauge price";align-items:center;column-gap:12px;min-height:36px;background:none;border:0;padding:0 4px;cursor:default}}
+body.baronly .tile>:not(.name):not(.gauge):not(.price),body.baronly .name small{{display:none!important}}
+body.baronly .tile:has(.gauge[hidden]),body.baronly .grid-wrap .tile[data-sym="ecos:901Y067/I16E"]{{display:none}}
+body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:14px!important}}
+body.baronly .grid-wrap .tile .gauge{{grid-area:gauge;height:16px!important;margin:0!important}}
+body.baronly .grid-wrap .tile .price{{grid-area:price;font-size:12px!important;line-height:1.5;margin:0!important;text-align:right;font-family:'GalmuriMono11','Galmuri11',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--txt);opacity:.85}}
+@media(max-width:600px){{body.baronly header{{flex-wrap:wrap;row-gap:6px!important}}body.baronly .grid-wrap .tile{{grid-template-columns:76px minmax(28px,1fr) 114px;column-gap:8px}}body.baronly .grid-wrap .tile .name{{font-size:13px!important}}}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기">📈 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button></div>
