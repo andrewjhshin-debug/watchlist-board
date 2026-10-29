@@ -442,11 +442,12 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 #bar{{margin-left:6px}}body.baronly{{background:#000}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;gap:14px}}
-/* 바 모드: 원래 막대 크기 유지, 현재가는 막대 안 오른쪽 끝. */
-body.baronly .tile{{background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.gauge),body.baronly .name small{{display:none!important}}
+/* 바 모드: 현재가를 종목명 바로 옆에 크게, 막대 크기는 유지. */
+body.baronly .tile{{display:grid;grid-template-columns:max-content minmax(0,1fr);grid-template-areas:"name price" "gauge gauge";column-gap:10px;align-items:baseline;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
 body.baronly .tile:has(.gauge[hidden]),body.baronly .tile[data-sym="ecos:901Y067/I16E"]{{display:none}}
-body.baronly .tile .gauge{{position:relative;height:22px!important;margin-top:4px!important}}body.baronly .tile .name{{font-size:15px!important}}
-body.baronly .tile .gauge::after{{content:attr(data-price);position:absolute;top:0;right:6px;height:100%;display:flex;align-items:center;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:12px;font-variant-numeric:tabular-nums;line-height:1;white-space:nowrap;color:var(--txt);text-shadow:1px 1px 1px #000,-1px -1px 1px #000,1px -1px 1px #000,-1px 1px 1px #000;pointer-events:none}}
+body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:15px!important}}
+body.baronly .grid-wrap .tile .price{{grid-area:price;justify-self:start;align-self:baseline;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:18px!important;font-variant-numeric:tabular-nums;line-height:1.25;margin:0!important;white-space:nowrap;color:var(--txt)}}
+body.baronly .grid-wrap .tile .gauge{{grid-area:gauge;height:22px!important;margin-top:4px!important;min-width:0}}
 @media(max-width:600px){{body.baronly header{{flex-wrap:wrap;row-gap:6px!important}}}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기">📈 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
@@ -503,7 +504,6 @@ function apply(sym,price,prev){{
   document.querySelectorAll('.tile[data-sym="'+sym+'"]').forEach(el=>{{
     const c=el.dataset.cur,ch=price-prev;el.dataset.p=price;el.dataset.pv=prev;
     el.querySelector('.price').textContent=f2(price,c);
-    el.querySelector('.gauge').dataset.price=f2(price,c);
     el.classList.toggle('up',ch>=0);el.classList.toggle('down',ch<0);
     el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
     el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
