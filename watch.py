@@ -442,12 +442,14 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 #bar{{margin-left:6px}}body.baronly{{background:#000}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;gap:14px}}
-/* 바 모드: 현재가를 종목명 바로 옆에 크게, 막대 크기는 유지. */
-body.baronly .tile{{display:grid;grid-template-columns:max-content minmax(0,1fr);grid-template-areas:"name price" "gauge gauge";column-gap:10px;align-items:baseline;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
+/* 바 모드: 채움 길이와 무관하게 현재가·일봉 전일 대비를 막대 안 왼쪽에 고정. */
+body.baronly .tile{{display:grid;grid-template-columns:max-content minmax(0,1fr);grid-template-areas:"name name" "price change";column-gap:8px;row-gap:4px;align-items:center;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.chg):not(.gauge),body.baronly .name small{{display:none!important}}
 body.baronly .tile:has(.gauge[hidden]),body.baronly .tile[data-sym="ecos:901Y067/I16E"]{{display:none}}
 body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:15px!important}}
-body.baronly .grid-wrap .tile .price{{grid-area:price;justify-self:start;align-self:baseline;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:18px!important;font-variant-numeric:tabular-nums;line-height:1.25;margin:0!important;white-space:nowrap;color:var(--txt)}}
-body.baronly .grid-wrap .tile .gauge{{grid-area:gauge;height:22px!important;margin-top:4px!important;min-width:0}}
+body.baronly .grid-wrap .tile .price,body.baronly .grid-wrap .tile .chg{{z-index:1;justify-self:start;align-self:center;font-family:'GalmuriMono11','Galmuri11',monospace;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:var(--txt);text-shadow:1px 1px 1px #000,-1px -1px 1px #000,1px -1px 1px #000,-1px 1px 1px #000;pointer-events:none}}
+body.baronly .grid-wrap .tile .price{{grid-area:price;padding-left:6px;font-size:18px!important}}
+body.baronly .grid-wrap .tile .chg{{grid-area:change;font-size:12px!important}}
+body.baronly .grid-wrap .tile .gauge{{grid-area:2 / 1 / 3 / -1;z-index:0;height:22px!important;margin:0!important;min-width:0}}
 @media(max-width:600px){{body.baronly header{{flex-wrap:wrap;row-gap:6px!important}}}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기">📈 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
