@@ -440,19 +440,25 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .badge.t{{background:var(--tgt)}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
-#bar{{margin-left:6px}}body.baronly{{background:#000}}body.baronly .note,body.baronly .err{{display:none}}
-body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;gap:14px}}
-/* 바 모드: 채움 길이와 무관하게 현재가·일봉 전일 대비를 막대 안 왼쪽에 고정. */
-body.baronly .tile{{display:grid;grid-template-columns:max-content minmax(0,1fr);grid-template-areas:"name name" "price change";column-gap:8px;row-gap:4px;align-items:center;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.chg):not(.gauge),body.baronly .name small{{display:none!important}}
-body.baronly .tile:has(.gauge[hidden]),body.baronly .tile[data-sym="ecos:901Y067/I16E"]{{display:none}}
-body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:15px!important}}
-body.baronly .grid-wrap .tile .price,body.baronly .grid-wrap .tile .chg{{z-index:1;justify-self:start;align-self:center;font-family:'GalmuriMono11','Galmuri11',monospace;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:var(--txt);text-shadow:1px 1px 1px #000,-1px -1px 1px #000,1px -1px 1px #000,-1px 1px 1px #000;pointer-events:none}}
-body.baronly .grid-wrap .tile .price{{grid-area:price;padding-left:6px;font-size:18px!important}}
-body.baronly .grid-wrap .tile .chg{{grid-area:change;font-size:12px!important}}
+#bar{{margin-left:6px}}.bar-live{{display:none}}
+body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto minmax(0,1fr)}}body.baronly .note,body.baronly .err{{display:none}}
+body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
+body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:minmax(0,1fr);min-height:0;gap:clamp(3px,1dvh,10px);padding-block:clamp(4px,.8dvh,8px)}}
+/* 바 모드: 현재가만 작게 표시하고 목표가 없는 WTI도 코스피 바로 위에 표시. */
+body.baronly .tile{{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
+body.baronly .tile:has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile[data-sym="ecos:901Y067/I16E"]{{display:none}}
+body.baronly .grid-wrap .tile{{padding-block:0!important}}
+body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:15px!important;line-height:1.1}}
+body.baronly .grid-wrap .tile .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:16px!important;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:var(--txt);text-shadow:none;pointer-events:none}}
 body.baronly .grid-wrap .tile .gauge{{grid-area:2 / 1 / 3 / -1;z-index:0;height:22px!important;margin:0!important;min-width:0}}
+body.baronly .grid-wrap .tile[data-sym="CL=F"]{{order:90}}body.baronly .grid-wrap .tile[data-sym="^KS11"]{{order:91}}body.baronly .grid-wrap .tile[data-sym="^KQ11"]{{order:92}}
+body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden]{{display:block!important}}body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden] i{{width:0!important}}
 @media(max-width:600px){{body.baronly header{{flex-wrap:wrap;row-gap:6px!important}}}}
+@media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile{{row-gap:3px}}body.baronly .grid-wrap .tile .name{{font-size:14px!important}}body.baronly .grid-wrap .tile .gauge{{height:20px!important}}}}
+@media(max-height:520px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile{{row-gap:2px}}body.baronly .grid-wrap .tile .name{{font-size:12px!important}}body.baronly .grid-wrap .tile .price{{font-size:14px!important}}body.baronly .grid-wrap .tile .gauge{{height:18px!important}}}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기">📈 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
+<div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div>
 <script>
@@ -529,11 +535,11 @@ addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEac
   document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
-// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
-function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')&&!['^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
+// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수·WTI·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
+function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')&&!['CL=F','^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
   if(!a)return;if(!v.length){{a.textContent='';return;}}const m=v.reduce((x,y)=>x+y,0)/v.length;
   a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];}}
-const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;}};
+const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-live');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(){{for(let k=1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return;try{{const r=await fetch(RAW+sl+'.json',{{cache:'no-store'}});
   if(r.ok){{lastSlot=sl;const j=await r.json();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return;}}}}catch(e){{}}}}}}
