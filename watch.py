@@ -527,8 +527,8 @@ addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEac
   document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
-// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
-function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
+// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
+function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')&&!['^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
   if(!a)return;if(!v.length){{a.textContent='';return;}}const m=v.reduce((x,y)=>x+y,0)/v.length;
   a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];}}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;}};
