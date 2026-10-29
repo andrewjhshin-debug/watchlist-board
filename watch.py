@@ -446,12 +446,12 @@ body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-hei
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;align-content:start;min-height:0;gap:clamp(8px,2.4dvh,24px);padding-block:clamp(6px,1.2dvh,12px)}}
 .baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(30vw,18dvh,200px);line-height:1;overflow:hidden}}
 .bar-footer{{display:none}}
-body.baronly .bar-footer{{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:0;padding:0 clamp(8px,2vw,16px) 4px}}
-body.baronly .bar-footer:has(.bar-leading:not([hidden])){{grid-template-columns:minmax(0,1fr) clamp(100px,31vw,160px);column-gap:clamp(8px,2vw,20px)}}
+body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:0}}
+
 .bar-footer .baravg{{min-width:0}}.bar-leading[hidden]{{display:none}}
-.bar-leading{{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;color:var(--txt);line-height:1.2;text-align:center}}
-.bar-leading-value{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:clamp(22px,6.5vw,38px);font-variant-numeric:tabular-nums;white-space:nowrap}}
-.bar-leading-meta{{font-size:clamp(9px,2.6vw,12px);color:var(--sub);line-height:1.4;word-break:keep-all}}
+.bar-leading{{position:absolute;right:clamp(6px,1.5vw,16px);top:50%;transform:translateY(-50%);width:clamp(56px,16vw,84px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;color:var(--sub);line-height:1.2;text-align:center}}
+.bar-leading-value{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:clamp(12px,3.2vw,16px);font-variant-numeric:tabular-nums;white-space:nowrap}}
+.bar-leading-meta{{font-size:clamp(8px,2.1vw,10px);color:var(--sub);line-height:1.4;word-break:keep-all}}
 /* 바 모드: 막대 8종목과 평균 옆 선행지수 숫자 요약. */
 body.baronly .tile:not(.zoom){{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:zoom-in}}body.baronly .tile:not(.zoom)>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
 body.baronly .tile:not(.zoom):has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile:not(.zoom)[data-sym="ecos:901Y067/I16E"],body.baronly .tile:not(.zoom)[data-sym="^KS11"],body.baronly .tile:not(.zoom)[data-sym="^KQ11"],body.baronly .tile:not(.zoom)[data-sym="^IXIC"]{{display:none}}
