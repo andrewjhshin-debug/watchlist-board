@@ -446,17 +446,17 @@ body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-hei
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;align-content:start;min-height:0;gap:clamp(8px,2.4dvh,24px);padding-block:clamp(6px,1.2dvh,12px)}}
 .baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(30vw,18dvh,200px);line-height:1;overflow:hidden}}
 /* 바 모드: 지수 4종은 숨기고 지정한 8종목이 화면 높이를 균등하게 사용. */
-body.baronly .tile{{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:default}}body.baronly .tile>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
-body.baronly .tile:has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile[data-sym="ecos:901Y067/I16E"],body.baronly .tile[data-sym="^KS11"],body.baronly .tile[data-sym="^KQ11"],body.baronly .tile[data-sym="^IXIC"]{{display:none}}
-body.baronly .grid-wrap .tile{{padding-block:0!important}}
-body.baronly .grid-wrap .tile .name{{grid-area:name;font-size:19px!important;line-height:1.1}}
-body.baronly .grid-wrap .tile .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:19px!important;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:#000;text-shadow:none;pointer-events:none}}
-body.baronly .grid-wrap .tile .gauge{{grid-area:2 / 1 / 3 / -1;z-index:0;height:26px!important;margin:0!important;min-width:0}}
-body.baronly .grid-wrap .tile[data-sym="upbit:KRW-BTC"]{{order:0}}body.baronly .grid-wrap .tile[data-sym="USDE"]{{order:1}}body.baronly .grid-wrap .tile[data-sym="SDEV"]{{order:2}}body.baronly .grid-wrap .tile[data-sym="AXTI"]{{order:3}}body.baronly .grid-wrap .tile[data-sym="SOXL"]{{order:4}}body.baronly .grid-wrap .tile[data-sym="AXTX"]{{order:5}}body.baronly .grid-wrap .tile[data-sym="BATL"]{{order:6}}body.baronly .grid-wrap .tile[data-sym="CL=F"]{{order:7}}
-body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden]{{display:block!important}}body.baronly .grid-wrap .tile[data-sym="CL=F"] .gauge[hidden] i{{width:0!important}}
+body.baronly .tile:not(.zoom){{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:zoom-in}}body.baronly .tile:not(.zoom)>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
+body.baronly .tile:not(.zoom):has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile:not(.zoom)[data-sym="ecos:901Y067/I16E"],body.baronly .tile:not(.zoom)[data-sym="^KS11"],body.baronly .tile:not(.zoom)[data-sym="^KQ11"],body.baronly .tile:not(.zoom)[data-sym="^IXIC"]{{display:none}}
+body.baronly .grid-wrap .tile:not(.zoom){{padding-block:0!important}}
+body.baronly .grid-wrap .tile:not(.zoom) .name{{grid-area:name;font-size:19px!important;line-height:1.1}}
+body.baronly .grid-wrap .tile:not(.zoom) .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:19px!important;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:#000;text-shadow:none;pointer-events:none}}
+body.baronly .grid-wrap .tile:not(.zoom) .gauge{{grid-area:2 / 1 / 3 / -1;z-index:0;height:26px!important;margin:0!important;min-width:0}}
+body.baronly .grid-wrap .tile:not(.zoom)[data-sym="upbit:KRW-BTC"]{{order:0}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="USDE"]{{order:1}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="SDEV"]{{order:2}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="AXTI"]{{order:3}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="SOXL"]{{order:4}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="AXTX"]{{order:5}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="BATL"]{{order:6}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="CL=F"]{{order:7}}
+body.baronly .grid-wrap .tile:not(.zoom)[data-sym="CL=F"] .gauge[hidden]{{display:block!important}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="CL=F"] .gauge[hidden] i{{width:0!important}}
 @media(max-width:600px){{body.baronly header{{flex-wrap:wrap;row-gap:6px!important}}}}
-@media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile{{row-gap:3px}}body.baronly .grid-wrap .tile .name{{font-size:14px!important}}body.baronly .grid-wrap .tile .gauge{{height:20px!important}}}}
-@media(max-height:520px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile{{row-gap:2px}}body.baronly .grid-wrap .tile .name{{font-size:12px!important}}body.baronly .grid-wrap .tile .price{{font-size:14px!important}}body.baronly .grid-wrap .tile .gauge{{height:18px!important}}}}
+@media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:20px!important}}}}
+@media(max-height:520px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile:not(.zoom){{row-gap:2px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:12px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:18px!important}}}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기">📈 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
@@ -563,7 +563,8 @@ function paintHL(){{const h=getHL();tiles().forEach(el=>el.classList.toggle('hl'
 function toggleHL(el){{const h=getHL(),s=el.dataset.sym,i=h.indexOf(s);i<0?h.push(s):h.splice(i,1);ls('hl',JSON.stringify(h));paintHL();pushT();
   if(navigator.vibrate)navigator.vibrate(30);}}
 let tapT=null,tapEl=null;
-function tap(el){{if(document.body.classList.contains('baronly'))return;if(el.classList.contains('zoom')){{history.back();return;}}
+function tap(el){{if(el.classList.contains('zoom')){{history.back();return;}}
+  if(document.body.classList.contains('baronly')){{clearTimeout(tapT);tapT=null;el.classList.add('zoom');history.pushState({{pop:1}},'');return;}}
   if(tapT&&tapEl===el){{clearTimeout(tapT);tapT=null;toggleHL(el);return;}}  // 두 번째 탭 → 테두리
   clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;el.classList.add('zoom');history.pushState({{pop:1}},'');}},300);}}  // 한 번 → 잠깐 기다렸다 펼침
 paintHL();
