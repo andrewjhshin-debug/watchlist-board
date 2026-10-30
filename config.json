@@ -12,7 +12,8 @@
     {"sym": "^IXIC", "name": "나스닥 종합"},
     {"sym": "ecos:901Y067/I16E", "name": "선행지수", "target": [100, 98]},
     {"sym": "^KS11", "name": "코스피"},
-    {"sym": "^KQ11", "name": "코스닥"}
+    {"sym": "^KQ11", "name": "코스닥"},
+    {"sym": "SOXS", "name": "SOXS", "bar_only": true}
   ],
   "pc_order": ["AXTI", "SOXL", "AXTX", "^IXIC",
                "upbit:KRW-BTC", "USDE", "SDEV", "ecos:901Y067/I16E",

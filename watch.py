@@ -349,6 +349,7 @@ def tile(d: dict) -> str:
     # 다가올수록 줄어듦. 이름과 막대는 같은 4단계 색: 75%↑ 빨강, 50%↑ 주황, 25%↑ 노랑, 그 아래 흰색(임박)
     hi = d["peak"][0] if d.get("peak") else max(day["closes"])
     lv, left = "", 0.0
+    bar_attr = ' data-bar-only="1"' if d.get("bar_only") else ""
     live_attr = f' data-hi="{hi}" data-tgts0="{json.dumps(tgts)}" data-tgts="{json.dumps(tgts)}" data-p="{price}" data-pv="{prev}"'
     if tgts:
         t = max(tgts)  # 여러 목표면 가장 가까운(높은) 목표
@@ -364,7 +365,7 @@ def tile(d: dict) -> str:
         when = f' <small>{m}월분·{m % 12 + 1}월말 발표</small>'  # 통계청은 다음 달 말 발표
     else:
         when = ""
-    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{live_attr} onclick="tap(this)">'
+    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{bar_attr}{live_attr} onclick="tap(this)">'
             f'<div class="name">{html.escape(d["name"])}{when}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
@@ -375,8 +376,9 @@ def tile(d: dict) -> str:
 def render(items: list[dict], errors: list[str]) -> None:
     now = datetime.now(KST).strftime("%m/%d %H:%M")
     # PC 배치는 config 의 pc_order(4칸, 왼→오, 위→아래). 휴대폰은 symbols 순서 그대로
+    chart_items = [d for d in items if not d.get("bar_only")]
     pc = CFG.get("pc_order", [])
-    pc_order = "".join(f'.tile[data-sym="{d["sym"]}"]{{order:{pc.index(d["sym"]) if d["sym"] in pc else 99}}}' for d in items)
+    pc_order = "".join(f'.tile[data-sym="{d["sym"]}"]{{order:{pc.index(d["sym"]) if d["sym"] in pc else 99}}}' for d in chart_items)
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -399,7 +401,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
 .grid-wrap{{display:grid;grid-auto-flow:dense;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 16px}}
 @media(min-width:601px){{.grid-wrap{{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:row}}{pc_order}
-.grid-wrap .tile:not(.zoom) .chart{{aspect-ratio:auto;height:max(36px,calc((100vh - 132px) / {(len(items) + 3) // 4} - 132px))}}}}
+.grid-wrap .tile:not(.zoom) .chart{{aspect-ratio:auto;height:max(36px,calc((100vh - 132px) / {(len(chart_items) + 3) // 4} - 132px))}}}}
 @media(max-width:600px){{.grid-wrap .chart{{aspect-ratio:30/10}}.tabs{{gap:3px}}.tabs button{{padding:2px 5px!important}}#reload,#pct,#bar{{margin-left:2px!important}}header{{padding:6px 4px!important;gap:4px!important}}.grid-wrap{{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;padding:6px}}.price{{font-size:16px!important}}h1{{font-size:16px!important}}.tabs button{{font-size:12px!important;padding:2px 4px!important}}.tile{{padding:5px 6px}}.name{{font-size:12px}}.chg,.tgttxt{{font-size:10px}}.chart{{margin-top:4px}}}}
 .wide{{grid-column:1/-1}}.wide .chart{{aspect-ratio:30/5}}.wide .tgttxt{{display:inline-block;margin-right:14px}}.tgttxt{{white-space:nowrap}}.name small{{color:var(--sub);font-size:.72em;white-space:nowrap}}.name{{white-space:nowrap;overflow:hidden}}
 .tile{{background:var(--tile);border:3px solid var(--edge);padding:10px}}
@@ -440,30 +442,32 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .badge.t{{background:var(--tgt)}}
 .badge{{margin-left:6px;font-size:10px;background:var(--low);color:#000;padding:1px 4px}}
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
+.tile[data-bar-only]:not(.zoom){{display:none}}
 #bar{{margin-left:6px}}.bar-live{{display:none}}
-body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto auto minmax(0,1fr)}}body.baronly .note,body.baronly .err{{display:none}}
+body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
-body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;align-content:start;min-height:0;gap:clamp(8px,2.4dvh,24px);padding-block:clamp(6px,1.2dvh,12px)}}
-.baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(30vw,18dvh,200px);line-height:1;overflow:hidden}}
+body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1.45fr);grid-auto-rows:minmax(0,1fr);align-content:stretch;min-height:0;gap:clamp(4px,1.1dvh,12px);padding-block:clamp(5px,1dvh,10px)}}
+.baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(24vw,12dvh,144px);line-height:1;overflow:hidden}}
 .bar-footer{{display:none}}
-body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:0}}
+body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:clamp(66px,14dvh,120px)}}
 
 .bar-footer .baravg{{min-width:0}}.bar-leading[hidden]{{display:none}}
 .bar-leading{{position:absolute;right:clamp(6px,1.5vw,16px);top:max(32px,calc(50% - 42px));transform:translateY(-50%);width:clamp(56px,16vw,84px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;color:#fff;line-height:1.2;text-align:center}}
 .bar-leading-value{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:clamp(16px,4.4vw,22px);font-variant-numeric:tabular-nums;white-space:nowrap}}
 .bar-leading-meta{{font-size:clamp(9px,2.4vw,11px);color:#fff;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere}}
-/* 바 모드: 막대 8종목과 평균 옆 선행지수 숫자 요약. */
+/* 바 모드: 9종목. SOXS는 WTI 아래, 차트 모드·평균에서 제외. */
 body.baronly .tile:not(.zoom){{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:zoom-in}}body.baronly .tile:not(.zoom)>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
-body.baronly .tile:not(.zoom):has(.gauge[hidden]):not([data-sym="CL=F"]),body.baronly .tile:not(.zoom)[data-sym="ecos:901Y067/I16E"],body.baronly .tile:not(.zoom)[data-sym="^KS11"],body.baronly .tile:not(.zoom)[data-sym="^KQ11"],body.baronly .tile:not(.zoom)[data-sym="^IXIC"]{{display:none}}
+body.baronly .tile:not(.zoom)[data-sym="ecos:901Y067/I16E"],body.baronly .tile:not(.zoom)[data-sym="^KS11"],body.baronly .tile:not(.zoom)[data-sym="^KQ11"],body.baronly .tile:not(.zoom)[data-sym="^IXIC"]{{display:none}}
 body.baronly .grid-wrap .tile:not(.zoom){{padding-block:0!important}}
 body.baronly .grid-wrap .tile:not(.zoom) .name{{grid-area:name;font-size:19px!important;line-height:1.1}}
-body.baronly .grid-wrap .tile:not(.zoom) .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:19px!important;font-variant-numeric:tabular-nums;line-height:1.2;margin:0!important;white-space:nowrap;color:#000;text-shadow:none;pointer-events:none}}
-body.baronly .grid-wrap .tile:not(.zoom) .gauge{{grid-area:2 / 1 / 3 / -1;z-index:0;height:26px!important;margin:0!important;min-width:0}}
-body.baronly .grid-wrap .tile:not(.zoom)[data-sym="upbit:KRW-BTC"]{{order:0}}body.baronly .tile:not(.zoom)[data-sym="upbit:KRW-BTC"] .gauge{{position:relative}}body.baronly .tile:not(.zoom)[data-sym="upbit:KRW-BTC"] .gauge::after{{content:"7/30";position:absolute;left:0;top:100%;margin-top:2px;font-size:12px;line-height:1;color:var(--sub)}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="USDE"]{{order:1}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="SDEV"]{{order:2}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="AXTI"]{{order:5}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="SOXL"]{{order:3}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="AXTX"]{{order:4}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="BATL"]{{order:6}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="CL=F"]{{order:7}}
-body.baronly .grid-wrap .tile:not(.zoom)[data-sym="CL=F"] .gauge[hidden]{{display:block!important}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="CL=F"] .gauge[hidden] i{{width:0!important}}
+body.baronly .grid-wrap .tile:not(.zoom) .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:19px!important;font-variant-numeric:tabular-nums;line-height:1;margin:0!important;white-space:nowrap;color:#000;text-shadow:none;pointer-events:none}}
+body.baronly .grid-wrap .tile:not(.zoom) .gauge{{grid-area:2 / 1 / 3 / -1;z-index:0;height:24px!important;margin:0!important;min-width:0}}
+body.baronly .grid-wrap .tile:not(.zoom)[data-sym="upbit:KRW-BTC"]{{order:0;padding-bottom:14px!important}}body.baronly .tile:not(.zoom)[data-sym="upbit:KRW-BTC"] .gauge{{position:relative}}body.baronly .tile:not(.zoom)[data-sym="upbit:KRW-BTC"] .gauge::after{{content:"7/30";position:absolute;left:0;top:100%;margin-top:2px;font-size:12px;line-height:1;color:var(--sub)}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="USDE"]{{order:1}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="SDEV"]{{order:2}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="AXTI"]{{order:5}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="SOXL"]{{order:3}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="AXTX"]{{order:4}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="BATL"]{{order:6}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="CL=F"]{{order:7}}body.baronly .grid-wrap .tile:not(.zoom)[data-sym="SOXS"]{{order:8}}
+body.baronly .grid-wrap .tile:not(.zoom) .gauge[hidden]{{display:block!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge[hidden] i{{width:0!important}}
 @media(max-width:600px){{body.baronly header{{flex-wrap:wrap;row-gap:6px!important}}}}
-@media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:20px!important}}}}
-@media(max-height:520px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile:not(.zoom){{row-gap:2px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:12px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:18px!important}}}}
+@media(max-height:700px){{body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:17px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:18px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:22px!important}}}}
+@media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:19px!important}}}}
+@media(max-height:520px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile:not(.zoom){{row-gap:2px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:12px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:17px!important}}}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
@@ -551,8 +555,8 @@ addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEac
   document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
-// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(선행지수·WTI·나스닥 종합·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
-function showAvg(){{const v=tiles().filter(e=>!e.dataset.sym.startsWith('ecos:')&&!['CL=F','^IXIC','^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
+// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(바 전용 종목·선행지수·WTI·나스닥 종합·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
+function showAvg(){{const v=tiles().filter(e=>!e.dataset.barOnly&&!e.dataset.sym.startsWith('ecos:')&&!['CL=F','^IXIC','^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
   if(!a)return;if(!v.length){{a.textContent='';return;}}const m=v.reduce((x,y)=>x+y,0)/v.length;
   a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];
   const b=document.getElementById('baravg');if(b){{b.textContent=a.textContent;b.style.color=a.style.color;}}}}
@@ -616,7 +620,7 @@ def run_once() -> None:
             except Exception:
                 now_q = None
             items.append({"sym": s["sym"], "now": now_q, "peak": peak(s["sym"], views["일"]), "name": s["name"], "target": s.get("target"), "currency": cur, "views": views,
-                          "wide": False, "last": views["일"].get("last")})
+                          "wide": False, "bar_only": s.get("bar_only", False), "last": views["일"].get("last")})
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
             errors.append(f"{s['name']} 불러오기 실패: {e}")
     render(items, errors)
