@@ -444,9 +444,9 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 .tile[data-bar-only]:not(.zoom){{display:none}}
 #bar{{margin-left:6px}}.bar-live{{display:none}}
-body.baronly{{background:#000;height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}}body.baronly .note,body.baronly .err{{display:none}}
+body.baronly{{background:#000;height:calc(100vh - 24px);height:calc(var(--bar-viewport,100dvh) - max(24px,env(safe-area-inset-bottom,0px)));overflow:hidden;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
-body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1.45fr);grid-auto-rows:minmax(0,1fr);align-content:stretch;min-height:0;gap:clamp(4px,1.1dvh,12px);padding-block:clamp(5px,1dvh,10px)}}
+body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1.45fr);grid-auto-rows:minmax(0,1fr);align-content:stretch;min-height:0;gap:clamp(4px,.7dvh,8px);padding-block:clamp(4px,.7dvh,7px)}}
 .baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(24vw,12dvh,144px);line-height:1;overflow:hidden}}
 .bar-footer{{display:none}}
 body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:clamp(66px,14dvh,120px)}}
@@ -455,9 +455,9 @@ body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:m
 .bar-leading{{position:absolute;right:clamp(6px,1.5vw,16px);top:max(32px,calc(50% - 42px));transform:translateY(-50%);width:clamp(56px,16vw,84px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;color:#fff;line-height:1.2;text-align:center}}
 .bar-leading-value{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:clamp(16px,4.4vw,22px);font-variant-numeric:tabular-nums;white-space:nowrap}}
 .bar-leading-meta{{font-size:clamp(9px,2.4vw,11px);color:#fff;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere}}
-/* 바 모드: 9종목. SOXS는 WTI 아래, 차트 모드·평균에서 제외. */
+/* 바 모드: 7종목. BATL·WTI는 숨김. SOXS는 바 전용, 평균은 기존 기준 유지. */
 body.baronly .tile:not(.zoom){{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "price";row-gap:4px;align-items:center;align-content:center;min-height:0;background:none;border:0;padding:0 4px;cursor:zoom-in}}body.baronly .tile:not(.zoom)>:not(.name):not(.price):not(.gauge),body.baronly .name small{{display:none!important}}
-body.baronly .tile:not(.zoom)[data-sym="ecos:901Y067/I16E"],body.baronly .tile:not(.zoom)[data-sym="^KS11"],body.baronly .tile:not(.zoom)[data-sym="^KQ11"],body.baronly .tile:not(.zoom)[data-sym="^IXIC"]{{display:none}}
+body.baronly .tile:not(.zoom)[data-sym="BATL"],body.baronly .tile:not(.zoom)[data-sym="CL=F"],body.baronly .tile:not(.zoom)[data-sym="ecos:901Y067/I16E"],body.baronly .tile:not(.zoom)[data-sym="^KS11"],body.baronly .tile:not(.zoom)[data-sym="^KQ11"],body.baronly .tile:not(.zoom)[data-sym="^IXIC"]{{display:none}}
 body.baronly .grid-wrap .tile:not(.zoom){{padding-block:0!important}}
 body.baronly .grid-wrap .tile:not(.zoom) .name{{grid-area:name;font-size:19px!important;line-height:1.1}}
 body.baronly .grid-wrap .tile:not(.zoom) .price{{grid-area:price;z-index:1;justify-self:start;align-self:center;padding-left:6px;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:19px!important;font-variant-numeric:tabular-nums;line-height:1;margin:0!important;white-space:nowrap;color:#000;text-shadow:none;pointer-events:none}}
@@ -572,8 +572,10 @@ const fold=document.getElementById('fold');
 function setF(on){{document.body.classList.toggle('nochart',on);fold.textContent=on?'차트 펴기':'차트 접기';ls('fold',on?'1':'0');}}
 fold.onclick=()=>setF(!document.body.classList.contains('nochart'));
 setF(innerWidth<601&&ls('fold')!=='0');
+function fitBarViewport(){{const h=Math.floor(window.visualViewport?.height||innerHeight);if(h>0)document.body.style.setProperty('--bar-viewport',h+'px');}}
+addEventListener('resize',fitBarViewport);window.visualViewport?.addEventListener('resize',fitBarViewport);
 const barB=document.getElementById('bar');
-function setB(on){{document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');}}
+function setB(on){{fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');}}
 barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
