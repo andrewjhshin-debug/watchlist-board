@@ -444,12 +444,12 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 .tile[data-bar-only]:not(.zoom){{display:none}}
 #bar{{margin-left:6px}}.bar-live{{display:none}}
-body.baronly{{background:#000;height:calc(100vh - 24px);height:calc(var(--bar-viewport,100dvh) - max(24px,env(safe-area-inset-bottom,0px)));overflow:hidden;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}}body.baronly .note,body.baronly .err{{display:none}}
+body.baronly{{background:#000;height:calc(100vh - 8px);height:calc(var(--bar-viewport,100dvh) - max(8px,env(safe-area-inset-bottom,0px)));overflow:hidden;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr);grid-auto-rows:minmax(0,1fr);align-content:stretch;min-height:0;gap:clamp(4px,.7dvh,8px);padding-block:clamp(4px,.7dvh,7px)}}
-.baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(24vw,12dvh,144px);line-height:1;overflow:hidden}}
+.baravg{{display:none}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(20vw,9.5dvh,112px);line-height:1;overflow:hidden}}
 .bar-footer{{display:none}}
-body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:clamp(66px,14dvh,120px)}}
+body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:clamp(60px,10dvh,96px)}}
 
 .bar-footer .baravg{{min-width:0}}.bar-leading[hidden]{{display:none}}
 .bar-leading{{position:absolute;right:clamp(6px,1.5vw,16px);top:max(32px,calc(50% - 42px));transform:translateY(-50%);width:clamp(56px,16vw,84px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;color:#fff;line-height:1.2;text-align:center}}
