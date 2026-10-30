@@ -469,6 +469,7 @@ body.baronly .grid-wrap .tile:not(.zoom) .gauge[hidden]{{display:block!important
 @media(max-height:700px){{body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:17px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:18px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:22px!important}}}}
 @media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:19px!important}}}}
 @media(max-height:580px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile:not(.zoom){{row-gap:2px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:12px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:15px!important}}}}
+body.baronly .below:not(.zoom) .gauge i{{position:relative}}body.baronly .below:not(.zoom) .gauge i::after{{content:attr(data-p);position:absolute;right:6px;top:50%;transform:translateY(-50%);font-family:'GalmuriMono11','Galmuri11',monospace;font-size:18px;line-height:1;color:#000;white-space:nowrap}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
@@ -539,7 +540,7 @@ function apply(sym,price,prev){{
     const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;el.classList.remove('lv1','lv2','lv3','lv4','below');
     if(ts.length){{const t=Math.max(...ts),hi=+el.dataset.hi;
       if(price<t){{const dp=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*dp)+'%');el.dataset.left=0;
-        el.querySelector('.gauge i').style.width=Math.round(dp*100)+'%';}}
+        el.querySelector('.gauge i').style.width=Math.round(dp*100)+'%';el.querySelector('.gauge i').dataset.p=f2(price,c);}}
       else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;el.dataset.left=left;
         el.querySelector('.gauge i').style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));
         el.style.setProperty('--lv',['#00ff2a','#22ff00','#55ff00','#88ff00','#ffee00','#ffbb00','#ff8000','#ff5500','#ff2a00','#ff0033'][Math.min(9,Math.floor(left*10))]);}}}}
