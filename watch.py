@@ -382,7 +382,6 @@ def render(items: list[dict], errors: list[str]) -> None:
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="{CFG["refresh_min"] * 60}">
 <title>관심종목 보드</title>
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon.png"><link rel="apple-touch-icon" href="icon.png"><meta name="theme-color" content="#0d1424">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css">
@@ -391,7 +390,7 @@ def render(items: list[dict], errors: list[str]) -> None:
 --up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0;--cbg:#0a1020}}
 body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;--sub:#6b7694;
 --up:#e8304f;--upf:#ffe3e8;--dn:#2468e0;--dnf:#dce8ff;--low:#c98a00;--tgt:#0f9e6e;--cbg:#fafcff}}
-#reload{{margin-left:6px}}.toast{{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;background:var(--tile);color:var(--txt);border:3px solid #00ff3c;padding:8px 18px;font-size:15px;white-space:nowrap}}#pct{{margin-left:6px}}
+#reload{{margin-left:6px}}.toast{{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;background:var(--tile);color:var(--txt);border:0;padding:8px 12px;font-size:13px;white-space:nowrap;pointer-events:none}}#pct{{margin-left:6px}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
@@ -471,7 +470,7 @@ body.baronly .grid-wrap .tile:not(.zoom) .gauge[hidden]{{display:block!important
 @media(max-height:580px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile:not(.zoom){{row-gap:2px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:12px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:15px!important}}}}
 body.baronly .below:not(.zoom) .gauge i{{position:relative}}body.baronly .below:not(.zoom) .gauge i::after{{content:attr(data-p);position:absolute;right:6px;top:50%;transform:translateY(-50%);font-family:'GalmuriMono11','Galmuri11',monospace;font-size:18px;line-height:1;color:#000;white-space:nowrap}}
 </style></head><body>
-<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="try{{sessionStorage.rl=1}}catch(e){{}};location.reload()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
+<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
@@ -564,11 +563,58 @@ function showAvg(){{const v=tiles().filter(e=>!e.dataset.barOnly&&!e.dataset.sym
   const b=document.getElementById('baravg');if(b){{b.textContent=a.textContent;b.style.color=a.style.color;}}}}
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-live');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
-async function pollLive(){{for(let k=1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return;try{{const r=await fetch(RAW+sl+'.json',{{cache:'no-store'}});
-  if(r.ok){{lastSlot=sl;const j=await r.json();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return;}}}}catch(e){{}}}}}}
+async function pollLive(force=false){{for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
+  if(r.ok){{lastSlot=sl;const j=await r.json();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
-async function pollUpbit(){{if(!UP.length)return;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','));
-  for(const x of await r.json())apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);}}catch(e){{}}}}
+async function pollUpbit(){{if(!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
+  const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
+let refreshJob=null,refreshAnnounce=false,refreshToastTimer=null;
+function showRefreshToast(message){{
+  let toast=document.querySelector('.toast[data-refresh]');
+  if(!toast){{toast=document.createElement('div');toast.className='toast';toast.dataset.refresh='1';toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');document.body.appendChild(toast);}}
+  toast.textContent=message;clearTimeout(refreshToastTimer);
+  refreshToastTimer=setTimeout(()=>toast.remove(),1800);
+}}
+async function refreshCharts(){{
+  try{{
+    const url=new URL(location.href);url.searchParams.set('_refresh',Date.now());
+    const response=await fetch(url,{{cache:'no-store'}});if(!response.ok)return false;
+    const next=new DOMParser().parseFromString(await response.text(),'text/html');
+    const incoming=[...next.querySelectorAll('.tile[data-sym]')];
+    if(!next.querySelector('#baravg')||!incoming.length)return false;
+    const current=new Map(tiles().map(el=>[el.dataset.sym,el]));
+    const board=document.querySelector('.grid-wrap');
+    for(const fresh of incoming){{
+      const sym=fresh.dataset.sym;let el=current.get(sym);
+      if(!el){{el=fresh;board.appendChild(el);current.set(sym,el);}}
+      else{{
+        for(const key of ['hi','tgts0'])if(fresh.dataset[key]!==undefined)el.dataset[key]=fresh.dataset[key];
+        const name=el.querySelector('.name'),nextName=fresh.querySelector('.name');
+        if(name&&nextName&&name.innerHTML!==nextName.innerHTML)name.replaceChildren(...nextName.childNodes);
+        for(const view of [...fresh.querySelectorAll('.view')]){{
+          const old=el.querySelector('.view[data-v="'+view.dataset.v+'"]');
+          if(old){{if(old.innerHTML!==view.innerHTML)old.replaceChildren(...view.childNodes);}}
+          else el.insertBefore(view,el.querySelector('.gauge'));
+        }}
+        if(sym.startsWith('ecos:')){{el.dataset.p=fresh.dataset.p;el.dataset.pv=fresh.dataset.pv;}}
+      }}
+      renderT(el);apply(sym,+el.dataset.p,+el.dataset.pv);
+    }}
+    paintHL();return true;
+  }}catch(e){{return false;}}
+}}
+function refreshBoard(announce=true){{
+  refreshAnnounce=refreshAnnounce||announce;
+  if(refreshJob)return refreshJob;
+  refreshJob=(async()=>{{
+    const results=await Promise.allSettled([refreshCharts(),pollLive(true),pollUpbit(),pullT()]);
+    const ok=results.slice(0,3).some(r=>r.status==='fulfilled'&&r.value);
+    if(refreshAnnounce)showRefreshToast(ok?'새로고침했습니다':'새로고침하지 못했습니다');
+    return ok;
+  }})().finally(()=>{{refreshJob=null;refreshAnnounce=false;}});
+  return refreshJob;
+}}
+
 // 차트 접기: 휴대폰은 처음엔 접힌 상태(12종목이 한 화면에), 선택은 기억
 const fold=document.getElementById('fold');
 function setF(on){{document.body.classList.toggle('nochart',on);fold.textContent=on?'차트 펴기':'차트 접기';ls('fold',on?'1':'0');}}
@@ -593,11 +639,11 @@ function tap(el){{if(el.classList.contains('zoom')){{history.back();return;}}
 paintHL();
 repaint();pullT();setInterval(pullT,60000);  // 다른 폰에서 바꾼 목표가를 1분마다 가져옴
 pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
-try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');const t=document.createElement('div');t.className='toast';t.textContent='새로고침했습니다';document.body.appendChild(t);setTimeout(()=>t.remove(),1800);}}}}catch(e){{}}
-// 앱을 껐다 켜면 휴대폰이 메모리에 남은 옛 화면을 그대로 보여줌 → 1분 넘게 쉬었다 돌아오면 새로 받음
+try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');showRefreshToast('새로고침했습니다');}}}}catch(e){{}}
+setInterval(()=>refreshBoard(false),{CFG["refresh_min"] * 60000});
 const loadedAt=Date.now();
-document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='visible'&&Date.now()-loadedAt>60000)location.reload();}});
-addEventListener('pageshow',e=>{{if(e.persisted)location.reload();}});
+document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='visible'&&Date.now()-loadedAt>60000)refreshBoard(false);}});
+addEventListener('pageshow',e=>{{if(e.persisted)refreshBoard(false);}});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{{updateViaCache:'none'}});
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
