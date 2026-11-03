@@ -569,12 +569,13 @@ const tileList=[...document.querySelectorAll('.tile[data-sym]')],tileBySym=new M
 const tiles=()=>tileList;
 function registerTile(el){{tileList.push(el);tileBySym.set(el.dataset.sym,el);}}
 function repaint(){{tiles().forEach(el=>{{renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}});}}
-// 목표가·강조 표시·평균 종목을 같은 동기화 코드의 문서에서 공유한다.
+// 목표가·강조 표시·평균 종목·바 순서를 같은 동기화 코드의 문서에서 공유한다.
 let targetPullJob=null,targetPullCode=null,targetPullGeneration=0,avgWriteJob=null,avgWriteCode=null,avgSyncState='',avgSettingsDirty=false,avgGeneration=0;
 const avgPendingKey=c=>'avg-pending:'+c;
 function paintAvgSync(){{
   const el=document.getElementById('avg-sync-status');if(!el)return;
-  el.textContent=!ls('sync')?'같은 연동 코드를 쓰면 웹·앱에 함께 적용돼요.':ls(avgPendingKey(ls('sync')))&&avgSyncState!=='연동 재시도 중'?'평균 연동 중':avgSyncState||'연동 확인 중';
+  const code=ls('sync'),pending=code&&(ls(avgPendingKey(code))||ls(barOrderPendingKey(code)));
+  el.textContent=!code?'같은 연동 코드를 쓰면 웹·앱에 함께 적용돼요.':pending?(avgSyncState.includes('재시도')?'연동 재시도 중':'웹·앱 연동 중'):avgSyncState||'연동 확인 중';
 }}
 function adoptSharedAverage(value){{
   if(!Array.isArray(value)||!value.every(s=>typeof s==='string'))return false;
@@ -622,8 +623,9 @@ function pullT(){{
   const code=ls('sync');if(targetPullJob&&targetPullCode===code)return targetPullJob;
   targetPullCode=code;const request=++targetPullGeneration;
   targetPullJob=(async()=>{{
-    const generation=avgGeneration;if(!code){{paintAvgSync();return null;}}
+    const generation=avgGeneration,orderGeneration=barOrderGeneration;if(!code){{paintAvgSync();return null;}}
     if(ls(avgPendingKey(code))&&!(await pushAverage()))return null;
+    if(ls(barOrderPendingKey(code)))await pushBarOrder();
     try{{
       const r=await fetch(FS+code+'?key='+FK,{{cache:'no-store'}});if(!r.ok)throw Error('sync');
       const doc=await r.json(),m=JSON.parse(doc.fields?.json?.stringValue||'{{}}');if(ls('sync')!==code)return null;
@@ -643,7 +645,16 @@ function pullT(){{
           if(ls('sync')===code&&generation===avgGeneration&&!ls(avgPendingKey(code)))adoptSharedAverage(migrated._avg);
         }}
       }}
-      avgSyncState='웹·앱 연동됨';paintAvgSync();return m;
+      if(ls('sync')===code&&orderGeneration===barOrderGeneration&&!barPress&&!ls(barOrderPendingKey(code))){{
+        if(Array.isArray(m._barOrder))adoptSharedBarOrder(m._barOrder);
+        else if(ls(BAR_ORDER_KEY)!=null){{
+          const order=readBarOrder(),migrated=await updateShared(remote=>{{if(Array.isArray(remote._barOrder))return false;remote._barOrder=order;}});
+          if(!migrated)throw Error('sync');
+          if(ls('sync')===code&&orderGeneration===barOrderGeneration&&!barPress&&!ls(barOrderPendingKey(code)))adoptSharedBarOrder(migrated._barOrder);
+        }}
+      }}
+      if(ls('sync')!==code)return null;
+      if(!ls(avgPendingKey(code))&&!ls(barOrderPendingKey(code)))avgSyncState='웹·앱 연동됨';paintAvgSync();return m;
     }}catch(e){{avgSyncState='연동 재시도 중';paintAvgSync();return null;}}
   }})().finally(()=>{{if(request===targetPullGeneration)targetPullJob=null;}});
   return targetPullJob;
@@ -818,11 +829,40 @@ function refreshBoard(announce=true){{
   return refreshJob;
 }}
 
-// 바 순서는 이 브라우저에만 저장. CSS 순서만 바꿔 차트 모드 배치는 유지한다.
+// 바 순서는 같은 동기화 코드의 웹·앱에서 공유. 차트 모드 배치는 유지한다.
 const BAR_ORDER_KEY='bar-order-v1';
 const BAR_DEFAULT_ORDER=['upbit:KRW-BTC','USDE','SDEV','SOXL','AXTX','AXTI','^IXIC','CL=F','SOXS'];
 const barBoard=document.querySelector('.grid-wrap');
 let barPress=null,barSkipClickUntil=0;
+const barOrderPendingKey=code=>'bar-order-pending:'+code;
+let barOrderGeneration=0,barOrderWriteJob=null,barOrderWriteCode=null;
+function adoptSharedBarOrder(value){{
+  if(barPress||!Array.isArray(value)||!value.every(sym=>typeof sym==='string'))return false;
+  const order=[...new Set(value)];ls(BAR_ORDER_KEY,JSON.stringify(order));applyBarOrder(order);return true;
+}}
+function saveBarOrder(order){{
+  const saved=JSON.stringify([...new Set(order)]);barOrderGeneration++;ls(BAR_ORDER_KEY,saved);
+  const code=ls('sync');if(code){{ls(barOrderPendingKey(code),saved);pushBarOrder();}}
+}}
+function pushBarOrder(){{
+  if(barOrderWriteJob)return barOrderWriteCode===ls('sync')?barOrderWriteJob:barOrderWriteJob.then(()=>pushBarOrder());
+  barOrderWriteCode=ls('sync');
+  barOrderWriteJob=(async()=>{{
+    const code=ls('sync');if(!code)return false;const key=barOrderPendingKey(code);
+    while(ls('sync')===code&&ls(key)){{
+      const snapshot=ls(key);let order;try{{order=JSON.parse(snapshot);}}catch(e){{return false;}}
+      if(!Array.isArray(order)||!order.every(sym=>typeof sym==='string'))return false;
+      avgSyncState='종목 순서 연동 중';paintAvgSync();
+      const saved=await updateShared(remote=>{{remote._barOrder=order;}});
+      if(!saved){{avgSyncState='연동 재시도 중';paintAvgSync();return false;}}
+      if(ls('sync')!==code)return false;
+      if(ls(key)===snapshot)ls(key,'');
+    }}
+    avgSyncState='웹·앱 연동됨';paintAvgSync();return true;
+  }})().finally(()=>{{barOrderWriteJob=null;}});
+  return barOrderWriteJob;
+}}
+
 function readBarOrder(){{try{{const v=JSON.parse(ls(BAR_ORDER_KEY)||'[]');return Array.isArray(v)?v.filter(s=>typeof s==='string'):[];}}catch(e){{return [];}}}}
 function applyBarOrder(order=readBarOrder()){{
   const all=tiles(),rank=[...new Set([...order,...BAR_DEFAULT_ORDER,...all.map(el=>el.dataset.sym)])];
@@ -850,7 +890,7 @@ function finishBarPress(save=false){{
   const p=barPress;if(!p)return;barPress=null;clearTimeout(p.timer);
   if(p.active){{
     barSkipClickUntil=Date.now()+700;
-    if(save&&p.order.join('|')!==p.before.join('|'))ls(BAR_ORDER_KEY,JSON.stringify(p.order));
+    if(save&&p.order.join('|')!==p.before.join('|'))saveBarOrder(p.order);
     p.el.classList.remove('bar-dragging');p.el.style.removeProperty('--bar-drag-y');document.body.classList.remove('bar-sorting');
     applyBarOrder(save?p.order:p.before);
   }}
@@ -888,13 +928,13 @@ barBoard.addEventListener('keydown',e=>{{
     e.preventDefault();finishBarPress(false);const rows=barRows(),from=rows.indexOf(el),to=from+(e.key==='ArrowUp'?-1:1);
     if(from<0||to<0||to>=rows.length)return;
     rows.splice(from,1);rows.splice(to,0,el);const order=rows.map(row=>row.dataset.sym);
-    ls(BAR_ORDER_KEY,JSON.stringify(order));applyBarOrder(order);
+    saveBarOrder(order);applyBarOrder(order);
   }}else if(e.key==='Enter'||e.key===' '){{e.preventDefault();el.click();}}
 }});
 addEventListener('blur',()=>finishBarPress(false));
 addEventListener('resize',()=>finishBarPress(false));
 document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='hidden'){{clearRefreshAverageNames();finishBarPress(false);}}}});
-addEventListener('storage',e=>{{if(e.key===BAR_ORDER_KEY&&!barPress)applyBarOrder();}});
+addEventListener('storage',e=>{{if(e.key===BAR_ORDER_KEY){{barOrderGeneration++;if(!barPress)applyBarOrder();}}}});
 applyBarOrder();
 
 // 차트 접기: 휴대폰은 처음엔 접힌 상태(12종목이 한 화면에), 선택은 기억
