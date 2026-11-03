@@ -483,7 +483,7 @@ body.baronly .grid-wrap .tile.bar-dragging:not(.zoom){{position:relative;z-index
 body.bar-sorting,body.bar-sorting .tile{{cursor:grabbing}}
 /* 상단 한 줄을 유지하며 설정은 갱신 시각 옆에 둔다. */
 .settings-trigger{{font:inherit;color:var(--txt);background:var(--tile);border:1px solid var(--edge);padding:1px 6px;line-height:1.2;cursor:pointer;touch-action:manipulation}}
-.note .settings-trigger{{float:right;margin-left:6px}}
+.note{{display:flow-root}}.grid-wrap{{clear:both;width:100%}}.note .settings-trigger{{float:right;margin-left:6px}}
 body.baronly .bar-live{{display:flex;align-items:center;justify-content:space-between;gap:8px}}
 body.baronly .bar-live .settings-trigger{{font-size:14px}}
 button:active{{background:#173026!important;border-color:var(--tgt)!important}}
