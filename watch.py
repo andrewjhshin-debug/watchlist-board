@@ -520,6 +520,8 @@ body>header>.tabs{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));ga
 body>header>.tabs>button{{min-width:0;min-height:40px;font-size:16px!important;line-height:1.15;padding:5px 3px!important;touch-action:manipulation}}
 body>header>.tabs>#reload,body>header>.tabs>#pct,body>header>.tabs>#bar{{margin:0!important}}
 @media(max-width:350px){{body>header{{gap:4px!important}}body>header>.tabs{{width:164px;flex-basis:164px}}body>header>.tabs>button{{min-height:38px;font-size:15px!important;padding:4px 2px!important}}}}
+/* 실제 평균 계산 대상은 바 모드의 종목명에만 고정 테두리로 표시. */
+body.baronly .tile.avg-member:not(.zoom)>.name{{justify-self:start;max-width:100%;outline:1px solid var(--tgt);outline-offset:1px}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
 <div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div>
@@ -709,7 +711,9 @@ function readAvgSymbols(){{
 let avgSymbols=new Set(readAvgSymbols()),avgFrame=0;
 function queueAvg(){{if(!avgFrame)avgFrame=requestAnimationFrame(()=>{{avgFrame=0;showAvg();}});}}
 function showAvg(){{
-  const values=tiles().filter(el=>avgSymbols.has(el.dataset.sym)&&el.dataset.left!==undefined).map(el=>+el.dataset.left).filter(Number.isFinite);
+  const all=tiles(),members=all.filter(el=>avgSymbols.has(el.dataset.sym)&&el.dataset.left!==undefined&&Number.isFinite(+el.dataset.left));
+  const included=new Set(members);all.forEach(el=>el.classList.toggle('avg-member',included.has(el)));
+  const values=members.map(el=>+el.dataset.left);
   const mean=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
   const text=mean===null?'—':Math.round(mean*100)+'%',color=mean===null?'var(--sub)':AC[Math.min(9,Math.floor(mean*10))];
   for(const id of ['avg','baravg']){{const el=document.getElementById(id);if(el){{if(el.textContent!==text)el.textContent=text;el.style.color=color;}}}}
@@ -792,6 +796,7 @@ function refreshBoard(announce=true){{
   refreshJob=(async()=>{{
     const results=await Promise.allSettled([refreshCharts(),pollLive(true),pollUpbit(),pullT()]);
     const ok=results.slice(0,3).some(r=>r.status==='fulfilled'&&r.value);
+    if(document.body.classList.contains('baronly'))showAvg();
     if(refreshAnnounce)showRefreshToast(ok?'새로고침했습니다':'새로고침하지 못했습니다');
     return ok;
   }})().finally(()=>{{refreshJob=null;refreshAnnounce=false;reload.removeAttribute('aria-busy');}});
