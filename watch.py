@@ -307,14 +307,16 @@ def chart_svg(d: dict) -> str:
     span = (vmax - vmin) or 1
     y = lambda v: H - CELL / 2 - round((v - vmin) / span * (ROWS - 1)) * CELL  # 칸 단위로 스냅
     cw = W / m
-    body = ""
+    # 같은 색의 봉을 경로로 묶어 모양을 유지하며 DOM 요소 수를 줄인다.
+    wicks, candles = {"cu": [], "cd": []}, {"cu": [], "cd": []}
     for j, (o, hi, lo, c) in enumerate(cs):
         x, cls = j * cw, "cu" if c >= o else "cd"
         top, bot = min(y(o), y(c)), max(y(o), y(c))
-        body += (f'<line class="{cls}" x1="{x + cw / 2:.1f}" y1="{y(hi)}" x2="{x + cw / 2:.1f}" y2="{y(lo)}"/>'
-                 f'<rect class="{cls}" x="{x + cw * .15:.1f}" y="{top - CELL / 2}" width="{cw * .7:.1f}" height="{bot - top + CELL}"/>')
-    grid = "".join(f'<line x1="0" y1="{g}" x2="{W}" y2="{g}"/>' for g in range(0, H, CELL)) + \
-           "".join(f'<line x1="{g}" y1="0" x2="{g}" y2="{H}"/>' for g in range(0, W, CELL))
+        wicks[cls].append(f'M{x + cw / 2:.1f},{y(hi)}V{y(lo)}')
+        candles[cls].append(f'M{x + cw * .15:.1f},{top - CELL / 2}h{cw * .7:.1f}v{bot - top + CELL}h-{cw * .7:.1f}Z')
+    body = "".join(f'<path class="wick {cls}" d="{"".join(wicks[cls])}"/><path class="candle {cls}" d="{"".join(candles[cls])}"/>' for cls in ("cu", "cd"))
+    grid = '<path d="' + "".join(f'M0,{g}H{W}' for g in range(0, H, CELL)) + \
+           "".join(f'M{g},0V{H}' for g in range(0, W, CELL)) + '"/>'
     cur = d["currency"]
     # 전고(막대 100% 기준) 자리에 숫자만. 펼쳤을 때만 보임. 이 보기 기간 밖이면 생략
     peak, dates = "", d.get("dates", [])
@@ -329,6 +331,12 @@ def chart_svg(d: dict) -> str:
 {body}
 {"".join(f'<line class="tgt" x1="0" y1="{y(t)}" x2="{W}" y2="{y(t)}"/>' for t in tgts)}
 </svg>'''
+
+
+def zoom_tools(views) -> str:
+    buttons = "".join(f'<button type="button" data-v="{k}"{chr(32) + "disabled" if k not in views else ""} onclick="event.stopPropagation();setV(this.dataset.v)">{k}</button>' for k in VIEWS)
+    return ('<div class="zoom-tools" onclick="event.stopPropagation()"><div class="tabs" role="group" aria-label="차트 주기">' + buttons +
+            '</div><button type="button" class="zoom-close" aria-label="차트 닫기" onclick="event.stopPropagation();history.back()">닫기</button></div>')
 
 
 def tile(d: dict) -> str:
@@ -365,11 +373,12 @@ def tile(d: dict) -> str:
         when = f' <small>{m}월분·{m % 12 + 1}월말 발표</small>'  # 통계청은 다음 달 말 발표
     else:
         when = ""
+    zoomtools = zoom_tools(d["views"])
     return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{bar_attr}{live_attr} onclick="tap(this)">'
             f'<div class="name">{html.escape(d["name"])}{when}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
-            f'{views}<div class="gauge"{"" if tgts else " hidden"}><i style="width:{left * 100:.0f}%"></i></div>'
+            f'{zoomtools}{views}<div class="gauge"{"" if tgts else " hidden"}><i style="width:{left * 100:.0f}%"></i></div>'
             f'<div class="tgts" onclick="editT(event,this)">{tgt or '<div class="tgttxt">목표 설정 ✎</div>'}</div></div>')
 
 
@@ -379,6 +388,7 @@ def render(items: list[dict], errors: list[str]) -> None:
     chart_items = [d for d in items if not d.get("bar_only")]
     pc = CFG.get("pc_order", [])
     pc_order = "".join(f'.tile[data-sym="{d["sym"]}"]{{order:{pc.index(d["sym"]) if d["sym"] in pc else 99}}}' for d in chart_items)
+    avg_catalog = json.dumps([{k: s[k] for k in ("sym", "name")} for s in CFG["symbols"]], ensure_ascii=False)
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -422,7 +432,7 @@ body.nochart .tile:not(.zoom) .chg,body.nochart .tile:not(.zoom) .tgttxt{{font-s
 .tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:30px}}
 .tile.zoom .tgttxt{{font-size:14px}}.tile.zoom .ax{{font-size:12px}}
 svg{{width:100%;height:100%;display:block}}
-.grid line{{stroke:var(--grid);stroke-width:1}}
+.grid line,.grid path{{fill:none;stroke:var(--grid);stroke-width:1}}
 .line{{fill:none;stroke-width:4;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
 .up .line{{stroke:var(--up)}}.down .line{{stroke:var(--dn)}}.up .area{{fill:var(--upf)}}.down .area{{fill:var(--dnf)}}
 .tgt{{stroke:var(--tgt);stroke-width:1.5;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}}
@@ -431,7 +441,7 @@ svg{{width:100%;height:100%;display:block}}
 .peak.r::after{{left:auto;right:2px}}.tile.zoom .peak{{display:block}}
 .tgts{{cursor:pointer}}.gauge[hidden]{{display:none}}
 rect.cu{{fill:var(--up)}}rect.cd{{fill:var(--dn)}}line.cu{{stroke:var(--up)}}line.cd{{stroke:var(--dn)}}
-line.cu,line.cd{{stroke-width:1.5;vector-effect:non-scaling-stroke}}
+line.cu,line.cd,.wick{{stroke-width:1.5;vector-effect:non-scaling-stroke}}.wick{{fill:none}}.wick.cu{{stroke:var(--up)}}.wick.cd{{stroke:var(--dn)}}.candle.cu{{fill:var(--up)}}.candle.cd{{fill:var(--dn)}}
 .gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
 .lv4{{--lv:#ff0033}}.lv3{{--lv:#ff5500}}.lv2{{--lv:#66ff00}}.lv1{{--lv:#00ff2a}}
 body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6f9a00}}body.day .lv1{{--lv:#1f9e3a}}
@@ -473,26 +483,69 @@ body.baronly .below:not(.zoom) .gauge i{{position:relative}}body.baronly .below:
 body.baronly .grid-wrap .tile:not(.zoom)[data-bar-order]{{order:var(--bar-order);touch-action:none;-webkit-touch-callout:none}}
 body.baronly .grid-wrap .tile.bar-dragging:not(.zoom){{position:relative;z-index:12;cursor:grabbing;background:#07150f;outline:2px solid var(--tgt);outline-offset:0;transform:translateY(var(--bar-drag-y,0px))}}
 body.bar-sorting,body.bar-sorting .tile{{cursor:grabbing}}
+/* 상단 한 줄을 유지하며 설정은 갱신 시각 옆에 둔다. */
+.settings-trigger{{font:inherit;color:var(--txt);background:var(--tile);border:1px solid var(--edge);padding:1px 6px;line-height:1.2;cursor:pointer;touch-action:manipulation}}
+.note .settings-trigger{{float:right;margin-left:6px}}
+body.baronly .bar-live{{display:flex;align-items:center;justify-content:space-between;gap:8px}}
+body.baronly .bar-live .settings-trigger{{font-size:14px}}
+button:active{{background:#173026!important;border-color:var(--tgt)!important}}
+#reload[aria-busy="true"]{{color:var(--tgt);border-color:var(--tgt)}}
+.zoom-tools{{display:none}}
+body:has(.tile.zoom){{overflow:hidden}}
+.tile.zoom .zoom-tools{{display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:-16px;z-index:4;background:var(--tile);padding:10px 0;margin:4px 0}}
+.tile.zoom .zoom-tools .tabs{{gap:6px}}
+.zoom-close{{font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:2px solid var(--edge);padding:4px 8px;cursor:pointer}}
+.tabs button:disabled{{opacity:.35;cursor:default}}
+.tile.zoom .chart{{height:clamp(180px,58dvh,720px)}}
+.tile.zoom .price{{font-size:clamp(22px,6vw,30px)!important}}
+#avg-settings{{position:fixed;inset:0;width:min(420px,calc(100vw - 24px));max-height:calc(100dvh - 24px);margin:auto;padding:16px;color:var(--txt);background:var(--tile);border:2px solid var(--tgt);font:inherit;overflow:hidden}}
+#avg-settings-form{{display:flex;flex-direction:column;max-height:calc(100dvh - 60px)}}
+#avg-settings::backdrop{{background:rgb(0 0 0 / .75)}}
+.settings-heading{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}}
+.settings-heading h2{{font-size:18px;margin:0}}
+.settings-heading button{{font:inherit;color:var(--txt);background:none;border:0;cursor:pointer;padding:4px 6px}}
+.settings-hint{{font-size:11px;line-height:1.5;color:var(--sub);margin:0 0 12px}}
+#avg-options{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;overflow:auto;overscroll-behavior:contain;min-height:0}}
+.settings-heading,.settings-hint,.settings-actions,#avg-selection-count{{flex-shrink:0}}
+.avg-option{{display:flex;align-items:center;gap:8px;min-height:44px;padding:7px;background:var(--cbg);border:1px solid var(--edge);cursor:pointer;font-size:13px}}
+.avg-option:has(input:checked){{border-color:var(--tgt)}}
+.avg-option input{{width:18px;height:18px;flex:0 0 auto;margin:0;accent-color:var(--tgt);cursor:pointer}}
+.avg-option span{{min-width:0;overflow-wrap:anywhere}}
+.avg-option small{{display:block;font-size:10px;margin-top:4px;color:var(--sub)}}
+.settings-actions{{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}}
+.settings-actions button{{font:inherit;font-size:13px;padding:7px 12px;color:var(--txt);border:2px solid var(--edge);background:var(--cbg);cursor:pointer}}
+.settings-actions button[type="submit"]{{border-color:var(--tgt);color:var(--tgt)}}
+#avg-selection-count{{font-size:11px;color:var(--tgt);margin:12px 0 0}}
+@media(max-width:350px){{.avg-option{{font-size:12px;gap:5px;padding:6px}}.tile.zoom .zoom-tools{{gap:6px}}.tile.zoom .zoom-tools .tabs{{gap:4px}}}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
-<div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
-<div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button></div>
+<div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div>
+<div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
+<dialog id="avg-settings" aria-labelledby="avg-settings-title">
+<form id="avg-settings-form">
+<div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
+<p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표가가 없는 종목은 계산에서 빠져요.</p>
+<div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
+<div class="settings-actions"><button id="avg-default" type="button">초기값</button><button type="submit">적용</button></div>
+</form></dialog>
+
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
-function setV(v){{document.body.dataset.v=v;document.getElementById('vdesc').textContent=D[v];try{{localStorage.v=v}}catch(e){{}}}}
+function setV(v){{if(!D[v])return;document.body.dataset.v=v;document.getElementById('vdesc').textContent=D[v];document.querySelectorAll('.tabs button[data-v]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));try{{localStorage.v=v}}catch(e){{}}}}
 let saved;try{{saved=localStorage.v}}catch(e){{}}
 setV(D[saved]?saved:'일');
-document.querySelectorAll('.tabs button[data-v]').forEach(b=>b.onclick=()=>setV(b.dataset.v));
+document.querySelectorAll('.tabs button[data-v]').forEach(b=>b.onclick=e=>{{e.stopPropagation();setV(b.dataset.v);}});
 try{{localStorage.removeItem('day')}}catch(e){{}}  // 데이 모드 없앰
 const RAW='https://raw.githubusercontent.com/{CFG.get("repo", "andrewjhshin-debug/watchlist-board")}/live/m/';
 const pad=n=>String(n).padStart(2,'0');
 const slot=k=>{{const d=new Date(Date.now()+9*36e5-k*6e4);return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+pad(d.getUTCHours())+pad(d.getUTCMinutes());}};
-const f2=(v,c)=>c==='KRW'?Math.round(v).toLocaleString('en-US'):v.toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-const fs=(v,c)=>c==='KRW'&&v>=1e6?Math.round(v/1e4).toLocaleString('en-US')+'만':f2(v,c);
+const moneyFormat=new Intl.NumberFormat('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}}),wholeFormat=new Intl.NumberFormat('en-US',{{maximumFractionDigits:0}});
+const f2=(v,c)=>c==='KRW'?wholeFormat.format(Math.round(v)):moneyFormat.format(v);
+const fs=(v,c)=>c==='KRW'&&v>=1e6?wholeFormat.format(Math.round(v/1e4))+'만':f2(v,c);
 function getT(el){{try{{const v=localStorage['tg:'+el.dataset.sym];if(v!=null)return JSON.parse(v);}}catch(e){{}}return JSON.parse(el.dataset.tgts0||'[]');}}
 function renderT(el){{
-  const t=getT(el),c=el.dataset.cur;el.dataset.tgts=JSON.stringify(t);
+  const t=getT(el),c=el.dataset.cur,key=JSON.stringify(t);if(el._targetsPainted&&el.dataset.tgts===key)return;el._targetsPainted=true;el._quoteState=null;el.dataset.tgts=key;
   el.querySelector('.tgts').innerHTML=t.length?t.map(x=>'<div class="tgttxt" data-t="'+x+'">목표 '+fs(x,c)+' <b></b></div>').join(''):'<div class="tgttxt">목표 설정 ✎</div>';
   el.querySelector('.gauge').hidden=!t.length;
   el.querySelectorAll('svg[data-vmin]').forEach(s=>{{s.querySelectorAll('.tgt').forEach(l=>l.remove());
@@ -505,12 +558,14 @@ function renderT(el){{
 const FS='https://firestore.googleapis.com/v1/projects/{CFG["sync_project"]}/databases/(default)/documents/targets/';
 const FK='{CFG["sync_key"]}';  // 웹용 공개 키(접근 제한은 코드+보안 규칙)
 const ls=(k,v)=>{{try{{if(v===undefined)return localStorage[k];localStorage[k]=v;}}catch(e){{}}}};
-const tiles=()=>[...document.querySelectorAll('.tile[data-sym]')];
+const tileList=[...document.querySelectorAll('.tile[data-sym]')],tileBySym=new Map(tileList.map(el=>[el.dataset.sym,el]));
+const tiles=()=>tileList;
+function registerTile(el){{tileList.push(el);tileBySym.set(el.dataset.sym,el);}}
 function repaint(){{tiles().forEach(el=>{{renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}});}}
 async function pullT(){{const c=ls('sync');if(!c)return null;
   try{{const r=await fetch(FS+c+'?key='+FK,{{cache:'no-store'}});if(!r.ok)return null;
     const m=JSON.parse((await r.json()).fields.json.stringValue||'{{}}');
-    if(Object.keys(m).length){{for(const s in m)ls(s==='_hl'?'hl':'tg:'+s,JSON.stringify(m[s]));repaint();paintHL();}}return m;}}catch(e){{return null;}}}}
+    if(Object.keys(m).length){{let changed=false;for(const s in m){{const key=s==='_hl'?'hl':'tg:'+s,value=JSON.stringify(m[s]);if(ls(key)!==value){{ls(key,value);changed=true;}}}}if(changed){{repaint();paintHL();}}}}return m;}}catch(e){{return null;}}}}
 async function pushT(){{const c=ls('sync');if(!c)return;const m={{}};tiles().forEach(el=>m[el.dataset.sym]=getT(el));m._hl=getHL();
   try{{await fetch(FS+c+'?key='+FK,{{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{fields:{{json:{{stringValue:JSON.stringify(m)}}}}}})}});}}catch(e){{}}}}
 async function askSync(force){{if(!force&&(ls('sync')||ls('syncAsked')))return;ls('syncAsked','1');
@@ -533,23 +588,25 @@ function paintBarLeading(el){{
   document.getElementById('bar-leading-meta').textContent=note?'('+note+')':'';
 }}
 function apply(sym,price,prev){{
-  document.querySelectorAll('.tile[data-sym="'+sym+'"]').forEach(el=>{{
-    const c=el.dataset.cur,ch=price-prev;el.dataset.p=price;el.dataset.pv=prev;
-    el.querySelector('.price').textContent=f2(price,c);
-    if(sym==='ecos:901Y067/I16E')paintBarLeading(el);
-    el.classList.toggle('up',ch>=0);el.classList.toggle('down',ch<0);
-    el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
-    el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
-    const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;el.classList.remove('lv1','lv2','lv3','lv4','below');
-    if(ts.length){{const t=Math.max(...ts),hi=+el.dataset.hi;
-      if(price<t){{const dp=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*dp)+'%');el.dataset.left=0;
-        el.querySelector('.gauge i').style.width=Math.round(dp*100)+'%';el.querySelector('.gauge i').dataset.p=f2(price,c);}}
-      else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;el.dataset.left=left;
-        el.querySelector('.gauge i').style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));
-        el.style.setProperty('--lv',['#00ff2a','#22ff00','#55ff00','#88ff00','#ffee00','#ffbb00','#ff8000','#ff5500','#ff2a00','#ff0033'][Math.min(9,Math.floor(left*10))]);}}}}
-  }});
-  showAvg();
+  const el=tileBySym.get(sym);if(!el)return;
+  const state=[price,prev,el.dataset.hi,el.dataset.tgts].join('|');if(el._quoteState===state)return;el._quoteState=state;
+  const c=el.dataset.cur,ch=price-prev;el.dataset.p=price;el.dataset.pv=prev;
+  el.querySelector('.price').textContent=f2(price,c);
+  if(sym==='ecos:901Y067/I16E')paintBarLeading(el);
+  el.classList.toggle('up',ch>=0);el.classList.toggle('down',ch<0);
+  el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
+  el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
+  const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;el.classList.remove('lv1','lv2','lv3','lv4','below');
+  if(ts.length){{const t=Math.max(...ts),hi=+el.dataset.hi,fill=el.querySelector('.gauge i');
+    if(price<t){{const depth=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*depth)+'%');el.dataset.left=0;
+      fill.style.width=Math.round(depth*100)+'%';fill.dataset.p=f2(price,c);}}
+    else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;el.dataset.left=left;
+      fill.style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));
+      el.style.setProperty('--lv',['#00ff2a','#22ff00','#55ff00','#88ff00','#ffee00','#ffbb00','#ff8000','#ff5500','#ff2a00','#ff0033'][Math.min(9,Math.floor(left*10))]);}}
+  }}
+  queueAvg();
 }}
+
 // 제목을 누르면 화면은 그대로 두고 가운데에 평균 % 만 크게. 아무 데나 누르면 닫힘
 function showPct(){{const a=document.getElementById('avg');if(!a.textContent)return;
   const d=document.createElement('div');d.className='avgpop';
@@ -560,17 +617,54 @@ addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEac
   document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
-// 목표 평균: 목표가 있는 종목들 막대 값(0~100%) 평균(BATL·바 전용 종목·선행지수·WTI·나스닥 종합·코스피·코스닥 제외). 0=목표 근처(초록) ~ 100=멀다(빨강)
-function showAvg(){{const v=tiles().filter(e=>!e.dataset.barOnly&&!e.dataset.sym.startsWith('ecos:')&&!['BATL','CL=F','^IXIC','^KS11','^KQ11'].includes(e.dataset.sym)).map(e=>e.dataset.left).filter(x=>x!==undefined).map(Number),a=document.getElementById('avg');
-  if(!a)return;if(!v.length){{a.textContent='';return;}}const m=v.reduce((x,y)=>x+y,0)/v.length;
-  a.textContent=Math.round(m*100)+'%';a.style.color=AC[Math.min(9,Math.floor(m*10))];
-  const b=document.getElementById('baravg');if(b){{b.textContent=a.textContent;b.style.color=a.style.color;}}}}
-const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-live');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
+const AVG_CATALOG={avg_catalog};
+const AVG_DEFAULT=['upbit:KRW-BTC','USDE','SDEV','SOXL','AXTX','AXTI'];
+const AVG_KEY='avg-symbols-v1';
+function readAvgSymbols(){{
+  try{{const value=JSON.parse(ls(AVG_KEY)||'null');if(Array.isArray(value))return [...new Set(value.filter(s=>typeof s==='string'))];}}catch(e){{}}
+  return AVG_DEFAULT.slice();
+}}
+let avgSymbols=new Set(readAvgSymbols()),avgFrame=0;
+function queueAvg(){{if(!avgFrame)avgFrame=requestAnimationFrame(()=>{{avgFrame=0;showAvg();}});}}
+function showAvg(){{
+  const values=tiles().filter(el=>avgSymbols.has(el.dataset.sym)&&el.dataset.left!==undefined).map(el=>+el.dataset.left).filter(Number.isFinite);
+  const mean=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
+  const text=mean===null?'—':Math.round(mean*100)+'%',color=mean===null?'var(--sub)':AC[Math.min(9,Math.floor(mean*10))];
+  for(const id of ['avg','baravg']){{const el=document.getElementById(id);if(el){{if(el.textContent!==text)el.textContent=text;el.style.color=color;}}}}
+}}
+function avgSettingsSummary(){{
+  const selected=[...document.querySelectorAll('#avg-options input:checked')];
+  const ready=selected.filter(input=>{{const el=tileBySym.get(input.value);return el&&getT(el).length;}}).length;
+  document.getElementById('avg-selection-count').textContent=selected.length+'개 선택 · '+ready+'개 계산';
+}}
+function openAvgSettings(){{
+  const dialog=document.getElementById('avg-settings'),options=document.getElementById('avg-options');
+  options.replaceChildren();
+  for(const item of AVG_CATALOG){{
+    const row=document.createElement('label'),input=document.createElement('input'),text=document.createElement('span'),name=document.createElement('span');
+    row.className='avg-option';input.type='checkbox';input.value=item.sym;input.checked=avgSymbols.has(item.sym);
+    name.textContent=item.name;text.appendChild(name);const el=tileBySym.get(item.sym);
+    if(!el||!getT(el).length){{const note=document.createElement('small');note.textContent=el?'목표가 없음':'데이터 없음';text.appendChild(note);}}
+    row.append(input,text);options.appendChild(row);
+  }}
+  avgSettingsSummary();dialog.showModal();
+}}
+document.getElementById('avg-options').addEventListener('change',avgSettingsSummary);
+document.getElementById('avg-default').onclick=()=>{{
+  document.querySelectorAll('#avg-options input').forEach(input=>input.checked=AVG_DEFAULT.includes(input.value));avgSettingsSummary();
+}};
+document.getElementById('avg-settings-form').addEventListener('submit',e=>{{
+  e.preventDefault();avgSymbols=new Set([...document.querySelectorAll('#avg-options input:checked')].map(input=>input.value));
+  ls(AVG_KEY,JSON.stringify([...avgSymbols]));showAvg();document.getElementById('avg-settings').close();
+}});
+addEventListener('storage',e=>{{if(e.key===AVG_KEY){{avgSymbols=new Set(readAvgSymbols());showAvg();}}}});
+
+const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-stamp');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
-async function pollLive(force=false){{for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
+async function pollLive(force=false){{if(!force&&document.visibilityState==='hidden')return false;for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
   if(r.ok){{lastSlot=sl;const j=await r.json();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
-async function pollUpbit(){{if(!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
+async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
 let refreshJob=null,refreshAnnounce=false,refreshToastTimer=null;
 function showRefreshToast(message){{
@@ -586,20 +680,21 @@ async function refreshCharts(){{
     const next=new DOMParser().parseFromString(await response.text(),'text/html');
     const incoming=[...next.querySelectorAll('.tile[data-sym]')];
     if(!next.querySelector('#baravg')||!incoming.length)return false;
-    const current=new Map(tiles().map(el=>[el.dataset.sym,el]));
+    const current=tileBySym;
     const board=document.querySelector('.grid-wrap');
     for(const fresh of incoming){{
       const sym=fresh.dataset.sym;let el=current.get(sym);
-      if(!el){{el=fresh;board.appendChild(el);current.set(sym,el);}}
+      if(!el){{el=fresh;board.appendChild(el);registerTile(el);}}
       else{{
         for(const key of ['hi','tgts0'])if(fresh.dataset[key]!==undefined)el.dataset[key]=fresh.dataset[key];
         const name=el.querySelector('.name'),nextName=fresh.querySelector('.name');
         if(name&&nextName&&name.innerHTML!==nextName.innerHTML)name.replaceChildren(...nextName.childNodes);
         for(const view of [...fresh.querySelectorAll('.view')]){{
           const old=el.querySelector('.view[data-v="'+view.dataset.v+'"]');
-          if(old){{if(old.innerHTML!==view.innerHTML)old.replaceChildren(...view.childNodes);}}
-          else el.insertBefore(view,el.querySelector('.gauge'));
+          if(old){{if(old.innerHTML!==view.innerHTML){{old.replaceChildren(...view.childNodes);el._targetsPainted=false;}}}}
+          else{{el.insertBefore(view,el.querySelector('.gauge'));el._targetsPainted=false;}}
         }}
+        el.querySelectorAll('.zoom-tools button[data-v]').forEach(button=>button.disabled=!el.querySelector('.view[data-v="'+button.dataset.v+'"]'));
         if(sym.startsWith('ecos:')){{el.dataset.p=fresh.dataset.p;el.dataset.pv=fresh.dataset.pv;}}
       }}
       renderT(el);apply(sym,+el.dataset.p,+el.dataset.pv);
@@ -610,12 +705,13 @@ async function refreshCharts(){{
 function refreshBoard(announce=true){{
   refreshAnnounce=refreshAnnounce||announce;
   if(refreshJob)return refreshJob;
+  const reload=document.getElementById('reload');reload.setAttribute('aria-busy','true');
   refreshJob=(async()=>{{
     const results=await Promise.allSettled([refreshCharts(),pollLive(true),pollUpbit(),pullT()]);
     const ok=results.slice(0,3).some(r=>r.status==='fulfilled'&&r.value);
     if(refreshAnnounce)showRefreshToast(ok?'새로고침했습니다':'새로고침하지 못했습니다');
     return ok;
-  }})().finally(()=>{{refreshJob=null;refreshAnnounce=false;}});
+  }})().finally(()=>{{refreshJob=null;refreshAnnounce=false;reload.removeAttribute('aria-busy');}});
   return refreshJob;
 }}
 
@@ -641,7 +737,7 @@ function moveBarPress(y){{
   const p=barPress;if(!p?.active)return;
   let at=0;for(let i=1;i<p.centers.length;i++)if(Math.abs(y-p.centers[i])<Math.abs(y-p.centers[at]))at=i;
   const next=p.rows.filter(el=>el!==p.el);next.splice(at,0,p.el);
-  p.order=next.map(el=>el.dataset.sym);applyBarOrder(p.order);
+  const order=next.map(el=>el.dataset.sym);if(order.join('|')!==p.order.join('|')){{p.order=order;applyBarOrder(p.order);}}
   p.el.style.setProperty('--bar-drag-y','0px');
   const r=p.el.getBoundingClientRect(),board=barBoard.getBoundingClientRect();
   const top=Math.max(board.top,Math.min(board.bottom-r.height,y-p.offset));
@@ -714,11 +810,22 @@ function getHL(){{try{{return JSON.parse(ls('hl')||'[]');}}catch(e){{return [];}
 function paintHL(){{const h=getHL();tiles().forEach(el=>el.classList.toggle('hl',h.includes(el.dataset.sym)));}}
 function toggleHL(el){{const h=getHL(),s=el.dataset.sym,i=h.indexOf(s);i<0?h.push(s):h.splice(i,1);ls('hl',JSON.stringify(h));paintHL();pushT();
   if(navigator.vibrate)navigator.vibrate(30);}}
-let tapT=null,tapEl=null;
-function tap(el){{if(el.classList.contains('zoom')){{history.back();return;}}
-  if(document.body.classList.contains('baronly')){{clearTimeout(tapT);tapT=null;el.classList.add('zoom');history.pushState({{pop:1}},'');return;}}
-  if(tapT&&tapEl===el){{clearTimeout(tapT);tapT=null;toggleHL(el);return;}}  // 두 번째 탭 → 테두리
-  clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;el.classList.add('zoom');history.pushState({{pop:1}},'');}},300);}}  // 한 번 → 잠깐 기다렸다 펼침
+// 한 번 누르면 바로 펼친다. 빠른 두 번 탭은 펼친 차트의 강조 표시를 바꾼다.
+let tapT=null,tapEl=null,tapAt=0;
+function openChart(el){{
+  if(!el.querySelector('.view[data-v="'+document.body.dataset.v+'"]')){{
+    const fallback=el.querySelector('.view[data-v="일"]')||el.querySelector('.view');if(fallback)setV(fallback.dataset.v);
+  }}
+  el.classList.add('zoom');history.pushState({{pop:1}},'');
+}}
+function tap(el){{
+  const now=Date.now();
+  if(el.classList.contains('zoom')){{
+    if(!document.body.classList.contains('baronly')&&tapEl===el&&now-tapAt<300){{tapAt=0;toggleHL(el);return;}}
+    history.back();return;
+  }}
+  tapEl=el;tapAt=now;openChart(el);
+}}
 paintHL();
 repaint();pullT();setInterval(pullT,60000);  // 다른 폰에서 바꾼 목표가를 1분마다 가져옴
 pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
