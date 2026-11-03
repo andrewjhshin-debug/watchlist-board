@@ -307,16 +307,14 @@ def chart_svg(d: dict) -> str:
     span = (vmax - vmin) or 1
     y = lambda v: H - CELL / 2 - round((v - vmin) / span * (ROWS - 1)) * CELL  # 칸 단위로 스냅
     cw = W / m
-    # 같은 색의 봉을 경로로 묶어 모양을 유지하며 DOM 요소 수를 줄인다.
-    wicks, candles = {"cu": [], "cd": []}, {"cu": [], "cd": []}
+    body = ""
     for j, (o, hi, lo, c) in enumerate(cs):
         x, cls = j * cw, "cu" if c >= o else "cd"
         top, bot = min(y(o), y(c)), max(y(o), y(c))
-        wicks[cls].append(f'M{x + cw / 2:.1f},{y(hi)}V{y(lo)}')
-        candles[cls].append(f'M{x + cw * .15:.1f},{top - CELL / 2}h{cw * .7:.1f}v{bot - top + CELL}h-{cw * .7:.1f}Z')
-    body = "".join(f'<path class="wick {cls}" d="{"".join(wicks[cls])}"/><path class="candle {cls}" d="{"".join(candles[cls])}"/>' for cls in ("cu", "cd"))
-    grid = '<path d="' + "".join(f'M0,{g}H{W}' for g in range(0, H, CELL)) + \
-           "".join(f'M{g},0V{H}' for g in range(0, W, CELL)) + '"/>'
+        body += (f'<line class="{cls}" x1="{x + cw / 2:.1f}" y1="{y(hi)}" x2="{x + cw / 2:.1f}" y2="{y(lo)}"/>'
+                 f'<rect class="{cls}" x="{x + cw * .15:.1f}" y="{top - CELL / 2}" width="{cw * .7:.1f}" height="{bot - top + CELL}"/>')
+    grid = "".join(f'<line x1="0" y1="{g}" x2="{W}" y2="{g}"/>' for g in range(0, H, CELL)) + \
+           "".join(f'<line x1="{g}" y1="0" x2="{g}" y2="{H}"/>' for g in range(0, W, CELL))
     cur = d["currency"]
     # 전고(막대 100% 기준) 자리에 숫자만. 펼쳤을 때만 보임. 이 보기 기간 밖이면 생략
     peak, dates = "", d.get("dates", [])
@@ -336,7 +334,7 @@ def chart_svg(d: dict) -> str:
 def zoom_tools(views) -> str:
     buttons = "".join(f'<button type="button" data-v="{k}"{chr(32) + "disabled" if k not in views else ""} onclick="event.stopPropagation();setV(this.dataset.v)">{k}</button>' for k in VIEWS)
     return ('<div class="zoom-tools" onclick="event.stopPropagation()"><div class="tabs" role="group" aria-label="차트 주기">' + buttons +
-            '</div><button type="button" class="zoom-close" aria-label="차트 닫기" onclick="event.stopPropagation();history.back()">닫기</button></div>')
+            '</div></div>')
 
 
 def tile(d: dict) -> str:
@@ -432,7 +430,7 @@ body.nochart .tile:not(.zoom) .chg,body.nochart .tile:not(.zoom) .tgttxt{{font-s
 .tile.zoom .chart{{aspect-ratio:auto;height:62vh}}.tile.zoom .name{{font-size:20px}}.tile.zoom .price{{font-size:30px}}
 .tile.zoom .tgttxt{{font-size:14px}}.tile.zoom .ax{{font-size:12px}}
 svg{{width:100%;height:100%;display:block}}
-.grid line,.grid path{{fill:none;stroke:var(--grid);stroke-width:1}}
+.grid line{{stroke:var(--grid);stroke-width:1}}
 .line{{fill:none;stroke-width:4;shape-rendering:crispEdges;vector-effect:non-scaling-stroke}}
 .up .line{{stroke:var(--up)}}.down .line{{stroke:var(--dn)}}.up .area{{fill:var(--upf)}}.down .area{{fill:var(--dnf)}}
 .tgt{{stroke:var(--tgt);stroke-width:1.5;stroke-dasharray:2 3;vector-effect:non-scaling-stroke}}
@@ -441,7 +439,7 @@ svg{{width:100%;height:100%;display:block}}
 .peak.r::after{{left:auto;right:2px}}.tile.zoom .peak{{display:block}}
 .tgts{{cursor:pointer}}.gauge[hidden]{{display:none}}
 rect.cu{{fill:var(--up)}}rect.cd{{fill:var(--dn)}}line.cu{{stroke:var(--up)}}line.cd{{stroke:var(--dn)}}
-line.cu,line.cd,.wick{{stroke-width:1.5;vector-effect:non-scaling-stroke}}.wick{{fill:none}}.wick.cu{{stroke:var(--up)}}.wick.cd{{stroke:var(--dn)}}.candle.cu{{fill:var(--up)}}.candle.cd{{fill:var(--dn)}}
+line.cu,line.cd{{stroke-width:1.5;vector-effect:non-scaling-stroke}}
 .gauge{{height:5px;margin-top:4px;background:var(--grid)}}.gauge i{{display:block;height:100%}}
 .lv4{{--lv:#ff0033}}.lv3{{--lv:#ff5500}}.lv2{{--lv:#66ff00}}.lv1{{--lv:#00ff2a}}
 body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6f9a00}}body.day .lv1{{--lv:#1f9e3a}}
@@ -492,11 +490,9 @@ button:active{{background:#173026!important;border-color:var(--tgt)!important}}
 #reload[aria-busy="true"]{{color:var(--tgt);border-color:var(--tgt)}}
 .zoom-tools{{display:none}}
 body:has(.tile.zoom){{overflow:hidden}}
-.tile.zoom .zoom-tools{{display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:-16px;z-index:4;background:var(--tile);padding:10px 0;margin:4px 0}}
+.tile.zoom .zoom-tools{{display:flex;align-items:center;justify-content:flex-end;gap:10px;position:sticky;top:-16px;z-index:4;background:var(--tile);padding:10px 0;margin:4px 0}}
 .tile.zoom .zoom-tools .tabs{{gap:6px}}
-.zoom-close{{font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:2px solid var(--edge);padding:4px 8px;cursor:pointer}}
 .tabs button:disabled{{opacity:.35;cursor:default}}
-.tile.zoom .chart{{height:clamp(180px,58dvh,720px)}}
 .tile.zoom .price{{font-size:clamp(22px,6vw,30px)!important}}
 #avg-settings{{position:fixed;inset:0;width:min(420px,calc(100vw - 24px));max-height:calc(100dvh - 24px);margin:auto;padding:16px;color:var(--txt);background:var(--tile);border:2px solid var(--tgt);font:inherit;overflow:hidden}}
 #avg-settings-form{{display:flex;flex-direction:column;max-height:calc(100dvh - 60px)}}
