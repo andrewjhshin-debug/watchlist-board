@@ -469,6 +469,10 @@ body.baronly .grid-wrap .tile:not(.zoom) .gauge[hidden]{{display:block!important
 @media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:19px!important}}}}
 @media(max-height:580px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile:not(.zoom){{row-gap:2px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:12px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:15px!important}}}}
 body.baronly .below:not(.zoom) .gauge i{{position:relative}}body.baronly .below:not(.zoom) .gauge i::after{{content:attr(data-p);position:absolute;right:6px;top:50%;transform:translateY(-50%);font-family:'GalmuriMono11','Galmuri11',monospace;font-size:18px;line-height:1;color:#000;white-space:nowrap}}
+/* 꾹 누른 막대만 이동. 확대 차트의 터치·스크롤은 기존대로. */
+body.baronly .grid-wrap .tile:not(.zoom)[data-bar-order]{{order:var(--bar-order);touch-action:none;-webkit-touch-callout:none}}
+body.baronly .grid-wrap .tile.bar-dragging:not(.zoom){{position:relative;z-index:12;cursor:grabbing;background:#07150f;outline:2px solid var(--tgt);outline-offset:0;transform:translateY(var(--bar-drag-y,0px))}}
+body.bar-sorting,body.bar-sorting .tile{{cursor:grabbing}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button></div></header>
 <div id="bar-live" class="bar-live">실시간 {now[-5:]} 갱신</div>
@@ -600,7 +604,7 @@ async function refreshCharts(){{
       }}
       renderT(el);apply(sym,+el.dataset.p,+el.dataset.pv);
     }}
-    paintHL();return true;
+    paintHL();if(!barPress)applyBarOrder();return true;
   }}catch(e){{return false;}}
 }}
 function refreshBoard(announce=true){{
@@ -615,6 +619,85 @@ function refreshBoard(announce=true){{
   return refreshJob;
 }}
 
+// 바 순서는 이 브라우저에만 저장. CSS 순서만 바꿔 차트 모드 배치는 유지한다.
+const BAR_ORDER_KEY='bar-order-v1';
+const BAR_DEFAULT_ORDER=['upbit:KRW-BTC','USDE','SDEV','SOXL','AXTX','AXTI','^IXIC','CL=F','SOXS'];
+const barBoard=document.querySelector('.grid-wrap');
+let barPress=null,barSkipClickUntil=0;
+function readBarOrder(){{try{{const v=JSON.parse(ls(BAR_ORDER_KEY)||'[]');return Array.isArray(v)?v.filter(s=>typeof s==='string'):[];}}catch(e){{return [];}}}}
+function applyBarOrder(order=readBarOrder()){{
+  const all=tiles(),rank=[...new Set([...order,...BAR_DEFAULT_ORDER,...all.map(el=>el.dataset.sym)])];
+  const on=document.body.classList.contains('baronly');
+  all.forEach(el=>{{
+    const n=rank.indexOf(el.dataset.sym);el.dataset.barOrder=n;el.style.setProperty('--bar-order',n);
+    const visible=on&&!el.classList.contains('zoom')&&getComputedStyle(el).display!=='none';
+    if(visible){{el.tabIndex=0;el.setAttribute('title','꾹 누른 뒤 위아래로 끌어 순서 변경 · Alt+↑↓');}}
+    else{{el.removeAttribute('tabindex');el.removeAttribute('title');}}
+  }});
+}}
+function barRows(){{return [...barBoard.querySelectorAll('.tile[data-sym]:not(.zoom)')].filter(el=>getComputedStyle(el).display!=='none').sort((a,b)=>+a.dataset.barOrder-+b.dataset.barOrder);}}
+function barTile(target){{return target.closest?.('.tile[data-sym]:not(.zoom)');}}
+function moveBarPress(y){{
+  const p=barPress;if(!p?.active)return;
+  let at=0;for(let i=1;i<p.centers.length;i++)if(Math.abs(y-p.centers[i])<Math.abs(y-p.centers[at]))at=i;
+  const next=p.rows.filter(el=>el!==p.el);next.splice(at,0,p.el);
+  p.order=next.map(el=>el.dataset.sym);applyBarOrder(p.order);
+  p.el.style.setProperty('--bar-drag-y','0px');
+  const r=p.el.getBoundingClientRect(),board=barBoard.getBoundingClientRect();
+  const top=Math.max(board.top,Math.min(board.bottom-r.height,y-p.offset));
+  p.el.style.setProperty('--bar-drag-y',(top-r.top)+'px');
+}}
+function finishBarPress(save=false){{
+  const p=barPress;if(!p)return;barPress=null;clearTimeout(p.timer);
+  if(p.active){{
+    barSkipClickUntil=Date.now()+700;
+    if(save&&p.order.join('|')!==p.before.join('|'))ls(BAR_ORDER_KEY,JSON.stringify(p.order));
+    p.el.classList.remove('bar-dragging');p.el.style.removeProperty('--bar-drag-y');document.body.classList.remove('bar-sorting');
+    applyBarOrder(save?p.order:p.before);
+  }}
+  try{{if(p.el.hasPointerCapture(p.id))p.el.releasePointerCapture(p.id);}}catch(e){{}}
+}}
+barBoard.addEventListener('pointerdown',e=>{{
+  if(barPress){{finishBarPress(false);return;}}
+  const el=barTile(e.target);
+  if(!document.body.classList.contains('baronly')||document.querySelector('.tile.zoom')||!el||e.isPrimary===false||e.button!==0)return;
+  barSkipClickUntil=0;
+  const p={{el,id:e.pointerId,x:e.clientX,y:e.clientY,active:false}};barPress=p;
+  try{{el.setPointerCapture(e.pointerId);}}catch(e){{}}
+  p.timer=setTimeout(()=>{{
+    if(barPress!==p)return;
+    p.rows=barRows();p.before=p.rows.map(row=>row.dataset.sym);p.order=p.before.slice();
+    p.centers=p.rows.map(row=>{{const r=row.getBoundingClientRect();return r.top+r.height/2;}});
+    p.offset=p.y-el.getBoundingClientRect().top;p.active=true;
+    clearTimeout(tapT);tapT=null;el.classList.add('bar-dragging');document.body.classList.add('bar-sorting');
+  }},450);
+}});
+barBoard.addEventListener('pointermove',e=>{{
+  const p=barPress;if(!p||e.pointerId!==p.id)return;
+  if(p.active){{e.preventDefault();moveBarPress(e.clientY);}}
+  else if(Math.hypot(e.clientX-p.x,e.clientY-p.y)>10){{barSkipClickUntil=Date.now()+700;finishBarPress(false);}}
+}},{{passive:false}});
+barBoard.addEventListener('pointerup',e=>{{if(barPress?.id===e.pointerId)finishBarPress(true);}});
+barBoard.addEventListener('pointercancel',e=>{{if(barPress?.id===e.pointerId)finishBarPress(false);}});
+barBoard.addEventListener('lostpointercapture',e=>{{if(barPress?.id===e.pointerId)finishBarPress(false);}});
+barBoard.addEventListener('click',e=>{{if(barPress?.active||Date.now()<barSkipClickUntil){{e.preventDefault();e.stopImmediatePropagation();}}}},true);
+for(const type of ['contextmenu','dragstart'])barBoard.addEventListener(type,e=>{{if(document.body.classList.contains('baronly')&&barTile(e.target))e.preventDefault();}});
+barBoard.addEventListener('keydown',e=>{{
+  if(e.key==='Escape'&&barPress){{e.preventDefault();finishBarPress(false);return;}}
+  const el=barTile(e.target);if(!document.body.classList.contains('baronly')||document.querySelector('.tile.zoom')||!el)return;
+  if(e.altKey&&['ArrowUp','ArrowDown'].includes(e.key)){{
+    e.preventDefault();finishBarPress(false);const rows=barRows(),from=rows.indexOf(el),to=from+(e.key==='ArrowUp'?-1:1);
+    if(from<0||to<0||to>=rows.length)return;
+    rows.splice(from,1);rows.splice(to,0,el);const order=rows.map(row=>row.dataset.sym);
+    ls(BAR_ORDER_KEY,JSON.stringify(order));applyBarOrder(order);
+  }}else if(e.key==='Enter'||e.key===' '){{e.preventDefault();el.click();}}
+}});
+addEventListener('blur',()=>finishBarPress(false));
+addEventListener('resize',()=>finishBarPress(false));
+document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='hidden')finishBarPress(false);}});
+addEventListener('storage',e=>{{if(e.key===BAR_ORDER_KEY&&!barPress)applyBarOrder();}});
+applyBarOrder();
+
 // 차트 접기: 휴대폰은 처음엔 접힌 상태(12종목이 한 화면에), 선택은 기억
 const fold=document.getElementById('fold');
 function setF(on){{document.body.classList.toggle('nochart',on);fold.textContent=on?'차트 펴기':'차트 접기';ls('fold',on?'1':'0');}}
@@ -623,7 +706,7 @@ setF(innerWidth<601&&ls('fold')!=='0');
 function fitBarViewport(){{const h=Math.floor(window.visualViewport?.height||innerHeight);if(h>0)document.body.style.setProperty('--bar-viewport',h+'px');}}
 addEventListener('resize',fitBarViewport);window.visualViewport?.addEventListener('resize',fitBarViewport);
 const barB=document.getElementById('bar');
-function setB(on){{fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');}}
+function setB(on){{finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();}}
 barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
