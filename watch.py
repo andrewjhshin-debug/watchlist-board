@@ -523,7 +523,8 @@ body:has(.tile.zoom){{overflow:hidden}}
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표가가 없는 종목은 계산에서 빠져요.</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
-<div class="settings-actions"><button id="avg-default" type="button">초기값</button><button type="submit">적용</button></div>
+<p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
+<div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button id="avg-default" type="button">초기값</button><button type="submit">적용</button></div>
 </form></dialog>
 
 <script>
@@ -558,18 +559,96 @@ const tileList=[...document.querySelectorAll('.tile[data-sym]')],tileBySym=new M
 const tiles=()=>tileList;
 function registerTile(el){{tileList.push(el);tileBySym.set(el.dataset.sym,el);}}
 function repaint(){{tiles().forEach(el=>{{renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}});}}
-async function pullT(){{const c=ls('sync');if(!c)return null;
-  try{{const r=await fetch(FS+c+'?key='+FK,{{cache:'no-store'}});if(!r.ok)return null;
-    const m=JSON.parse((await r.json()).fields.json.stringValue||'{{}}');
-    if(Object.keys(m).length){{let changed=false;for(const s in m){{const key=s==='_hl'?'hl':'tg:'+s,value=JSON.stringify(m[s]);if(ls(key)!==value){{ls(key,value);changed=true;}}}}if(changed){{repaint();paintHL();}}}}return m;}}catch(e){{return null;}}}}
-async function pushT(){{const c=ls('sync');if(!c)return;const m={{}};tiles().forEach(el=>m[el.dataset.sym]=getT(el));m._hl=getHL();
-  try{{await fetch(FS+c+'?key='+FK,{{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{fields:{{json:{{stringValue:JSON.stringify(m)}}}}}})}});}}catch(e){{}}}}
+// 목표가·강조 표시·평균 종목을 같은 동기화 코드의 문서에서 공유한다.
+let targetPullJob=null,targetPullCode=null,targetPullGeneration=0,avgWriteJob=null,avgWriteCode=null,avgSyncState='',avgSettingsDirty=false,avgGeneration=0;
+const avgPendingKey=c=>'avg-pending:'+c;
+function paintAvgSync(){{
+  const el=document.getElementById('avg-sync-status');if(!el)return;
+  el.textContent=!ls('sync')?'같은 연동 코드를 쓰면 웹·앱에 함께 적용돼요.':ls(avgPendingKey(ls('sync')))&&avgSyncState!=='연동 재시도 중'?'평균 연동 중':avgSyncState||'연동 확인 중';
+}}
+function adoptSharedAverage(value){{
+  if(!Array.isArray(value)||!value.every(s=>typeof s==='string'))return false;
+  const next=[...new Set(value)];ls(AVG_KEY,JSON.stringify(next));avgSymbols=new Set(next);showAvg();
+  const dialog=document.getElementById('avg-settings');
+  if(dialog?.open&&!avgSettingsDirty){{document.querySelectorAll('#avg-options input').forEach(input=>input.checked=avgSymbols.has(input.value));avgSettingsSummary();}}
+  return true;
+}}
+async function updateShared(change){{
+  const code=ls('sync');if(!code)return null;
+  for(let attempt=0;attempt<3;attempt++){{
+    try{{
+      const r=await fetch(FS+code+'?key='+FK,{{cache:'no-store'}});if(!r.ok)return null;
+      const doc=await r.json(),m=JSON.parse(doc.fields?.json?.stringValue||'{{}}');
+      if(ls('sync')!==code)return null;
+      if(change(m)===false)return m;
+      if(!doc.updateTime)return null;
+      const url=FS+code+'?key='+FK+'&updateMask.fieldPaths=json&currentDocument.updateTime='+encodeURIComponent(doc.updateTime);
+      const saved=await fetch(url,{{method:'PATCH',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{fields:{{json:{{stringValue:JSON.stringify(m)}}}}}})}});
+      if(saved.ok)return m;
+      if(saved.status!==409&&saved.status!==412){{const error=await saved.json().catch(()=>null);if(!['FAILED_PRECONDITION','ABORTED'].includes(error?.error?.status))return null;}}
+    }}catch(e){{return null;}}
+  }}
+  return null;
+}}
+function pushAverage(){{
+  if(avgWriteJob)return avgWriteCode===ls('sync')?avgWriteJob:avgWriteJob.then(()=>pushAverage());
+  avgWriteCode=ls('sync');
+  avgWriteJob=(async()=>{{
+    const code=ls('sync');if(!code){{paintAvgSync();return false;}}
+    const key=avgPendingKey(code);
+    while(ls('sync')===code&&ls(key)){{
+      const snapshot=ls(key);let selected;try{{selected=JSON.parse(snapshot);}}catch(e){{return false;}}
+      avgSyncState='평균 연동 중';paintAvgSync();
+      const saved=await updateShared(m=>{{m._avg=selected;}});
+      if(!saved){{avgSyncState='연동 재시도 중';paintAvgSync();return false;}}
+      if(ls('sync')!==code)return false;
+      if(ls(key)===snapshot)ls(key,'');
+    }}
+    avgSyncState='웹·앱 연동됨';paintAvgSync();return true;
+  }})().finally(()=>{{avgWriteJob=null;}});
+  return avgWriteJob;
+}}
+function pullT(){{
+  const code=ls('sync');if(targetPullJob&&targetPullCode===code)return targetPullJob;
+  targetPullCode=code;const request=++targetPullGeneration;
+  targetPullJob=(async()=>{{
+    const generation=avgGeneration;if(!code){{paintAvgSync();return null;}}
+    if(ls(avgPendingKey(code))&&!(await pushAverage()))return null;
+    try{{
+      const r=await fetch(FS+code+'?key='+FK,{{cache:'no-store'}});if(!r.ok)throw Error('sync');
+      const doc=await r.json(),m=JSON.parse(doc.fields?.json?.stringValue||'{{}}');if(ls('sync')!==code)return null;
+      let changed=false;
+      for(const sym in m){{
+        if(sym.startsWith('_')&&sym!=='_hl')continue;
+        const key=sym==='_hl'?'hl':'tg:'+sym,value=JSON.stringify(m[sym]);
+        if(ls(key)!==value){{ls(key,value);changed=true;}}
+      }}
+      if(changed){{repaint();paintHL();}}
+      if(generation===avgGeneration&&!ls(avgPendingKey(code))){{
+        if(Array.isArray(m._avg))adoptSharedAverage(m._avg);
+        else if(ls(AVG_KEY)!=null){{
+          // 처음 연동할 때만 기존 선택을 옮긴다. 다른 기기가 먼저 저장했다면 그 값을 따른다.
+          const selected=[...avgSymbols],migrated=await updateShared(remote=>{{if(Array.isArray(remote._avg))return false;remote._avg=selected;}});
+          if(!migrated)throw Error('sync');
+          if(ls('sync')===code&&generation===avgGeneration&&!ls(avgPendingKey(code)))adoptSharedAverage(migrated._avg);
+        }}
+      }}
+      avgSyncState='웹·앱 연동됨';paintAvgSync();return m;
+    }}catch(e){{avgSyncState='연동 재시도 중';paintAvgSync();return null;}}
+  }})().finally(()=>{{if(request===targetPullGeneration)targetPullJob=null;}});
+  return targetPullJob;
+}}
+async function pushT(){{
+  const changes={{}};tiles().forEach(el=>changes[el.dataset.sym]=getT(el));changes._hl=getHL();
+  return updateShared(m=>Object.assign(m,changes));
+}}
+
 async function askSync(force){{if(!force&&(ls('sync')||ls('syncAsked')))return;ls('syncAsked','1');
   const c=prompt('동기화 코드를 입력하세요\\n(PC 다운로드 폴더의 관심종목_동기화코드.txt)',ls('sync')||'');
   if(!c)return;ls('sync',c.trim());const m=await pullT();
   if(m===null){{ls('sync','');alert('코드가 맞지 않아요');}}else if(!Object.keys(m).length)await pushT();  // 처음이면 이 폰 값을 올림
   syncLabel();}}
-function syncLabel(){{const b=document.getElementById('sync');if(b)b.textContent=ls('sync')?'동기화됨':'동기화';}}
+function syncLabel(){{const b=document.getElementById('sync');if(b)b.textContent=ls('sync')?'동기화됨':'동기화';paintAvgSync();}}
 function editT(ev,box){{ev.stopPropagation();editT2(box.closest('.tile'));}}
 async function editT2(el){{await askSync();
   const v=prompt(el.querySelector('.name').firstChild.textContent.trim()+' 목표가\\n여러 개는 쉼표로 (예: 100, 98)\\n비우면 목표 없음',getT(el).join(', '));
@@ -634,7 +713,7 @@ function avgSettingsSummary(){{
   document.getElementById('avg-selection-count').textContent=selected.length+'개 선택 · '+ready+'개 계산';
 }}
 function openAvgSettings(){{
-  const dialog=document.getElementById('avg-settings'),options=document.getElementById('avg-options');
+  const dialog=document.getElementById('avg-settings'),options=document.getElementById('avg-options');avgSettingsDirty=false;
   options.replaceChildren();
   for(const item of AVG_CATALOG){{
     const row=document.createElement('label'),input=document.createElement('input'),text=document.createElement('span'),name=document.createElement('span');
@@ -643,17 +722,18 @@ function openAvgSettings(){{
     if(!el||!getT(el).length){{const note=document.createElement('small');note.textContent=el?'목표가 없음':'데이터 없음';text.appendChild(note);}}
     row.append(input,text);options.appendChild(row);
   }}
-  avgSettingsSummary();dialog.showModal();
+  avgSettingsSummary();paintAvgSync();dialog.showModal();pullT();
 }}
-document.getElementById('avg-options').addEventListener('change',avgSettingsSummary);
-document.getElementById('avg-default').onclick=()=>{{
+document.getElementById('avg-options').addEventListener('change',()=>{{avgSettingsDirty=true;avgSettingsSummary();}});
+document.getElementById('avg-default').onclick=()=>{{avgSettingsDirty=true;
   document.querySelectorAll('#avg-options input').forEach(input=>input.checked=AVG_DEFAULT.includes(input.value));avgSettingsSummary();
 }};
 document.getElementById('avg-settings-form').addEventListener('submit',e=>{{
   e.preventDefault();avgSymbols=new Set([...document.querySelectorAll('#avg-options input:checked')].map(input=>input.value));
-  ls(AVG_KEY,JSON.stringify([...avgSymbols]));showAvg();document.getElementById('avg-settings').close();
+  const saved=JSON.stringify([...avgSymbols]);avgGeneration++;ls(AVG_KEY,saved);showAvg();document.getElementById('avg-settings').close();
+  const code=ls('sync');if(code){{ls(avgPendingKey(code),saved);pushAverage();}}
 }});
-addEventListener('storage',e=>{{if(e.key===AVG_KEY){{avgSymbols=new Set(readAvgSymbols());showAvg();}}}});
+addEventListener('storage',e=>{{if(e.key===AVG_KEY){{avgGeneration++;avgSymbols=new Set(readAvgSymbols());showAvg();}}}});
 
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-stamp');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
@@ -823,12 +903,12 @@ function tap(el){{
   tapEl=el;tapAt=now;openChart(el);
 }}
 paintHL();
-repaint();pullT();setInterval(pullT,60000);  // 다른 폰에서 바꾼 목표가를 1분마다 가져옴
+repaint();pullT();setInterval(()=>{{if(document.visibilityState==='visible')pullT();}},15000);  // 웹·앱의 목표가와 평균 종목을 함께 가져옴
 pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');showRefreshToast('새로고침했습니다');}}}}catch(e){{}}
 setInterval(()=>refreshBoard(false),{CFG["refresh_min"] * 60000});
 const loadedAt=Date.now();
-document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='visible'&&Date.now()-loadedAt>60000)refreshBoard(false);}});
+document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='visible'){{pullT();if(Date.now()-loadedAt>60000)refreshBoard(false);}}}});
 addEventListener('pageshow',e=>{{if(e.persisted)refreshBoard(false);}});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{{updateViaCache:'none'}});
 </script></body></html>'''
