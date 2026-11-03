@@ -513,17 +513,20 @@ body:has(.tile.zoom){{overflow:hidden}}
 .settings-actions button[type="submit"]{{border-color:var(--tgt);color:var(--tgt)}}
 #avg-selection-count{{font-size:11px;color:var(--tgt);margin:12px 0 0}}
 @media(max-width:350px){{.avg-option{{font-size:12px;gap:5px;padding:6px}}.tile.zoom .zoom-tools{{gap:6px}}.tile.zoom .zoom-tools .tabs{{gap:4px}}}}
-/* 상단만 두 줄로 확대. 확대 차트의 .tabs에는 적용하지 않는다. */
-body>header{{flex-wrap:nowrap!important;gap:8px!important}}
-body>header>h1{{align-self:flex-start;padding-top:8px}}
-body>header>.tabs{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:clamp(164px,46vw,192px);flex:0 0 clamp(164px,46vw,192px)}}
-body>header>.tabs>button{{min-width:0;min-height:40px;font-size:16px!important;line-height:1.15;padding:5px 3px!important;touch-action:manipulation}}
-body>header>.tabs>#reload,body>header>.tabs>#pct,body>header>.tabs>#bar{{margin:0!important}}
-@media(max-width:350px){{body>header{{gap:4px!important}}body>header>.tabs{{width:164px;flex-basis:164px}}body>header>.tabs>button{{min-height:38px;font-size:15px!important;padding:4px 2px!important}}}}
+/* 바 모드 상단만 두 줄로 확대. */
+body.baronly>header{{flex-wrap:nowrap!important;gap:8px!important}}
+body.baronly>header>h1{{align-self:flex-start;padding-top:8px}}
+body.baronly>header>.tabs{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:clamp(164px,46vw,192px);flex:0 0 clamp(164px,46vw,192px)}}
+body.baronly>header>.tabs>button{{min-width:0;min-height:40px;font-size:16px!important;line-height:1.15;padding:5px 3px!important;touch-action:manipulation}}
+body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>header>.tabs>#bar{{margin:0!important}}
+@media(max-width:350px){{body.baronly>header{{gap:4px!important}}body.baronly>header>.tabs{{width:164px;flex-basis:164px}}body.baronly>header>.tabs>button{{min-height:38px;font-size:15px!important;padding:4px 2px!important}}}}
+/* 일반 차트는 기존 버튼, 큰 두 줄 버튼은 바 모드에만 적용. */
+body:not(.baronly)>header .settings-trigger{{display:none}}
+body.baronly .tile.avg-refresh-member:not(.zoom)>.name{{justify-self:start;max-width:100%;outline:1px solid var(--tgt);outline-offset:1px}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
 <div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div>
-<div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button></div>
+<div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
 <dialog id="avg-settings" aria-labelledby="avg-settings-title">
 <form id="avg-settings-form">
@@ -708,8 +711,24 @@ function readAvgSymbols(){{
 }}
 let avgSymbols=new Set(readAvgSymbols()),avgFrame=0;
 function queueAvg(){{if(!avgFrame)avgFrame=requestAnimationFrame(()=>{{avgFrame=0;showAvg();}});}}
+let refreshAverageNamesVisible=false,refreshAverageNamesTimer=null;
+function averageMembers(){{return tiles().filter(el=>avgSymbols.has(el.dataset.sym)&&el.dataset.left!==undefined&&Number.isFinite(+el.dataset.left));}}
+function paintRefreshAverageNames(members=averageMembers()){{
+  const included=new Set(refreshAverageNamesVisible&&document.body.classList.contains('baronly')?members:[]);
+  tiles().forEach(el=>el.classList.toggle('avg-refresh-member',included.has(el)));
+}}
+function clearRefreshAverageNames(){{
+  clearTimeout(refreshAverageNamesTimer);refreshAverageNamesVisible=false;
+  tiles().forEach(el=>el.classList.remove('avg-refresh-member'));
+}}
+function showRefreshAverageNames(duration=0){{
+  clearTimeout(refreshAverageNamesTimer);refreshAverageNamesVisible=true;paintRefreshAverageNames();
+  if(duration)refreshAverageNamesTimer=setTimeout(clearRefreshAverageNames,duration);
+}}
+
 function showAvg(){{
-  const values=tiles().filter(el=>avgSymbols.has(el.dataset.sym)&&el.dataset.left!==undefined).map(el=>+el.dataset.left).filter(Number.isFinite);
+  const members=averageMembers(),values=members.map(el=>+el.dataset.left);
+  if(refreshAverageNamesVisible)paintRefreshAverageNames(members);
   const mean=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
   const text=mean===null?'—':Math.round(mean*100)+'%',color=mean===null?'var(--sub)':AC[Math.min(9,Math.floor(mean*10))];
   for(const id of ['avg','baravg']){{const el=document.getElementById(id);if(el){{if(el.textContent!==text)el.textContent=text;el.style.color=color;}}}}
@@ -787,12 +806,13 @@ async function refreshCharts(){{
 }}
 function refreshBoard(announce=true){{
   refreshAnnounce=refreshAnnounce||announce;
+  if(announce&&document.body.classList.contains('baronly'))showRefreshAverageNames();
   if(refreshJob)return refreshJob;
   const reload=document.getElementById('reload');reload.setAttribute('aria-busy','true');
   refreshJob=(async()=>{{
     const results=await Promise.allSettled([refreshCharts(),pollLive(true),pollUpbit(),pullT()]);
     const ok=results.slice(0,3).some(r=>r.status==='fulfilled'&&r.value);
-    if(refreshAnnounce)showRefreshToast(ok?'새로고침했습니다':'새로고침하지 못했습니다');
+    if(refreshAnnounce){{if(refreshAverageNamesVisible)showRefreshAverageNames(3000);showRefreshToast(ok?'새로고침했습니다':'새로고침하지 못했습니다');}}
     return ok;
   }})().finally(()=>{{refreshJob=null;refreshAnnounce=false;reload.removeAttribute('aria-busy');}});
   return refreshJob;
@@ -873,7 +893,7 @@ barBoard.addEventListener('keydown',e=>{{
 }});
 addEventListener('blur',()=>finishBarPress(false));
 addEventListener('resize',()=>finishBarPress(false));
-document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='hidden')finishBarPress(false);}});
+document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='hidden'){{clearRefreshAverageNames();finishBarPress(false);}}}});
 addEventListener('storage',e=>{{if(e.key===BAR_ORDER_KEY&&!barPress)applyBarOrder();}});
 applyBarOrder();
 
@@ -885,7 +905,7 @@ setF(innerWidth<601&&ls('fold')!=='0');
 function fitBarViewport(){{const h=Math.floor(window.visualViewport?.height||innerHeight);if(h>0)document.body.style.setProperty('--bar-viewport',h+'px');}}
 addEventListener('resize',fitBarViewport);window.visualViewport?.addEventListener('resize',fitBarViewport);
 const barB=document.getElementById('bar');
-function setB(on){{finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();}}
+function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();}}
 barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
