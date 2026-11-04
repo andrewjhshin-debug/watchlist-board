@@ -522,6 +522,8 @@ body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>he
 /* 일반 차트는 기존 버튼, 큰 두 줄 버튼은 바 모드에만 적용. */
 body:not(.baronly)>header .settings-trigger{{display:none}}
 body.baronly .tile.avg-refresh-member:not(.zoom)>.name{{justify-self:start;max-width:100%;outline:1px solid rgb(62 240 176 / .4);outline-offset:1px}}
+body.baronly>header>.tabs>#reload{{grid-column:4;grid-row:2}}
+body.baronly>header>.tabs>.settings-trigger{{grid-column:1;grid-row:2}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
 
