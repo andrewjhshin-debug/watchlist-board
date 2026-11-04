@@ -514,7 +514,7 @@ body:has(.tile.zoom){{overflow:hidden}}
 /* 바 모드 상단만 두 줄로 확대. */
 body.baronly>header{{display:grid;grid-template-columns:minmax(0,1fr) clamp(164px,46vw,192px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"title controls" "live controls";column-gap:8px!important;row-gap:4px!important}}
 body.baronly>header>h1{{grid-area:title;align-self:start;min-width:0;padding-top:8px}}
-body.baronly>header>.bar-live{{grid-area:live;align-self:center;justify-self:start;min-width:0}}
+body.baronly>header>.bar-live{{grid-area:live;align-self:start;margin-top:2px;justify-self:start;min-width:0}}
 body.baronly>header>.tabs{{grid-area:controls;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:clamp(164px,46vw,192px);flex:0 0 clamp(164px,46vw,192px)}}
 body.baronly>header>.tabs>button{{min-width:0;min-height:40px;font-size:16px!important;line-height:1.15;padding:5px 3px!important;touch-action:manipulation}}
 body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>header>.tabs>#bar{{margin:0!important}}
