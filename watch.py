@@ -970,7 +970,7 @@ function tap(el){{
 }}
 paintHL();
 repaint();pullT();setInterval(()=>{{if(document.visibilityState==='visible')pullT();}},15000);  // 웹·앱의 목표가와 평균 종목을 함께 가져옴
-pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,5000);
+pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,15000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');showRefreshToast('새로고침했습니다');}}}}catch(e){{}}
 setInterval(()=>refreshBoard(false),{CFG["refresh_min"] * 60000});
 const loadedAt=Date.now();
