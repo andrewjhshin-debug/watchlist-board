@@ -521,7 +521,7 @@ body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>he
 @media(max-width:350px){{body.baronly>header{{grid-template-columns:minmax(0,1fr) 164px;column-gap:4px!important}}body.baronly>header>.tabs{{width:164px;flex-basis:164px}}body.baronly>header>.tabs>button{{min-height:38px;font-size:15px!important;padding:4px 2px!important}}}}
 /* 일반 차트는 기존 버튼, 큰 두 줄 버튼은 바 모드에만 적용. */
 body:not(.baronly)>header .settings-trigger{{display:none}}
-body.baronly .tile.avg-refresh-member:not(.zoom)>.name{{justify-self:start;max-width:100%;outline:1px solid rgb(62 240 176 / .4);outline-offset:1px}}
+body.baronly .tile.avg-refresh-member:not(.zoom)>.name{{justify-self:start;max-width:100%;outline:3px solid #00ff3c;outline-offset:1px}}
 body.baronly>header>.tabs>#reload{{grid-column:4;grid-row:2}}
 body.baronly>header>.tabs>.settings-trigger{{grid-column:1;grid-row:2}}
 </style></head><body>
