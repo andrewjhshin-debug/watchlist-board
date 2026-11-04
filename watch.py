@@ -451,8 +451,8 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 .err{{color:var(--up);font-size:12px;padding:0 16px}}
 .tile[data-bar-only]:not(.zoom){{display:none}}
 #bar{{margin-left:6px}}.bar-live{{display:none}}
-body.baronly{{background:#000;height:calc(100vh - 8px);height:calc(var(--bar-viewport,100dvh) - max(8px,env(safe-area-inset-bottom,0px)));overflow:hidden;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}}body.baronly .note,body.baronly .err{{display:none}}
-body.baronly .bar-live{{display:block;padding:4px 10px 0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
+body.baronly{{background:#000;height:calc(100vh - 8px);height:calc(var(--bar-viewport,100dvh) - max(8px,env(safe-area-inset-bottom,0px)));overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr) auto}}body.baronly .note,body.baronly .err{{display:none}}
+body.baronly .bar-live{{display:block;padding:0;font-size:11px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr);grid-auto-rows:minmax(0,1fr);align-content:stretch;min-height:0;gap:clamp(4px,.7dvh,8px);padding-block:clamp(4px,.7dvh,7px)}}
 .baravg{{display:none;appearance:none;border:0;padding:0;margin:0;background:transparent;color:inherit;font:inherit;cursor:pointer;touch-action:manipulation}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(20vw,9.5dvh,112px);line-height:1;overflow:hidden}}
 .bar-footer{{display:none}}
@@ -484,8 +484,6 @@ body.bar-sorting,body.bar-sorting .tile{{cursor:grabbing}}
 /* 설정 버튼 공통 모양 */
 .settings-trigger{{font:inherit;color:var(--txt);background:var(--tile);border:1px solid var(--edge);padding:1px 6px;line-height:1.2;cursor:pointer;touch-action:manipulation}}
 .note{{display:flow-root}}.grid-wrap{{clear:both;width:100%}}.note .settings-trigger{{float:right;margin-left:6px}}
-body.baronly .bar-live{{display:flex;align-items:center;justify-content:space-between;gap:8px}}
-body.baronly .bar-live .settings-trigger{{font-size:14px}}
 button:active{{background:#173026!important;border-color:var(--tgt)!important}}
 #reload[aria-busy="true"]{{color:var(--tgt);border-color:var(--tgt)}}
 .zoom-tools{{display:none}}
@@ -514,18 +512,19 @@ body:has(.tile.zoom){{overflow:hidden}}
 #avg-selection-count{{font-size:11px;color:var(--tgt);margin:12px 0 0}}
 @media(max-width:350px){{.avg-option{{font-size:12px;gap:5px;padding:6px}}.tile.zoom .zoom-tools{{gap:6px}}.tile.zoom .zoom-tools .tabs{{gap:4px}}}}
 /* 바 모드 상단만 두 줄로 확대. */
-body.baronly>header{{flex-wrap:nowrap!important;gap:8px!important}}
-body.baronly>header>h1{{align-self:flex-start;padding-top:8px}}
-body.baronly>header>.tabs{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:clamp(164px,46vw,192px);flex:0 0 clamp(164px,46vw,192px)}}
+body.baronly>header{{display:grid;grid-template-columns:minmax(0,1fr) clamp(164px,46vw,192px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"title controls" "live controls";column-gap:8px!important;row-gap:4px!important}}
+body.baronly>header>h1{{grid-area:title;align-self:start;min-width:0;padding-top:8px}}
+body.baronly>header>.bar-live{{grid-area:live;align-self:center;justify-self:start;min-width:0}}
+body.baronly>header>.tabs{{grid-area:controls;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:clamp(164px,46vw,192px);flex:0 0 clamp(164px,46vw,192px)}}
 body.baronly>header>.tabs>button{{min-width:0;min-height:40px;font-size:16px!important;line-height:1.15;padding:5px 3px!important;touch-action:manipulation}}
 body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>header>.tabs>#bar{{margin:0!important}}
-@media(max-width:350px){{body.baronly>header{{gap:4px!important}}body.baronly>header>.tabs{{width:164px;flex-basis:164px}}body.baronly>header>.tabs>button{{min-height:38px;font-size:15px!important;padding:4px 2px!important}}}}
+@media(max-width:350px){{body.baronly>header{{grid-template-columns:minmax(0,1fr) 164px;column-gap:4px!important}}body.baronly>header>.tabs{{width:164px;flex-basis:164px}}body.baronly>header>.tabs>button{{min-height:38px;font-size:15px!important;padding:4px 2px!important}}}}
 /* 일반 차트는 기존 버튼, 큰 두 줄 버튼은 바 모드에만 적용. */
 body:not(.baronly)>header .settings-trigger{{display:none}}
-body.baronly .tile.avg-refresh-member:not(.zoom){{outline:3px solid #00ff3c;outline-offset:3px}}
+body.baronly .tile.avg-refresh-member:not(.zoom)>.name{{justify-self:start;max-width:100%;outline:1px solid rgb(62 240 176 / .4);outline-offset:1px}}
 </style></head><body>
-<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
-<div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div>
+<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
+
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div>
 {err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
 <dialog id="avg-settings" aria-labelledby="avg-settings-title">
