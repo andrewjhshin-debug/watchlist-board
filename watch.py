@@ -402,7 +402,7 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
-.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
+.toast{{}}body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
 .note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
@@ -524,13 +524,13 @@ body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>he
 body:not(.baronly)>header .settings-trigger{{display:none}}
 
 body.baronly>header>.tabs>#reload{{grid-column:2;grid-row:2}}
-body.baronly>header>.tabs>#pct{{grid-column:4;grid-row:2}}
-body.baronly>header>.tabs>.settings-trigger{{grid-column:1;grid-row:2}}
+body.baronly>header>.tabs>#pct{{grid-column:1;grid-row:2}}
+body.baronly>header>.tabs>.settings-trigger{{grid-column:4;grid-row:2}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
 
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div>
-{err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
+{err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click();showPct()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
 <dialog id="avg-settings" aria-labelledby="avg-settings-title">
 <form id="avg-settings-form">
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
@@ -746,6 +746,7 @@ function showAvg(){{
   const mean=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
   const text=mean===null?'—':Math.round(mean*100)+'%',color=mean===null?'var(--sub)':AC[Math.max(0,Math.min(9,Math.floor(mean*10)))];
   for(const id of ['avg','baravg']){{const el=document.getElementById(id);if(el){{if(el.textContent!==text)el.textContent=text;el.style.color=color;}}}}
+  document.querySelectorAll('.avgpop b').forEach(b=>{{b.textContent=text;b.style.color=color;}});
 }}
 function avgSettingsSummary(){{
   const selected=[...document.querySelectorAll('#avg-options input:checked')];
@@ -956,7 +957,7 @@ function getHL(){{try{{return JSON.parse(ls('hl')||'[]');}}catch(e){{return [];}
 function paintHL(){{const h=getHL();tiles().forEach(el=>el.classList.toggle('hl',h.includes(el.dataset.sym)));}}
 function toggleHL(el){{const h=getHL(),s=el.dataset.sym,i=h.indexOf(s);i<0?h.push(s):h.splice(i,1);ls('hl',JSON.stringify(h));paintHL();pushT();
   if(navigator.vibrate)navigator.vibrate(30);}}
-// 한 번 누르면 바로 펼친다. 빠른 두 번 탭은 펼친 차트의 강조 표시를 바꾼다.
+// 차트 모드: 두 번 톡톡 = 테두리만(펼치지 않음), 한 번 = 잠깐 기다렸다 펼침. 바 모드는 바로 펼침.
 let tapT=null,tapEl=null,tapAt=0;
 function openChart(el){{
   if(!el.querySelector('.view[data-v="'+document.body.dataset.v+'"]')){{
@@ -965,12 +966,10 @@ function openChart(el){{
   el.classList.add('zoom');history.pushState({{pop:1}},'');
 }}
 function tap(el){{
-  const now=Date.now();
-  if(el.classList.contains('zoom')){{
-    if(!document.body.classList.contains('baronly')&&tapEl===el&&now-tapAt<300){{tapAt=0;toggleHL(el);return;}}
-    history.back();return;
-  }}
-  tapEl=el;tapAt=now;openChart(el);
+  if(el.classList.contains('zoom')){{history.back();return;}}
+  if(document.body.classList.contains('baronly')){{openChart(el);return;}}
+  if(tapT&&tapEl===el){{clearTimeout(tapT);tapT=null;toggleHL(el);return;}}
+  clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;openChart(el);}},300);
 }}
 paintHL();
 repaint();pullT();setInterval(()=>{{if(document.visibilityState==='visible')pullT();}},15000);  // 웹·앱의 목표가와 평균 종목을 함께 가져옴
