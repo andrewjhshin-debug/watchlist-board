@@ -785,6 +785,7 @@ async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)r
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
 let refreshJob=null,refreshAnnounce=false,refreshToastTimer=null;
 function showRefreshToast(message){{
+  if(message==='새로고침했습니다'&&document.body.classList.contains('baronly'))return;
   let toast=document.querySelector('.toast[data-refresh]');
   if(!toast){{toast=document.createElement('div');toast.className='toast';toast.dataset.refresh='1';toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');document.body.appendChild(toast);}}
   toast.textContent=message;clearTimeout(refreshToastTimer);
