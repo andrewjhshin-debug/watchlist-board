@@ -454,7 +454,7 @@ body.day .lv4{{--lv:#d8203f}}body.day .lv3{{--lv:#d9690a}}body.day .lv2{{--lv:#6
 body.baronly{{background:#000;height:calc(100vh - 8px);height:calc(var(--bar-viewport,100dvh) - max(8px,env(safe-area-inset-bottom,0px)));overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr) auto}}body.baronly .note,body.baronly .err{{display:none}}
 body.baronly .bar-live{{display:block;padding:0;font-size:12.5px;line-height:1.2;color:var(--tgt);white-space:nowrap;font-variant-numeric:tabular-nums}}
 body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr);grid-auto-rows:minmax(0,1fr);align-content:stretch;min-height:0;gap:clamp(4px,.7dvh,8px);padding-block:clamp(4px,.7dvh,7px)}}
-.baravg{{display:none;appearance:none;border:0;padding:0;margin:0;background:transparent;color:inherit;font:inherit;cursor:pointer;touch-action:manipulation}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(20vw,9.5dvh,112px);line-height:1;overflow:hidden}}
+.baravg{{display:none;appearance:none;border:0;padding:0;margin:0;background:transparent;color:inherit;font:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}}body.baronly .baravg{{display:flex;align-items:center;justify-content:center;min-height:0;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:min(20vw,9.5dvh,112px);line-height:1;overflow:hidden}}
 .bar-footer{{display:none}}
 body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:clamp(60px,10dvh,96px)}}
 
@@ -485,6 +485,7 @@ body.bar-sorting,body.bar-sorting .tile{{cursor:grabbing}}
 .settings-trigger{{font:inherit;color:var(--txt);background:var(--tile);border:1px solid var(--edge);padding:1px 6px;line-height:1.2;cursor:pointer;touch-action:manipulation}}
 .note{{display:flow-root}}.grid-wrap{{clear:both;width:100%}}.note .settings-trigger{{float:right;margin-left:6px}}
 button:active{{background:#173026!important;border-color:var(--tgt)!important}}
+body.baronly .baravg:active{{background:transparent!important}}
 #reload[aria-busy="true"]{{color:var(--tgt);border-color:var(--tgt)}}
 .zoom-tools{{display:none}}
 body:has(.tile.zoom){{overflow:hidden}}
@@ -522,7 +523,8 @@ body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>he
 /* 일반 차트는 기존 버튼, 큰 두 줄 버튼은 바 모드에만 적용. */
 body:not(.baronly)>header .settings-trigger{{display:none}}
 
-body.baronly>header>.tabs>#reload{{grid-column:4;grid-row:2}}
+body.baronly>header>.tabs>#reload{{grid-column:2;grid-row:2}}
+body.baronly>header>.tabs>#pct{{grid-column:4;grid-row:2}}
 body.baronly>header>.tabs>.settings-trigger{{grid-column:1;grid-row:2}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
@@ -532,7 +534,7 @@ body.baronly>header>.tabs>.settings-trigger{{grid-column:1;grid-row:2}}
 <dialog id="avg-settings" aria-labelledby="avg-settings-title">
 <form id="avg-settings-form">
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
-<p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표가가 없는 종목은 계산에서 빠져요.</p>
+<p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수 · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button id="avg-default" type="button">초기값</button><button type="submit">적용</button></div>
@@ -695,7 +697,7 @@ function apply(sym,price,prev){{
   el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
   const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;el.classList.remove('lv1','lv2','lv3','lv4','below');
   if(ts.length){{const t=Math.max(...ts),hi=+el.dataset.hi,fill=el.querySelector('.gauge i');
-    if(price<t){{const depth=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*depth)+'%');el.dataset.left=0;
+    if(price<t){{const depth=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*depth)+'%');el.dataset.left=-depth;
       fill.style.width=Math.round(depth*100)+'%';fill.dataset.p=f2(price,c);}}
     else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;el.dataset.left=left;
       fill.style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));
@@ -742,7 +744,7 @@ function showAvg(){{
   const members=averageMembers(),values=members.map(el=>+el.dataset.left);
   if(refreshAverageNamesVisible)paintRefreshAverageNames(members);
   const mean=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
-  const text=mean===null?'—':Math.round(mean*100)+'%',color=mean===null?'var(--sub)':AC[Math.min(9,Math.floor(mean*10))];
+  const text=mean===null?'—':Math.round(mean*100)+'%',color=mean===null?'var(--sub)':AC[Math.max(0,Math.min(9,Math.floor(mean*10)))];
   for(const id of ['avg','baravg']){{const el=document.getElementById(id);if(el){{if(el.textContent!==text)el.textContent=text;el.style.color=color;}}}}
 }}
 function avgSettingsSummary(){{
