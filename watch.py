@@ -381,11 +381,11 @@ def tile(d: dict) -> str:
 
 
 # 하(하이먼 민스키 모델): 버블 단계 곡선 위에 종목 주봉 종가를 늘리고 줄여 겹친다. (x 0~1, y 0~1)
-MINSKY = [(0, .08), (.12, .09), (.22, .12), (.30, .16), (.36, .21), (.40, .23), (.45, .19), (.50, .17), (.55, .21), (.60, .27),
-          (.64, .36), (.67, .46), (.70, .62), (.72, 1.0), (.745, .80), (.765, .68), (.79, .80), (.81, .76), (.835, .55),
-          (.86, .32), (.885, .12), (.91, .04), (.94, .07), (1, .20)]
-STAGES = [(.30, "자산 가격 이륙"), (.45, "1차 현금화"), (.55, "1차 하락"), (.64, "열정"), (.67, "탐욕"), (.71, "환상"),
-          (.745, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.88, "투매"), (.94, "좌절"), (9, "정상화")]
+MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), (.56, .18), (.60, .23), (.63, .21),
+          (.66, .26), (.68, .33), (.70, .45), (.715, .62), (.728, .85), (.735, 1.0), (.745, .88), (.76, .70), (.785, .82),
+          (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
+STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
+          (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
 HA = [("000660.KS", "하닉"), ("005930.KS", "삼전"), ("^KS11", "코스피"), ("SOXL", "SOXL"), ("AXTI", "AXTI"),
       ("MU", "마이크론"), ("^SOX", "필라델피아")]
 
@@ -408,7 +408,7 @@ def minsky_fit(c: list[float]) -> tuple[float, int, float]:
     best = (-1.0, len(c), 1.0)
     for n in range(26, len(c) + 1, 4):
         seg = c[-n:]
-        for k in range(60, 101, 2):  # 다들 급등을 거쳤으니 열정 이후 구간에서만 찾음
+        for k in range(66, 101, 1):  # 다들 급등을 거쳤으니 열정 이후 구간에서만 찾음
             te = k / 100
             r = corr(seg, [mk(i / (n - 1) * te) for i in range(n)])
             if r > best[0]:
@@ -421,7 +421,7 @@ def minsky_html() -> str:
     X = lambda x: P + x * (W - 2 * P)
     Y = lambda y: H - P - y * (H - 2 * P)
     curve = "M" + " L".join(f"{X(i / 200):.1f},{Y(mk(i / 200)):.1f}" for i in range(201))
-    base = (f'<path d="{curve}" class="mk-c"/><line x1="{X(0)}" y1="{Y(.06)}" x2="{X(1)}" y2="{Y(.21)}" class="mk-m"/>')
+    base = (f'<path d="{curve}" class="mk-c"/><line x1="{X(0)}" y1="{Y(.05)}" x2="{X(1)}" y2="{Y(.22)}" class="mk-m"/>')
     cells = []
     for sym, name in HA:
         try:
@@ -440,8 +440,9 @@ def minsky_html() -> str:
                          f'<circle cx="{X(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
         except Exception as e:
             print(f"하 {sym} 실패: {e}")
-    labels = "".join(f'<text x="{X(x):.1f}" y="{Y(mk(x)) - 5:.1f}">{t}</text>' for x, t in
-                     [(.40, "1차 현금화"), (.62, "열정"), (.72, "새 논리"), (.86, "공포"), (.95, "좌절")])
+    labels = "".join(f'<text x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in
+                     [(.47, "1차 현금화", 0, -7), (.70, "열정", -16, 0), (.735, "새 논리", 0, -6), (.79, "현실 부정", 16, -6),
+                      (.84, "공포", 14, 2), (.90, "좌절", 0, 14)])
     cells.append(f'<div class="mk"><b>하이먼 민스키 모델</b><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
     return f'<div id="hapop" class="hapop" hidden>{"".join(cells)}</div>' if len(cells) > 1 else ""
 
@@ -471,7 +472,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .toast{{}}#ha{{display:none}}body.baronly #ha{{display:block}}
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(0,1fr);gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:15px;color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
-.mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#4a5f9e;stroke-width:9;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
+.mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
 .mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
