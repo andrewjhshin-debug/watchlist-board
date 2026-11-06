@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import os
@@ -459,7 +460,8 @@ def render(items: list[dict], errors: list[str], ha: str = "") -> None:
     pc_order = "".join(f'.tile[data-sym="{d["sym"]}"]{{order:{pc.index(d["sym"]) if d["sym"] in pc else 99}}}' for d in chart_items)
     avg_catalog = json.dumps([{k: s[k] for k in ("sym", "name")} for s in CFG["symbols"]], ensure_ascii=False)
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
-    page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8">
+    build = hashlib.sha1((ROOT / "watch.py").read_bytes()).hexdigest()[:10]  # 코드가 바뀌면 열린 화면이 통째로 새로 받음
+    page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="build" content="{build}">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>관심종목 보드</title>
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon.png"><link rel="apple-touch-icon" href="icon.png"><meta name="theme-color" content="#0d1424">
@@ -871,11 +873,13 @@ function showRefreshToast(message){{
   toast.textContent=message;clearTimeout(refreshToastTimer);
   refreshToastTimer=setTimeout(()=>toast.remove(),1800);
 }}
+const BUILD=document.querySelector('meta[name=build]').content;
 async function refreshCharts(){{
   try{{
     const url=new URL(location.href);url.searchParams.set('_refresh',Date.now());
     const response=await fetch(url,{{cache:'no-store'}});if(!response.ok)return false;
     const next=new DOMParser().parseFromString(await response.text(),'text/html');
+    const nb=next.querySelector('meta[name=build]');if(nb&&nb.content!==BUILD){{location.reload();return true;}}
     const incoming=[...next.querySelectorAll('.tile[data-sym]')];
     if(!next.querySelector('#baravg')||!incoming.length)return false;
     const current=tileBySym;
@@ -1058,8 +1062,16 @@ pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,15000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');showRefreshToast('새로고침했습니다');}}}}catch(e){{}}
 setInterval(()=>refreshBoard(false),{CFG["refresh_min"] * 60000});
 const loadedAt=Date.now();
-document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='visible'){{pullT();if(Date.now()-loadedAt>60000)refreshBoard(false);}}}});
-addEventListener('pageshow',e=>{{if(e.persisted)refreshBoard(false);}});
+// 앱을 다시 켰을 때 옛 화면이 보이지 않게: 1분 넘게 쉬었으면 새 화면을 받아 맞출 때까지 가려 둔다(최대 3초)
+let hiddenAt=0;
+async function resume(){{
+  if(Date.now()-Math.max(hiddenAt,loadedAt)<60000){{pullT();return;}}
+  document.documentElement.style.visibility='hidden';
+  const show=()=>{{document.documentElement.style.visibility='';}};const t=setTimeout(show,3000);
+  try{{await refreshBoard(false);}}finally{{clearTimeout(t);show();}}
+}}
+document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='hidden')hiddenAt=Date.now();else resume();}});
+addEventListener('pageshow',e=>{{if(e.persisted){{hiddenAt=0;resume();}}}});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{{updateViaCache:'none'}});
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
