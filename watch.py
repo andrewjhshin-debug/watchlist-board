@@ -422,7 +422,7 @@ def minsky_html() -> str:
     Y = lambda y: H - P - y * (H - 2 * P)
     curve = "M" + " L".join(f"{X(i / 200):.1f},{Y(mk(i / 200)):.1f}" for i in range(201))
     base = (f'<path d="{curve}" class="mk-c"/><line x1="{X(0)}" y1="{Y(.05)}" x2="{X(1)}" y2="{Y(.22)}" class="mk-m"/>')
-    cells = []
+    cells, now_stages = [], set()
     for sym, name in HA:
         try:
             q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval=1wk&range=5y")["chart"]["result"][0]
@@ -435,6 +435,7 @@ def minsky_html() -> str:
             f = lambda v: lo_t + (v - lo) / ((hi - lo) or 1) * (hi_t - lo_t)
             line = "M" + " L".join(f"{X(i / (n - 1) * te):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
+            now_stages.add(stage)
             cells.append(f'<div class="mk"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small>주봉 {n}개 · 약 {round(n * 7 / 30.4)}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{base}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{X(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
@@ -443,7 +444,10 @@ def minsky_html() -> str:
     labels = "".join(f'<text x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in
                      [(.47, "1차 현금화", 0, -7), (.70, "열정", -16, 0), (.735, "새 논리", 0, -6), (.79, "현실 부정", 16, -6),
                       (.84, "공포", 14, 2), (.90, "좌절", 0, 14)])
-    cells.append(f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">이륙→1차 현금화→1차 하락→열정→탐욕→환상→새 논리→2차 하락→현실 부정→공포→투매→좌절→정상화</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
+    # 지금 종목들이 있는 단계는 주황으로
+    short = {"자산 가격 이륙": "이륙", "새로운 논리 탄생": "새 논리"}
+    seq = "→".join(f'<u>{short.get(t, t)}</u>' if t in now_stages else short.get(t, t) for _, t in STAGES)
+    cells.append(f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
     return f'<div id="hapop" class="hapop" hidden>{"".join(cells)}</div>' if len(cells) > 1 else ""
 
 
@@ -471,7 +475,7 @@ header{{display:flex;gap:12px;justify-content:space-between;align-items:center;p
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
 .toast{{}}body.baronly .grid-wrap{{position:relative;padding-top:16px!important}}body.baronly .grid-wrap::before{{content:"7/30";position:absolute;left:14px;top:3px;font-size:12px;line-height:1;color:var(--sub)}}#ha{{display:none}}body.baronly #ha{{display:block}}
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
-.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
+.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
 .mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
