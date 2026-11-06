@@ -380,7 +380,73 @@ def tile(d: dict) -> str:
             f'<div class="tgts" onclick="editT(event,this)">{tgt or '<div class="tgttxt">목표 설정 ✎</div>'}</div></div>')
 
 
-def render(items: list[dict], errors: list[str]) -> None:
+# 하(하이먼 민스키 모델): 버블 단계 곡선 위에 종목 주봉 종가를 늘리고 줄여 겹친다. (x 0~1, y 0~1)
+MINSKY = [(0, .08), (.12, .09), (.22, .12), (.30, .16), (.36, .21), (.40, .23), (.45, .19), (.50, .17), (.55, .21), (.60, .27),
+          (.64, .36), (.67, .46), (.70, .62), (.72, 1.0), (.745, .80), (.765, .68), (.79, .80), (.81, .76), (.835, .55),
+          (.86, .32), (.885, .12), (.91, .04), (.94, .07), (1, .20)]
+STAGES = [(.30, "자산 가격 이륙"), (.45, "1차 현금화"), (.55, "1차 하락"), (.64, "열정"), (.67, "탐욕"), (.71, "환상"),
+          (.745, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.88, "투매"), (.94, "좌절"), (9, "정상화")]
+HA = [("000660.KS", "하닉"), ("005930.KS", "삼전"), ("^KS11", "코스피"), ("SOXL", "SOXL"), ("AXTI", "AXTI"),
+      ("MU", "마이크론"), ("^SOX", "필라델피아")]
+
+
+def mk(x: float) -> float:
+    for (x0, y0), (x1, y1) in zip(MINSKY, MINSKY[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    return MINSKY[-1][1]
+
+
+def minsky_fit(c: list[float]) -> tuple[float, int, float]:
+    """종가 끝부분 n주가 곡선 0~te 구간과 가장 닮은 (상관계수, n, te)."""
+    def corr(a, b):
+        ma, mb = sum(a) / len(a), sum(b) / len(b)
+        sab = sum((x - ma) * (y - mb) for x, y in zip(a, b))
+        sa = sum((x - ma) ** 2 for x in a) ** .5
+        sb = sum((y - mb) ** 2 for y in b) ** .5
+        return sab / (sa * sb) if sa and sb else -1
+    best = (-1.0, len(c), 1.0)
+    for n in range(26, len(c) + 1, 4):
+        seg = c[-n:]
+        for k in range(60, 101, 2):  # 다들 급등을 거쳤으니 열정 이후 구간에서만 찾음
+            te = k / 100
+            r = corr(seg, [mk(i / (n - 1) * te) for i in range(n)])
+            if r > best[0]:
+                best = (r, n, te)
+    return best
+
+
+def minsky_html() -> str:
+    W, H, P = 200, 110, 6
+    X = lambda x: P + x * (W - 2 * P)
+    Y = lambda y: H - P - y * (H - 2 * P)
+    curve = "M" + " L".join(f"{X(i / 200):.1f},{Y(mk(i / 200)):.1f}" for i in range(201))
+    base = (f'<path d="{curve}" class="mk-c"/><line x1="{X(0)}" y1="{Y(.06)}" x2="{X(1)}" y2="{Y(.21)}" class="mk-m"/>')
+    cells = []
+    for sym, name in HA:
+        try:
+            q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval=1wk&range=5y")["chart"]["result"][0]
+            c = [v for v in q["indicators"]["quote"][0]["close"] if v]
+            r, n, te = minsky_fit(c)
+            seg = c[-n:]
+            lo_t = min(mk(i / 100 * te) for i in range(101))
+            hi_t = max(mk(i / 100 * te) for i in range(101))
+            lo, hi = min(seg), max(seg)
+            f = lambda v: lo_t + (v - lo) / ((hi - lo) or 1) * (hi_t - lo_t)
+            line = "M" + " L".join(f"{X(i / (n - 1) * te):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
+            stage = next(t for x, t in STAGES if te < x)
+            cells.append(f'<div class="mk"><b>{html.escape(name)} <i>{r * 100:.0f}%</i> <u>{stage}</u></b>'
+                         f'<svg viewBox="0 0 {W} {H}">{base}<path d="{line}" class="mk-p"/>'
+                         f'<circle cx="{X(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
+        except Exception as e:
+            print(f"하 {sym} 실패: {e}")
+    labels = "".join(f'<text x="{X(x):.1f}" y="{Y(mk(x)) - 5:.1f}">{t}</text>' for x, t in
+                     [(.40, "1차 현금화"), (.62, "열정"), (.72, "새 논리"), (.86, "공포"), (.95, "좌절")])
+    cells.append(f'<div class="mk"><b>하이먼 민스키 모델</b><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
+    return f'<div id="hapop" class="hapop" hidden>{"".join(cells)}</div>' if len(cells) > 1 else ""
+
+
+def render(items: list[dict], errors: list[str], ha: str = "") -> None:
     now = datetime.now(KST).strftime("%m/%d %H:%M")
     # PC 배치는 config 의 pc_order(4칸, 왼→오, 위→아래). 휴대폰은 symbols 순서 그대로
     chart_items = [d for d in items if not d.get("bar_only")]
@@ -402,7 +468,12 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
-.toast{{}}body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
+.toast{{}}#ha{{display:none}}body.baronly #ha{{display:block}}
+.hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(0,1fr);gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
+.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:15px;color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
+.mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#4a5f9e;stroke-width:9;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
+.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}
+body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
 .note{{color:var(--sub);font-size:10px;padding:4px 10px 0}}
@@ -524,13 +595,13 @@ body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>he
 body:not(.baronly)>header .settings-trigger{{display:none}}
 
 body.baronly>header>.tabs>#reload{{grid-column:2;grid-row:2}}
-body.baronly>header>.tabs>#pct{{grid-column:1;grid-row:2}}
+body.baronly>header>.tabs>#pct{{display:none}}body.baronly>header>.tabs>#ha{{grid-column:1;grid-row:2;margin:0!important}}
 body.baronly>header>.tabs>.settings-trigger{{grid-column:4;grid-row:2}}
 </style></head><body>
-<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
+<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button id="ha" aria-label="하이먼 민스키 모델 겹쳐 보기">하</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
 
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div>
-{err}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click();showPct()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
+{err}{ha}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click();showPct()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
 <dialog id="avg-settings" aria-labelledby="avg-settings-title">
 <form id="avg-settings-form">
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
@@ -711,9 +782,13 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
   const d=document.createElement('div');d.className='avgpop';
   d.innerHTML='<b style="color:'+a.style.color+'">'+a.textContent+'</b>';
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');}}
-document.getElementById('ttl').onclick=showPct;document.getElementById('pct').onclick=showPct;
+document.getElementById('ttl').onclick=showPct;
+const hapop=document.getElementById('hapop');
+document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;history.pushState({{pop:1}},'');}};
+if(hapop)hapop.onclick=()=>history.back();
+document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
-  document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});
+  document.querySelectorAll('.avgpop').forEach(d=>d.remove());if(hapop)hapop.hidden=true;}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
 const AVG_CATALOG={avg_catalog};
@@ -1009,7 +1084,12 @@ def run_once() -> None:
                           "wide": False, "bar_only": s.get("bar_only", False), "last": views["일"].get("last")})
         except Exception as e:  # 한 종목 실패가 전체를 막지 않게
             errors.append(f"{s['name']} 불러오기 실패: {e}")
-    render(items, errors)
+    try:
+        ha = minsky_html()
+    except Exception as e:
+        ha = ""
+        print(f"하 실패: {e}")
+    render(items, errors, ha)
     print(f"{datetime.now(KST):%H:%M} 갱신 {len(items)}종목" + (f", 오류 {len(errors)}" if errors else ""))
 
 
