@@ -443,7 +443,7 @@ def minsky_html() -> str:
     labels = "".join(f'<text x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in
                      [(.47, "1차 현금화", 0, -7), (.70, "열정", -16, 0), (.735, "새 논리", 0, -6), (.79, "현실 부정", 16, -6),
                       (.84, "공포", 14, 2), (.90, "좌절", 0, 14)])
-    cells.append(f'<div class="mk"><b>하이먼 민스키 모델</b><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
+    cells.append(f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">이륙→1차 현금화→1차 하락→열정→탐욕→환상→새 논리→2차 하락→현실 부정→공포→투매→좌절→정상화</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
     return f'<div id="hapop" class="hapop" hidden>{"".join(cells)}</div>' if len(cells) > 1 else ""
 
 
@@ -471,7 +471,7 @@ header{{display:flex;gap:12px;justify-content:space-between;align-items:center;p
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
 .toast{{}}body.baronly .grid-wrap{{position:relative;padding-top:16px!important}}body.baronly .grid-wrap::before{{content:"7/30";position:absolute;left:14px;top:3px;font-size:12px;line-height:1;color:var(--sub)}}#ha{{display:none}}body.baronly #ha{{display:block}}
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
-.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
+.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
 .mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
@@ -595,8 +595,8 @@ body.baronly>header>.tabs>#reload,body.baronly>header>.tabs>#pct,body.baronly>he
 /* 일반 차트는 기존 버튼, 큰 두 줄 버튼은 바 모드에만 적용. */
 body:not(.baronly)>header .settings-trigger{{display:none}}
 
-body.baronly>header>.tabs>#reload{{grid-column:2;grid-row:2}}
-body.baronly>header>.tabs>#pct{{display:none}}body.baronly>header>.tabs>#ha{{grid-column:1;grid-row:2;margin:0!important}}
+body.baronly>header>.tabs>#reload{{grid-column:1;grid-row:2}}
+body.baronly>header>.tabs>#pct{{display:none}}body.baronly>header>.tabs>#ha{{grid-column:2;grid-row:2;margin:0!important}}
 body.baronly>header>.tabs>.settings-trigger{{grid-column:4;grid-row:2}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button id="ha" aria-label="하이먼 민스키 모델 겹쳐 보기">하</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
