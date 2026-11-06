@@ -26,6 +26,8 @@ ROOT = Path(__file__).resolve().parent
 CFG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 UA = {"User-Agent": "Mozilla/5.0"}
 KST = timezone(timedelta(hours=9))  # GitHub 서버는 UTC
+# 코드 버전: 화면과 실시간 파일에 같이 넣어, 폰에 남은 옛 화면이 다르면 스스로 새로 받게 함
+BUILD = hashlib.sha1((ROOT / "watch.py").read_bytes()).hexdigest()[:10]
 
 
 def get_json(url: str):
@@ -269,7 +271,7 @@ def run_live() -> None:
     now = datetime.now(KST)
     out = ROOT / "livedir" / "m"
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{now:%Y%m%d%H%M}.json").write_text(json.dumps({"t": f"{now:%H:%M:%S}", "q": q}), encoding="utf-8")
+    (out / f"{now:%Y%m%d%H%M}.json").write_text(json.dumps({"t": f"{now:%H:%M:%S}", "b": BUILD, "q": q}), encoding="utf-8")
     for old in sorted(out.glob("*.json"))[:-10]:
         old.unlink()
 
@@ -460,8 +462,7 @@ def render(items: list[dict], errors: list[str], ha: str = "") -> None:
     pc_order = "".join(f'.tile[data-sym="{d["sym"]}"]{{order:{pc.index(d["sym"]) if d["sym"] in pc else 99}}}' for d in chart_items)
     avg_catalog = json.dumps([{k: s[k] for k in ("sym", "name")} for s in CFG["symbols"]], ensure_ascii=False)
     err = "".join(f'<div class="err">{html.escape(e)}</div>' for e in errors)
-    build = hashlib.sha1((ROOT / "watch.py").read_bytes()).hexdigest()[:10]  # 코드가 바뀌면 열린 화면이 통째로 새로 받음
-    page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="build" content="{build}">
+    page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="build" content="{BUILD}">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>관심종목 보드</title>
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon.png"><link rel="apple-touch-icon" href="icon.png"><meta name="theme-color" content="#0d1424">
@@ -861,7 +862,7 @@ addEventListener('storage',e=>{{if(e.key===AVG_KEY){{avgGeneration++;avgSymbols=
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-stamp');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(force=false){{if(!force&&document.visibilityState==='hidden')return false;for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
-  if(r.ok){{lastSlot=sl;const j=await r.json();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
+  if(r.ok){{lastSlot=sl;const j=await r.json();if(j.b&&j.b!==BUILD)staleReload();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
@@ -874,12 +875,15 @@ function showRefreshToast(message){{
   refreshToastTimer=setTimeout(()=>toast.remove(),1800);
 }}
 const BUILD=document.querySelector('meta[name=build]').content;
+// 옛 코드 화면이면 통째로 새로 받음. 배포 직후 엇갈려 계속 새로고침하지 않게 5분에 한 번만
+function staleReload(){{let t=0;try{{t=+sessionStorage.staleAt||0;}}catch(e){{}}if(Date.now()-t<300000)return false;
+  try{{sessionStorage.staleAt=Date.now();}}catch(e){{}}location.reload();return true;}}
 async function refreshCharts(){{
   try{{
     const url=new URL(location.href);url.searchParams.set('_refresh',Date.now());
     const response=await fetch(url,{{cache:'no-store'}});if(!response.ok)return false;
     const next=new DOMParser().parseFromString(await response.text(),'text/html');
-    const nb=next.querySelector('meta[name=build]');if(nb&&nb.content!==BUILD){{location.reload();return true;}}
+    const nb=next.querySelector('meta[name=build]');if(nb&&nb.content!==BUILD&&staleReload())return true;
     const incoming=[...next.querySelectorAll('.tile[data-sym]')];
     if(!next.querySelector('#baravg')||!incoming.length)return false;
     const current=tileBySym;
