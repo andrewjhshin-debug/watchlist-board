@@ -435,7 +435,7 @@ def minsky_html() -> str:
             f = lambda v: lo_t + (v - lo) / ((hi - lo) or 1) * (hi_t - lo_t)
             line = "M" + " L".join(f"{X(i / (n - 1) * te):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
-            cells.append(f'<div class="mk"><b>{html.escape(name)} <i>{r * 100:.0f}%</i> <u>{stage}</u></b><small>주봉 {n}개 · 약 {round(n * 7 / 30.4)}개월</small>'
+            cells.append(f'<div class="mk"><b>{html.escape(name)} · <u>{stage}</u></b><small>주봉 {n}개 · 약 {round(n * 7 / 30.4)}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{base}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{X(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
         except Exception as e:
