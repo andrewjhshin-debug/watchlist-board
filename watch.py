@@ -677,7 +677,9 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .toast[data-refresh]{{z-index:40}}.mk-bar button{{font:inherit;font-size:13px;color:var(--sub);background:transparent;border:0;border-radius:7px;padding:5px 12px;cursor:pointer}}.mk-bar .mk-rl{{color:var(--txt)}}
 .hapop[data-hv="일"] .mk-bar [data-hv="일"],.hapop[data-hv="주"] .mk-bar [data-hv="주"],.hapop[data-hv="월"] .mk-bar [data-hv="월"]{{background:#1c2540;color:var(--txt)}}
 .hapop[data-hv="일"] .mk[data-hv]:not([data-hv="일"]),.hapop[data-hv="주"] .mk[data-hv]:not([data-hv="주"]),.hapop[data-hv="월"] .mk[data-hv]:not([data-hv="월"]){{display:none!important}}
-.tile{{-webkit-touch-callout:none}}.tile.bo-drag{{outline:2px solid #ffb300;outline-offset:-1px;opacity:.9;z-index:5;position:relative}}
+.tile{{-webkit-touch-callout:none}}.tile.bo-drag{{outline:2px dashed #ffb300;outline-offset:-2px;opacity:.35}}
+.bo-ghost{{position:fixed!important;z-index:50;margin:0!important;pointer-events:none;outline:2px solid #ffb300;box-shadow:0 12px 30px #000c,0 0 0 4px #ffb30033;opacity:.95;transition:transform .05s}}
+@media(max-width:600px){{body.nochart:not(.baronly) .grid-wrap .tile{{touch-action:none}}}}
 @media(max-width:600px){{body:not(.baronly) .grid-wrap .tile[data-bo]{{order:var(--bo)}}}}.mk-p{{stroke-width:2.2!important}}
 /* 설정 */
 #avg-settings{{border:1px solid var(--edge)!important;border-radius:16px;background:var(--bg)!important}}
@@ -1213,16 +1215,20 @@ barBoard.addEventListener('pointerdown',e=>{{
   const el=e.target.closest('.tile[data-sym]');if(!el)return;
   if(!el.style.getPropertyValue('--bo'))applyBo(tiles().map(t=>t.dataset.sym));
   const p={{el,id:e.pointerId,x:e.clientX,y:e.clientY,active:false}};boP=p;
-  p.timer=setTimeout(()=>{{if(boP!==p)return;p.active=true;clearTimeout(tapT);tapT=null;el.classList.add('bo-drag');try{{el.setPointerCapture(p.id);}}catch(e){{}}if(navigator.vibrate)navigator.vibrate(20);}},450);
+  p.timer=setTimeout(()=>{{if(boP!==p)return;p.active=true;clearTimeout(tapT);tapT=null;
+    const r=el.getBoundingClientRect(),g=el.cloneNode(true);g.removeAttribute('onclick');delete g.dataset.sym;g.classList.add('bo-ghost');
+    Object.assign(g.style,{{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',transform:'scale(1.06)'}});document.body.appendChild(g);p.g=g;
+    el.classList.add('bo-drag');try{{el.setPointerCapture(p.id);}}catch(e){{}}if(navigator.vibrate)navigator.vibrate(20);}},450);
 }});
 barBoard.addEventListener('pointermove',e=>{{const p=boP;if(!p||e.pointerId!==p.id)return;
   if(!p.active){{if(Math.hypot(e.clientX-p.x,e.clientY-p.y)>10){{clearTimeout(p.timer);boP=null;}}return;}}
+  e.preventDefault();if(p.g)p.g.style.transform='translate('+(e.clientX-p.x)+'px,'+(e.clientY-p.y)+'px) scale(1.06)';
   const t=document.elementFromPoint(e.clientX,e.clientY)?.closest('.tile[data-sym]');
   if(t&&t!==p.el){{const rows=boRows(),from=rows.indexOf(p.el),to=rows.indexOf(t);if(from>=0&&to>=0){{rows.splice(from,1);rows.splice(to,0,p.el);rows.forEach((r,i)=>r.style.setProperty('--bo',i));}}}}
   if(e.clientY>innerHeight-90)scrollBy(0,10);else if(e.clientY<60)scrollBy(0,-10);
 }});
-const boEnd=e=>{{const p=boP;if(!p||e.pointerId!==p.id)return;clearTimeout(p.timer);boP=null;if(!p.active)return;
-  p.el.classList.remove('bo-drag');boSkip=Date.now()+500;
+const boEnd=e=>{{const p=boP;if(!p||e.pointerId!==p.id)return;clearTimeout(p.timer);boP=null;if(p.g)p.g.remove();if(!p.active)return;
+  p.el.classList.remove('bo-drag');if(p.g)p.g.remove();boSkip=Date.now()+500;
   const order=boRows().map(r=>r.dataset.sym);applyBo(order);if(ls('sync'))updateShared(m=>{{m._boardOrder=order;}});}};
 for(const t of ['pointerup','pointercancel'])barBoard.addEventListener(t,boEnd);
 document.addEventListener('touchmove',e=>{{if(boP?.active)e.preventDefault();}},{{passive:false}});
