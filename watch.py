@@ -390,7 +390,7 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
 HA = [("000660.KS", "하닉"), ("005930.KS", "삼전"), ("^KS11", "코스피"), ("SOXL", "SOXL"), ("AXTI", "AXTI"),
-      ("MU", "마이크론"), ("^SOX", "필라델피아")]
+      ("AXTX", "AXTX"), ("MU", "마이크론"), ("^SOX", "필라델피아")]
 
 
 def mk(x: float) -> float:
@@ -400,48 +400,62 @@ def mk(x: float) -> float:
     return MINSKY[-1][1]
 
 
-def minsky_fit(c: list[float]) -> tuple[float, int, float]:
-    """종가 끝부분 n주가 곡선 0~te 구간과 가장 닮은 (상관계수, n, te)."""
+def minsky_fit(c: list[float]) -> tuple[float, int, float, float]:
+    """종가 끝부분 n주가 곡선 ts~te 구간과 가장 닮은 (상관계수, n, ts, te).
+    1년 안 된 신규상장은 꼭대기에서 시작하니 시작점(ts)도 찾는다."""
     def corr(a, b):
         ma, mb = sum(a) / len(a), sum(b) / len(b)
         sab = sum((x - ma) * (y - mb) for x, y in zip(a, b))
         sa = sum((x - ma) ** 2 for x in a) ** .5
         sb = sum((y - mb) ** 2 for y in b) ** .5
         return sab / (sa * sb) if sa and sb else -1
-    best = (-1.0, len(c), 1.0)
+    if len(c) < 52:
+        best = (-1.0, len(c), 0.0, 1.0)
+        for a in range(0, 90):
+            for b in range(a + 5, 101):
+                ts, te = a / 100, b / 100
+                r = corr(c, [mk(ts + i / (len(c) - 1) * (te - ts)) for i in range(len(c))])
+                if r > best[0]:
+                    best = (r, len(c), ts, te)
+        return best
+    best = (-1.0, len(c), 0.0, 1.0)
     for n in range(26, len(c) + 1, 4):
         seg = c[-n:]
         for k in range(66, 101, 1):  # 다들 급등을 거쳤으니 열정 이후 구간에서만 찾음
             te = k / 100
             r = corr(seg, [mk(i / (n - 1) * te) for i in range(n)])
             if r > best[0]:
-                best = (r, n, te)
+                best = (r, n, 0.0, te)
     return best
 
 
 def minsky_html() -> str:
     W, H, P = 200, 110, 6
-    X = lambda x: P + x * (W - 2 * P)
     Y = lambda y: H - P - y * (H - 2 * P)
-    curve = "M" + " L".join(f"{X(i / 200):.1f},{Y(mk(i / 200)):.1f}" for i in range(201))
-    base = (f'<path d="{curve}" class="mk-c"/><line x1="{X(0)}" y1="{Y(.05)}" x2="{X(1)}" y2="{Y(.22)}" class="mk-m"/>')
+
+    def frame(x0):  # x0 부터 1 까지 확대한 곡선 (신규상장은 꼭대기 구간만)
+        X = lambda x: P + (x - x0) / (1 - x0) * (W - 2 * P)
+        curve = "M" + " L".join(f"{X(x0 + i / 200 * (1 - x0)):.1f},{Y(mk(x0 + i / 200 * (1 - x0))):.1f}" for i in range(201))
+        return X, (f'<path d="{curve}" class="mk-c"/><line x1="{X(x0)}" y1="{Y(.05 + .17 * x0)}" x2="{X(1)}" y2="{Y(.22)}" class="mk-m"/>')
+    X, base = frame(0)
     cells, now_stages = [], set()
     for sym, name in HA:
         try:
             q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval=1wk&range=5y")["chart"]["result"][0]
             c = [v for v in q["indicators"]["quote"][0]["close"] if v]
-            r, n, te = minsky_fit(c)
+            r, n, ts, te = minsky_fit(c)
             seg = c[-n:]
-            lo_t = min(mk(i / 100 * te) for i in range(101))
-            hi_t = max(mk(i / 100 * te) for i in range(101))
+            Xc, bc = frame(min(ts, .66)) if ts else (X, base)
+            lo_t = min(mk(ts + i / 100 * (te - ts)) for i in range(101))
+            hi_t = max(mk(ts + i / 100 * (te - ts)) for i in range(101))
             lo, hi = min(seg), max(seg)
             f = lambda v: lo_t + (v - lo) / ((hi - lo) or 1) * (hi_t - lo_t)
-            line = "M" + " L".join(f"{X(i / (n - 1) * te):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
+            line = "M" + " L".join(f"{Xc(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
             now_stages.add(stage)
-            cells.append(f'<div class="mk"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small>주봉 {n}개 · 약 {round(n * 7 / 30.4)}개월</small>'
-                         f'<svg viewBox="0 0 {W} {H}">{base}<path d="{line}" class="mk-p"/>'
-                         f'<circle cx="{X(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
+            cells.append(f'<div class="mk"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small>주봉 {n}개 · 약 {round(n * 7 / 30.4)}개월{" · 고점부터" if ts else ""}</small>'
+                         f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
+                         f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
         except Exception as e:
             print(f"하 {sym} 실패: {e}")
     labels = "".join(f'<text x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in
@@ -450,7 +464,7 @@ def minsky_html() -> str:
     # 지금 종목들이 있는 단계는 주황으로
     short = {"자산 가격 이륙": "이륙", "새로운 논리 탄생": "새 논리"}
     seq = "→".join(f'<u>{short.get(t, t)}</u>' if t in now_stages else short.get(t, t) for _, t in STAGES)
-    cells.append(f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
+    cells.insert(0, f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
     return f'<div id="hapop" class="hapop" hidden>{"".join(cells)}</div>' if len(cells) > 1 else ""
 
 
@@ -477,7 +491,7 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
 .toast{{}}body.baronly .grid-wrap{{position:relative;padding-top:16px!important}}body.baronly .grid-wrap::before{{content:"7/30";position:absolute;left:14px;top:3px;font-size:12px;line-height:1;color:var(--sub)}}#ha{{display:none}}body.baronly #ha{{display:block}}
-.hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
+.hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
 .mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}
