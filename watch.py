@@ -475,9 +475,15 @@ def minsky_html() -> str:
             stage = next(t for x, t in STAGES if te < x)
             if hv == "주":
                 now_stages.add(stage)
+            try:
+                wk = fetch(sym, "주")
+                chart = f'<div class="mk-ch" hidden><div class="chart">{chart_svg(wk)}</div><i class="mk-last">{fmt(wk["closes"][-1], wk["currency"])}</i></div>'
+            except Exception as e:
+                print(f"하 주봉 {sym} 실패: {e}")
+                chart = ""
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
-                         f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
+                         f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg>{chart}</div>')
         except Exception as e:
             print(f"하 {hv} {sym} 실패: {e}")
     labels = "".join(f'<text x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in
@@ -487,7 +493,7 @@ def minsky_html() -> str:
     short = {"자산 가격 이륙": "이륙", "새로운 논리 탄생": "새 논리"}
     seq = "→".join(f'<u>{short.get(t, t)}</u>' if t in now_stages else short.get(t, t) for _, t in STAGES)
     cells.insert(0, f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
-    return f'<div id="hapop" class="hapop" hidden><div class="mk-bar" onclick="event.stopPropagation()"><button class="mk-rl" aria-label="새로고침">⟳</button></div>{"".join(cells)}</div>' if len(cells) > 1 else ""
+    return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}</div>' if len(cells) > 1 else ""
 
 
 def render(items: list[dict], errors: list[str], ha: str = "") -> None:
@@ -669,12 +675,17 @@ body.baronly>header>.tabs>button{{min-height:0!important;font-size:13px!importan
 body.baronly .grid-wrap .tile:not(.zoom){{border:0!important;border-radius:0}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{border-radius:5px}}body.baronly .grid-wrap .tile:not(.zoom) .gauge i{{border-radius:5px}}
 body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);border-radius:14px;background:var(--tile)}}
 /* 하 */
-.hapop{{bottom:var(--tabh)!important;cursor:default;grid-auto-rows:calc((100dvh - var(--tabh) - 84px)/4)!important;gap:8px!important;padding:10px!important;background:var(--bg)!important}}
+.hapop{{bottom:var(--tabh)!important;cursor:default;grid-auto-rows:calc((100dvh - var(--tabh) - 44px)/4)!important;overscroll-behavior:contain;gap:8px!important;padding:10px!important;background:var(--bg)!important}}
 .mk-h{{grid-column:1/-1;padding:2px 4px}}.mk-h small{{display:block;font-size:12px;color:var(--sub)}}.mk-h b{{font-weight:normal;font-size:20px}}.mk-h b u{{text-decoration:none;color:var(--acc)}}
 .mk{{border:1px solid var(--edge)!important;border-radius:12px;background:var(--tile);padding:7px 8px 4px!important}}
 .mk b u{{background:#3a2500;padding:0 6px;border-radius:9px;font-size:11px!important}}
 .mk svg{{overflow:visible}}.mk{{position:relative}}.mk .mk-w{{position:absolute;right:9px;top:30px;font-size:10px}}
 .mk.mk-drag{{border:2px solid #ffb300!important}}
+.mk-pull{{grid-column:1/-1;height:0;overflow:hidden;transition:height .15s;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sub);white-space:nowrap}}
+.hz{{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:16px 14px;cursor:zoom-out}}
+.hz-h{{display:flex;justify-content:space-between;align-items:baseline;gap:8px}}.hz-h b{{font-weight:normal;font-size:20px;white-space:nowrap;overflow:hidden}}.hz-h b i{{font-style:normal;color:#00ff3c}}.hz-h b u{{text-decoration:none;color:#ffb300;font-size:13px;background:#3a2500;padding:0 6px;border-radius:9px}}
+.hz-p{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:28px;margin:4px 0 2px}}.hz small{{color:var(--sub);font-size:12px}}
+.hz .chart{{flex:1;min-height:0;aspect-ratio:auto;margin-top:10px}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
 .hapop{{grid-template-rows:auto}}.mk-bar{{grid-column:1/-1;justify-self:end;display:flex;gap:2px;background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:3px}}
 .toast[data-refresh]{{z-index:40}}.mk-bar button{{font:inherit;font-size:13px;color:var(--sub);background:transparent;border:0;border-radius:7px;padding:5px 12px;cursor:pointer}}.mk-bar .mk-rl{{color:var(--txt)}}
 .hapop[data-hv="일"] .mk-bar [data-hv="일"],.hapop[data-hv="주"] .mk-bar [data-hv="주"],.hapop[data-hv="월"] .mk-bar [data-hv="월"]{{background:#1c2540;color:var(--txt)}}
@@ -891,7 +902,11 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
 document.getElementById('ttl').onclick=showPct;
 const hapop=document.getElementById('hapop');
 document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;history.pushState({{pop:1}},'');}};
-// 하 화면은 눌러도 닫히지 않음(아래 탭으로 이동)
+// 하 화면: 칸을 톡 누르면 주봉 차트 크게(뒤로가기·화면 누르면 닫힘), 꾹 누르면 이동
+if(hapop)hapop.addEventListener('click',e=>{{if(Date.now()<haSkip)return;const el=e.target.closest('.mk[data-k]');if(!el)return;const ch=el.querySelector('.mk-ch');if(!ch)return;
+  const d=document.createElement('div');d.className='hz';
+  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p">'+(ch.querySelector('.mk-last')?.textContent||'')+'</div><small>주봉 · 최근 2년</small>'+ch.querySelector('.chart').outerHTML;
+  d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');}});
 // 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
 let haP=null,haSkip=0;
 function applyHa(order){{if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
@@ -900,12 +915,20 @@ function applyHa(order){{if(!hapop||!Array.isArray(order))return;ls('ha-order',J
 try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}
 function setHv(v){{if(!hapop)return;hapop.dataset.hv=v;ls('ha-v',v);}}
 setHv(ls('ha-v')||'주');
-async function refreshHa(){{const b=hapop.querySelector('.mk-rl');b.disabled=true;
+async function refreshHa(){{
   try{{const url=new URL(location.href);url.searchParams.set('_refresh',Date.now());
     const doc=new DOMParser().parseFromString(await (await fetch(url,{{cache:'no-store'}})).text(),'text/html'),nh=doc.getElementById('hapop');
     if(nh){{hapop.querySelectorAll('.mk').forEach(c=>c.remove());hapop.append(...nh.querySelectorAll('.mk'));try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}}}
-    showRefreshToast(nh?'새로고침했습니다':'새로고침하지 못했습니다');}}catch(e){{showRefreshToast('새로고침하지 못했습니다');}}finally{{b.disabled=false;}}}}
-if(hapop)hapop.querySelector('.mk-bar').onclick=e=>{{e.stopPropagation();const b=e.target.closest('button');if(!b)return;if(b.dataset.hv)setHv(b.dataset.hv);else refreshHa();}};
+    showRefreshToast(nh?'새로고침했습니다':'새로고침하지 못했습니다');}}catch(e){{showRefreshToast('새로고침하지 못했습니다');}}}}
+// 하 화면: 맨 위에서 아래로 당겼다 놓으면 새로고침
+if(hapop){{const pullEl=hapop.querySelector('.mk-pull');let pull=null;
+  hapop.addEventListener('touchstart',e=>{{pull=hapop.scrollTop<=0&&!haP?.active?{{y:e.touches[0].clientY,d:0}}:null;}},{{passive:true}});
+  hapop.addEventListener('touchmove',e=>{{if(!pull||haP?.active)return;const d=e.touches[0].clientY-pull.y;
+    if(d<=0||hapop.scrollTop>0){{pull.d=0;pullEl.style.height='0';return;}}
+    pull.d=d;e.preventDefault();pullEl.style.height=Math.min(d/2,56)+'px';pullEl.textContent=d>110?'놓으면 새로고침':'↓ 당겨서 새로고침';}},{{passive:false}});
+  const pullEnd=()=>{{if(!pull)return;const d=pull.d;pull=null;
+    if(d>110){{pullEl.textContent='새로고침 중';pullEl.style.height='40px';refreshHa().finally(()=>{{pullEl.style.height='0';}});}}else pullEl.style.height='0';}};
+  hapop.addEventListener('touchend',pullEnd);hapop.addEventListener('touchcancel',pullEnd);}}
 if(hapop){{
   hapop.addEventListener('pointerdown',e=>{{const el=e.target.closest('.mk[data-k]');if(!el||e.button!==0)return;
     const p={{el,id:e.pointerId,x:e.clientX,y:e.clientY,active:false}};haP=p;
@@ -925,7 +948,7 @@ if(hapop){{
 }}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
-  document.querySelectorAll('.avgpop').forEach(d=>d.remove());if(hapop)hapop.hidden=true;}});
+  document.querySelectorAll('.avgpop').forEach(d=>d.remove());const hz=document.querySelector('.hz');if(hz){{hz.remove();return;}}if(hapop)hapop.hidden=true;}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
 const AVG_CATALOG={avg_catalog};
@@ -997,7 +1020,7 @@ async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)r
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
 let refreshJob=null,refreshAnnounce=false,refreshToastTimer=null;
 function showRefreshToast(message){{
-  if(message==='새로고침했습니다'&&document.body.classList.contains('baronly'))return;  // 바 모드는 알림 대신 큰 % 가 뜸
+  if(message==='새로고침했습니다'&&document.body.classList.contains('baronly')&&(!hapop||hapop.hidden))return;  // 바 모드는 알림 대신 큰 % 가 뜸
   let toast=document.querySelector('.toast[data-refresh]');
   if(!toast){{toast=document.createElement('div');toast.className='toast';toast.dataset.refresh='1';toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');document.body.appendChild(toast);}}
   toast.textContent=message;clearTimeout(refreshToastTimer);
@@ -1174,6 +1197,7 @@ function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.c
 document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
   if(k==='set'){{openAvgSettings();return;}}
   if(k==='ha'){{if(hapop&&hapop.hidden)document.getElementById('ha').click();paintTab();return;}}
+  const hz=document.querySelector('.hz');if(hz){{hz.remove();history.go(-2);setB(k==='bar');return;}}
   if(hapop&&!hapop.hidden)history.back();
   setB(k==='bar');}};
 addEventListener('popstate',paintTab);
