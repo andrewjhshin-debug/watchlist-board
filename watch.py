@@ -239,7 +239,7 @@ def quote(sym: str) -> tuple[float, float]:
     return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
 
 
-def peak(sym: str, day: dict) -> tuple[float, str]:
+def peak(sym: str, day: dict) -> tuple[float, str, dict]:
     """gauge_since 이후 최고점(값, 날짜). 미국 종목은 프리·애프터장 포함(60분봉).
     시간외 봉은 거래량 0 인 잘못 찍힌 꼬리(예: AXTX 9/22 150.56)가 있어 시가·종가만 본다."""
     since = CFG.get("gauge_since", "")
@@ -247,12 +247,16 @@ def peak(sym: str, day: dict) -> tuple[float, str]:
         rows = list(zip(day.get("highs", day["closes"]), day["dates"]))
     else:
         d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}"
-                     "?range=3mo&interval=60m&includePrePost=true")["chart"]["result"][0]
+                     "?range=6mo&interval=60m&includePrePost=true")["chart"]["result"][0]
         q = d["indicators"]["quote"][0]
         rows = [(h if v else max(o, c), datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d"))
                 for t, o, h, c, v in zip(d["timestamp"], q["open"], q["high"], q["close"], q["volume"])
                 if None not in (o, h, c)]
-    return max([r for r in rows if r[1] >= since] or rows)
+    days = {}
+    for v, dt in rows:
+        days[dt] = max(v, days.get(dt, v))
+    v, dt = max([r for r in rows if r[1] >= since] or rows)
+    return v, dt, days
 
 
 def run_live() -> None:
@@ -322,7 +326,7 @@ def chart_svg(d: dict) -> str:
     # 전고(막대 100% 기준) 자리에 숫자만. 펼쳤을 때만 보임. 이 보기 기간 밖이면 생략
     peak, dates = "", d.get("dates", [])
     if d.get("peak") and dates and dates[0] <= d["peak"][1]:
-        pv, pd = d["peak"]
+        pv, pd = d["peak"][:2]
         i = max(j for j, dt in enumerate(dates) if dt <= pd)
         px = (i // k + .5) / m * 100
         py = max(CELL / 2, y(pv)) / H * 100
@@ -359,7 +363,8 @@ def tile(d: dict) -> str:
     hi = d["peak"][0] if d.get("peak") else max(day["closes"])
     lv, left = "", 0.0
     bar_attr = ' data-bar-only="1"' if d.get("bar_only") else ""
-    live_attr = f' data-hi="{hi}" data-tgts0="{json.dumps(tgts)}" data-tgts="{json.dumps(tgts)}" data-p="{price}" data-pv="{prev}"'
+    pdays = html.escape(json.dumps(d["peak"][2])) if d.get("peak") and len(d["peak"]) > 2 else ""
+    live_attr = f' data-pd="{pdays}" data-hi="{hi}" data-tgts0="{json.dumps(tgts)}" data-tgts="{json.dumps(tgts)}" data-p="{price}" data-pv="{prev}"'
     if tgts:
         t = max(tgts)  # 여러 목표면 가장 가까운(높은) 목표
         left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
@@ -453,7 +458,7 @@ def minsky_html() -> str:
             line = "M" + " L".join(f"{Xc(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
             now_stages.add(stage)
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small>주봉 {n}개 · 약 {round(n * 7 / 30.4)}개월{" · 고점부터" if ts else ""}</small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small class="mk-w">주봉 · {round(n * 7 / 30.4)}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
         except Exception as e:
@@ -464,10 +469,8 @@ def minsky_html() -> str:
     # 지금 종목들이 있는 단계는 주황으로
     short = {"자산 가격 이륙": "이륙", "새로운 논리 탄생": "새 논리"}
     seq = "→".join(f'<u>{short.get(t, t)}</u>' if t in now_stages else short.get(t, t) for _, t in STAGES)
-    most = max(now_stages, key=lambda t: sum(f"<u>{t}</u>" in c for c in cells)) if now_stages else ""
     cells.insert(0, f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
-    head = f'<div class="mk-h"><small>하이먼 민스키 · 주봉</small><b>대부분 <u>{most}</u></b></div>'
-    return f'<div id="hapop" class="hapop" hidden>{head}{"".join(cells)}</div>' if len(cells) > 1 else ""
+    return f'<div id="hapop" class="hapop" hidden>{"".join(cells)}</div>' if len(cells) > 1 else ""
 
 
 def render(items: list[dict], errors: list[str], ha: str = "") -> None:
@@ -492,7 +495,7 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--txt);font-family:'Galmuri11','Malgun Gothic',monospace}}
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
-.toast{{}}body.baronly .grid-wrap{{position:relative;padding-top:16px!important}}body.baronly .grid-wrap::before{{content:"7/30";position:absolute;left:14px;top:3px;font-size:12px;line-height:1;color:var(--sub)}}#ha{{display:none}}body.baronly #ha{{display:block}}
+.toast{{}}body.baronly .grid-wrap{{position:relative;padding-top:16px!important}}body.baronly .grid-wrap::before{{content:attr(data-since);position:absolute;left:14px;top:3px;font-size:12px;line-height:1;color:var(--sub)}}#ha{{display:none}}body.baronly #ha{{display:block}}
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
@@ -646,19 +649,17 @@ body.baronly{{padding-bottom:0;height:calc(var(--bar-viewport,100dvh) - var(--ta
 body.baronly>header{{grid-template-columns:minmax(0,1fr) auto!important}}
 body.baronly>header>.tabs{{display:flex!important;width:auto!important;flex:0 0 auto!important;align-self:center}}
 body.baronly>header>.tabs>button{{min-height:0!important;font-size:13px!important;padding:5px 8px!important}}
-body.baronly .grid-wrap .tile:not(.zoom){{grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"name price" "gauge gauge"!important;border:0!important;border-radius:0}}
-body.baronly .grid-wrap .tile:not(.zoom) .price{{grid-area:price!important;justify-self:end!important;padding:0!important;color:var(--sub)!important;font-size:15px!important}}
-body.baronly .grid-wrap .tile:not(.zoom) .gauge{{grid-area:gauge!important;position:relative;border-radius:5px;background:#121a2e}}
-body.baronly .grid-wrap .tile:not(.zoom) .gauge i{{border-radius:5px}}
-body.baronly .below:not(.zoom) .gauge i::after{{content:none!important}}
-body.baronly .tile:not(.zoom) .gauge::after{{content:attr(data-g)!important;position:absolute!important;left:auto!important;right:8px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%);margin:0!important;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:13px;color:#fff;text-shadow:0 0 2px #000,0 0 4px #000;white-space:nowrap}}
+body.baronly .grid-wrap .tile:not(.zoom){{border:0!important;border-radius:0}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{border-radius:5px}}body.baronly .grid-wrap .tile:not(.zoom) .gauge i{{border-radius:5px}}
 body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);border-radius:14px;background:var(--tile)}}
 /* 하 */
-.hapop{{bottom:var(--tabh)!important;cursor:default;grid-template-rows:auto;grid-auto-rows:calc((100dvh - var(--tabh) - 74px)/4)!important;gap:8px!important;padding:10px!important;background:var(--bg)!important}}
+.hapop{{bottom:var(--tabh)!important;cursor:default;grid-auto-rows:calc((100dvh - var(--tabh) - 44px)/4)!important;gap:8px!important;padding:10px!important;background:var(--bg)!important}}
 .mk-h{{grid-column:1/-1;padding:2px 4px}}.mk-h small{{display:block;font-size:12px;color:var(--sub)}}.mk-h b{{font-weight:normal;font-size:20px}}.mk-h b u{{text-decoration:none;color:var(--acc)}}
 .mk{{border:1px solid var(--edge)!important;border-radius:12px;background:var(--tile);padding:7px 8px 4px!important}}
 .mk b u{{background:#3a2500;padding:0 6px;border-radius:9px;font-size:11px!important}}
-.mk svg{{overflow:visible}}.mk-p{{stroke-width:2.2!important}}
+.mk svg{{overflow:visible}}.mk{{position:relative}}.mk .mk-w{{position:absolute;right:9px;top:30px;font-size:10px}}
+.mk.mk-drag{{border:2px solid #ffb300!important}}
+.tile{{-webkit-touch-callout:none}}.tile.bo-drag{{outline:2px solid #ffb300;outline-offset:-1px;opacity:.9;z-index:5;position:relative}}
+@media(max-width:600px){{body:not(.baronly) .grid-wrap .tile[data-bo]{{order:var(--bo)}}}}.mk-p{{stroke-width:2.2!important}}
 /* 설정 */
 #avg-settings{{border:1px solid var(--edge)!important;border-radius:16px;background:var(--bg)!important}}
 #avg-options{{grid-template-columns:minmax(0,1fr)!important;gap:0!important;border:1px solid var(--edge);border-radius:12px;background:var(--tile)}}
@@ -667,6 +668,13 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .avg-option input::after{{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#56607c;transition:left .15s}}
 .avg-option input:checked{{background:#0a5a22}}.avg-option input:checked::after{{left:19px;background:#00ff3c}}
 .settings-actions button{{border-radius:10px;border-width:1px!important}}
+@media(max-width:600px){{body.nochart:not(.baronly){{height:calc(var(--bar-viewport,100dvh) - var(--tabh));padding-bottom:0;display:flex;flex-direction:column;overflow:hidden}}
+body.nochart:not(.baronly) .grid-wrap{{flex:1;min-height:0;grid-auto-rows:minmax(0,1fr);align-content:stretch;gap:5px;padding:5px 6px 6px}}
+body.nochart:not(.baronly) .grid-wrap .tile:not(.zoom):not([data-bar-only]){{min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:safe center;line-height:1.15;padding:2px 9px!important}}
+body.nochart:not(.baronly) .tile:not(.zoom) .name{{font-size:min(14px,1.75dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .price{{font-size:min(21px,2.5dvh)!important;margin:1px 0!important}}
+body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .tile:not(.zoom) .tgttxt{{font-size:min(12px,1.45dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .gauge{{margin-top:3px;height:6px;flex:0 0 auto}}}}
+.since-row{{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:8px 14px;border:1px solid var(--edge);border-radius:12px;background:var(--tile);font-size:14px}}
+.since-row input{{font:inherit;font-size:13px;color:var(--txt);background:var(--cbg);border:1px solid var(--edge);border-radius:8px;padding:4px 6px;color-scheme:dark}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> <span class="ttl-s">관심종목</span> <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button id="ha" aria-label="하이먼 민스키 모델 겹쳐 보기">하</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
 
@@ -678,8 +686,9 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수 · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
+<label class="since-row">막대 기준일 <input type="date" id="since-in"></label>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button id="avg-default" type="button">초기값</button><button type="submit">적용</button></div>
+<div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
 <script>
@@ -781,6 +790,8 @@ function pullT(){{
         if(ls(key)!==value){{ls(key,value);changed=true;}}
       }}
       if(changed){{repaint();paintHL();}}
+      if(typeof m._since==='string'&&m._since!==ls('since')){{ls('since',m._since);applySince();}}
+      if(Array.isArray(m._boardOrder)&&!boP&&JSON.stringify(m._boardOrder)!==ls('board-order'))applyBo(m._boardOrder);
       if(Array.isArray(m._haOrder)&&!haP&&JSON.stringify(m._haOrder)!==ls('ha-order'))applyHa(m._haOrder);
       if(generation===avgGeneration&&!ls(avgPendingKey(code))){{
         if(Array.isArray(m._avg))adoptSharedAverage(m._avg);
@@ -937,7 +948,7 @@ function openAvgSettings(){{
   avgSettingsSummary();paintAvgSync();dialog.showModal();pullT();
 }}
 document.getElementById('avg-options').addEventListener('change',()=>{{avgSettingsDirty=true;avgSettingsSummary();}});
-document.getElementById('avg-default').onclick=()=>{{avgSettingsDirty=true;
+if(document.getElementById('avg-default'))document.getElementById('avg-default').onclick=()=>{{avgSettingsDirty=true;
   document.querySelectorAll('#avg-options input').forEach(input=>input.checked=AVG_DEFAULT.includes(input.value));avgSettingsSummary();
 }};
 document.getElementById('avg-settings-form').addEventListener('submit',e=>{{
@@ -956,7 +967,6 @@ async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)r
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
 let refreshJob=null,refreshAnnounce=false,refreshToastTimer=null;
 function showRefreshToast(message){{
-  if(message==='새로고침했습니다'&&document.body.classList.contains('baronly'))return;
   let toast=document.querySelector('.toast[data-refresh]');
   if(!toast){{toast=document.createElement('div');toast.className='toast';toast.dataset.refresh='1';toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');document.body.appendChild(toast);}}
   toast.textContent=message;clearTimeout(refreshToastTimer);
@@ -980,7 +990,7 @@ async function refreshCharts(){{
       const sym=fresh.dataset.sym;let el=current.get(sym);
       if(!el){{el=fresh;board.appendChild(el);registerTile(el);}}
       else{{
-        for(const key of ['hi','tgts0'])if(fresh.dataset[key]!==undefined)el.dataset[key]=fresh.dataset[key];
+        for(const key of ['hi','tgts0','pd'])if(fresh.dataset[key]!==undefined)el.dataset[key]=fresh.dataset[key];
         const name=el.querySelector('.name'),nextName=fresh.querySelector('.name');
         if(name&&nextName&&name.innerHTML!==nextName.innerHTML)name.replaceChildren(...nextName.childNodes);
         for(const view of [...fresh.querySelectorAll('.view')]){{
@@ -993,7 +1003,7 @@ async function refreshCharts(){{
       }}
       renderT(el);apply(sym,+el.dataset.p,+el.dataset.pv);
     }}
-    paintHL();if(!barPress)applyBarOrder();return true;
+    paintHL();if(!barPress)applyBarOrder();applySince();return true;
   }}catch(e){{return false;}}
 }}
 function refreshBoard(announce=true){{
@@ -1155,6 +1165,42 @@ function tap(el){{
   if(tapT&&tapEl===el){{clearTimeout(tapT);tapT=null;toggleHL(el);return;}}
   clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;openChart(el);}},300);
 }}
+// 막대 기준일(설정에서 고름): 그날 다음 날부터의 최고가 = 막대 100%. 동기화 코드로 공유
+const SINCE0=(d=>{{d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}})(new Date("{CFG.get('gauge_since', '2026-07-31')}T00:00:00Z"));
+function sinceDay(){{return ls('since')||SINCE0;}}
+function applySince(){{const d=sinceDay(),n=new Date(d+'T00:00:00Z');n.setUTCDate(n.getUTCDate()+1);const from=n.toISOString().slice(0,10);
+  barBoard.dataset.since=(+d.slice(5,7))+'/'+(+d.slice(8,10));const si=document.getElementById('since-in');if(si)si.value=d;
+  tiles().forEach(el=>{{let m;try{{m=JSON.parse(el.dataset.pd||'null');}}catch(e){{}}if(!m)return;
+    const v=Object.entries(m).filter(([k])=>k>=from).map(([,x])=>x);const hi=v.length?Math.max(...v):Math.max(...Object.values(m));
+    if(String(hi)!==el.dataset.hi){{el.dataset.hi=hi;apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}}}});}}
+document.getElementById('since-in').onchange=e=>{{const v=e.target.value;if(!v)return;ls('since',v);applySince();if(ls('sync'))updateShared(m=>{{m._since=v;}});}};
+applySince();
+// 보드(휴대폰): 꾹(0.45초) 누르면 노란 테두리 → 끌어서 자리 이동. 꾹 눌렀다 그냥 떼면 아무 일 없음
+let boP=null,boSkip=0;
+function applyBo(order){{if(!Array.isArray(order))return;ls('board-order',JSON.stringify(order));
+  tiles().forEach((el,i)=>{{const k=order.indexOf(el.dataset.sym);el.dataset.bo='';el.style.setProperty('--bo',k<0?100+i:k);}});}}
+try{{applyBo(JSON.parse(ls('board-order')||'null'));}}catch(e){{}}
+function boRows(){{return tiles().filter(el=>!el.classList.contains('zoom')&&getComputedStyle(el).display!=='none').sort((a,b)=>(+a.style.getPropertyValue('--bo')||0)-(+b.style.getPropertyValue('--bo')||0)||0);}}
+barBoard.addEventListener('pointerdown',e=>{{
+  if(document.body.classList.contains('baronly')||innerWidth>600||document.querySelector('.tile.zoom')||e.button!==0)return;
+  const el=e.target.closest('.tile[data-sym]');if(!el)return;
+  if(!el.style.getPropertyValue('--bo'))applyBo(tiles().map(t=>t.dataset.sym));
+  const p={{el,id:e.pointerId,x:e.clientX,y:e.clientY,active:false}};boP=p;
+  p.timer=setTimeout(()=>{{if(boP!==p)return;p.active=true;clearTimeout(tapT);tapT=null;el.classList.add('bo-drag');try{{el.setPointerCapture(p.id);}}catch(e){{}}if(navigator.vibrate)navigator.vibrate(20);}},450);
+}});
+barBoard.addEventListener('pointermove',e=>{{const p=boP;if(!p||e.pointerId!==p.id)return;
+  if(!p.active){{if(Math.hypot(e.clientX-p.x,e.clientY-p.y)>10){{clearTimeout(p.timer);boP=null;}}return;}}
+  const t=document.elementFromPoint(e.clientX,e.clientY)?.closest('.tile[data-sym]');
+  if(t&&t!==p.el){{const rows=boRows(),from=rows.indexOf(p.el),to=rows.indexOf(t);if(from>=0&&to>=0){{rows.splice(from,1);rows.splice(to,0,p.el);rows.forEach((r,i)=>r.style.setProperty('--bo',i));}}}}
+  if(e.clientY>innerHeight-90)scrollBy(0,10);else if(e.clientY<60)scrollBy(0,-10);
+}});
+const boEnd=e=>{{const p=boP;if(!p||e.pointerId!==p.id)return;clearTimeout(p.timer);boP=null;if(!p.active)return;
+  p.el.classList.remove('bo-drag');boSkip=Date.now()+500;
+  const order=boRows().map(r=>r.dataset.sym);applyBo(order);if(ls('sync'))updateShared(m=>{{m._boardOrder=order;}});}};
+for(const t of ['pointerup','pointercancel'])barBoard.addEventListener(t,boEnd);
+document.addEventListener('touchmove',e=>{{if(boP?.active)e.preventDefault();}},{{passive:false}});
+barBoard.addEventListener('click',e=>{{if(boP?.active||Date.now()<boSkip){{e.preventDefault();e.stopImmediatePropagation();}}}},true);
+barBoard.addEventListener('contextmenu',e=>{{if(e.target.closest('.tile'))e.preventDefault();}});
 paintHL();
 repaint();pullT();setInterval(()=>{{if(document.visibilityState==='visible')pullT();}},15000);  // 웹·앱의 목표가와 평균 종목을 함께 가져옴
 pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,15000);
