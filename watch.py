@@ -300,7 +300,7 @@ def targets(t) -> list[float]:
 MAX_CANDLES = 70  # 봉이 많으면 몇 개씩 묶어서 이 수 이하로
 
 
-def chart_svg(d: dict) -> str:
+def chart_svg(d: dict, curve=None) -> str:
     W, H = COLS * CELL, ROWS * CELL
     closes, tgts = d["closes"], targets(d.get("target"))
     n = len(closes)
@@ -331,11 +331,17 @@ def chart_svg(d: dict) -> str:
         px = (i // k + .5) / m * 100
         py = max(CELL / 2, y(pv)) / H * 100
         peak = f'<span class="peak{" r" if px > 80 else ""}" style="left:{px:.1f}%;top:{py:.1f}%">{fmt(pv, cur)}</span>'
+    ov = ""
+    if curve and dates:
+        yy = lambda v: H - CELL / 2 - (v - vmin) / span * (ROWS - 1) * CELL
+        pts = [(j, curve(dates[min(j * k + k - 1, n - 1)])) for j in range(m)]
+        ov = " ".join(f"{(j + .5) * cw:.1f},{yy(v):.1f}" for j, v in pts if v is not None)
+        ov = f'<polyline class="mk-ov" points="{ov}"/>' if ov.count(",") > 1 else ""
     return f'''{peak}<span class="ax top">{fmt(vmax, cur)}</span><span class="ax bot">{fmt(vmin, cur)}</span><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" data-vmin="{vmin}" data-vmax="{vmax}">
 <g class="grid">{grid}</g>
 {body}
 {"".join(f'<line class="tgt" x1="0" y1="{y(t)}" x2="{W}" y2="{y(t)}"/>' for t in tgts)}
-</svg>'''
+{ov}</svg>'''
 
 
 def zoom_tools(views) -> str:
@@ -394,11 +400,12 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
           (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
+GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
 HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"),
       ("AXTI", "AXTI"), ("AXTX", "AXTX"), ("^SOX", "필라델피아"),
       ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "어플라이드"), ("ASML", "ASML"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
-      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔")]
+      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "인텔 2배(INTW)")]
 
 
 def mk(x: float) -> float:
@@ -457,10 +464,12 @@ def minsky_html() -> str:
     X, base = frame(0)
     cells, now_stages = [], set()
     young = {}
+    charts = {}
     for (hv, iv, rg, per), (sym, name) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in HA):
         try:
             q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval={iv}&range={rg}")["chart"]["result"][0]
-            c = [v for v in q["indicators"]["quote"][0]["close"] if v]
+            tc = [(t, v) for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]) if v]
+            c = [v for _, v in tc]
             if hv == "주":
                 young[sym] = len(c) < 52
             if len(c) < 12:
@@ -476,13 +485,27 @@ def minsky_html() -> str:
             stage = next(t for x, t in STAGES if te < x)
             if hv == "주":
                 now_stages.add(stage)
-            try:
-                wk = fetch(sym, "주")
-                chart = f'<div class="mk-ch" hidden><div class="chart">{chart_svg(wk)}</div><i class="mk-last">{fmt(wk["closes"][-1], wk["currency"])}</i></div>'
-            except Exception as e:
-                print(f"하 주봉 {sym} 실패: {e}")
-                chart = ""
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
+            # 확대 차트: 주봉으로 맞춘 곡선을 날짜에 고정해 어느 봉에서도 같은 자리에 그림
+            t0, t1 = tc[-n][0], tc[-1][0]
+            g = lambda yv, lo=lo, hi=hi, lo_t=lo_t, hi_t=hi_t: lo + (yv - lo_t) / ((hi_t - lo_t) or 1) * (hi - lo)
+
+            def cprice(ds, t0=t0, t1=t1, ts=ts, te=te, g=g):
+                t = datetime.strptime(ds, "%Y-%m-%d").replace(tzinfo=KST).timestamp() + 43200
+                if t < t0 - 3 * 86400:
+                    return None
+                return g(mk(min(te, max(ts, ts + (t - t0) / ((t1 - t0) or 1) * (te - ts)))))
+            vs = {}
+            for v in VIEWS:
+                try:
+                    d = fetch(sym, v)
+                    vs[v] = f'<div class="chart">{chart_svg(d, cprice)}</div>'
+                    if v == "주":
+                        vs["last"] = fmt(d["closes"][-1], d["currency"])
+                except Exception as e:
+                    print(f"하 {v} {sym} 실패: {e}")
+            charts[name] = vs
+            chart = ""
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg>{chart}</div>')
         except Exception as e:
@@ -492,8 +515,9 @@ def minsky_html() -> str:
                       (.84, "공포", 14, 2), (.90, "좌절", 0, 14)])
     # 지금 종목들이 있는 단계는 주황으로
     short = {"자산 가격 이륙": "이륙", "새로운 논리 탄생": "새 논리"}
-    seq = "→".join(f'<u>{short.get(t, t)}</u>' if t in now_stages else short.get(t, t) for _, t in STAGES)
+    seq = "→".join((f'<u class="g">{short.get(t, t)}</u>' if t in GOOD else f'<u>{short.get(t, t)}</u>') if t in now_stages else short.get(t, t) for _, t in STAGES)
     cells.insert(0, f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
+    (ROOT / "ha.json").write_text(json.dumps(charts, ensure_ascii=False), encoding="utf-8")
     return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}</div>' if len(cells) > 1 else ""
 
 
@@ -681,12 +705,14 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .mk{{border:1px solid var(--edge)!important;border-radius:12px;background:var(--tile);padding:7px 8px 4px!important}}
 .mk b u{{background:#3a2500;padding:0 6px;border-radius:9px;font-size:11px!important}}
 .mk svg{{overflow:visible}}.mk{{position:relative}}.mk .mk-w{{position:absolute;right:9px;top:30px;font-size:10px}}
-.mk.mk-drag{{border:2px solid #ffb300!important}}
+.mk.mk-drag{{border:2px solid #ffb300!important}}.mk u.g{{color:#00ff3c!important}}.mk b u.g{{background:#0a3a18}}
 .mk-pull{{grid-column:1/-1;height:0;overflow:hidden;transition:height .15s;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sub);white-space:nowrap}}
 .hz{{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:16px 14px;cursor:zoom-out}}
 .hz-h{{display:flex;justify-content:space-between;align-items:baseline;gap:8px}}.hz-h b{{font-weight:normal;font-size:20px;white-space:nowrap;overflow:hidden}}.hz-h b i{{font-style:normal;color:#00ff3c}}.hz-h b u{{text-decoration:none;color:#ffb300;font-size:13px;background:#3a2500;padding:0 6px;border-radius:9px}}
 .hz-p{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:28px;margin:4px 0 2px}}.hz small{{color:var(--sub);font-size:12px}}
-.hz .chart{{flex:1;min-height:0;aspect-ratio:auto;margin-top:10px}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
+.hz .chart{{flex:1;min-height:0;aspect-ratio:auto;margin-top:10px}}.mk-ov{{fill:none;stroke:#3fae3f;stroke-width:5;stroke-linejoin:round;stroke-linecap:round;opacity:.8;vector-effect:non-scaling-stroke}}
+.hz-t{{display:flex;justify-content:flex-end;gap:2px;margin-top:8px}}.hz-t button{{font:inherit;font-size:13px;color:var(--sub);background:var(--tile);border:1px solid var(--edge);border-radius:8px;padding:5px 12px;cursor:pointer}}.hz-t button.on{{background:#1c2540;color:var(--txt)}}
+.hz-c{{flex:1;min-height:0;display:flex;flex-direction:column}}.hz-c .chart{{flex:1}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
 .hapop{{grid-template-rows:auto}}.mk-bar{{grid-column:1/-1;justify-self:end;display:flex;gap:2px;background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:3px}}
 .toast[data-refresh]{{z-index:40}}.mk-bar button{{font:inherit;font-size:13px;color:var(--sub);background:transparent;border:0;border-radius:7px;padding:5px 12px;cursor:pointer}}.mk-bar .mk-rl{{color:var(--txt)}}
 .hapop[data-hv="일"] .mk-bar [data-hv="일"],.hapop[data-hv="주"] .mk-bar [data-hv="주"],.hapop[data-hv="월"] .mk-bar [data-hv="월"]{{background:#1c2540;color:var(--txt)}}
@@ -902,12 +928,24 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');}}
 document.getElementById('ttl').onclick=showPct;
 const hapop=document.getElementById('hapop');
-document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;history.pushState({{pop:1}},'');}};
+document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;}};
 // 하 화면: 칸을 톡 누르면 주봉 차트 크게(뒤로가기·화면 누르면 닫힘), 꾹 누르면 이동
-if(hapop)hapop.addEventListener('click',e=>{{if(Date.now()<haSkip)return;const el=e.target.closest('.mk[data-k]');if(!el)return;const ch=el.querySelector('.mk-ch');if(!ch)return;
+let haCharts=null;
+async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
+  try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
+const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
+if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;const el=e.target.closest('.mk[data-k]');if(!el)return;
   const d=document.createElement('div');d.className='hz';
-  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p">'+(ch.querySelector('.mk-last')?.textContent||'')+'</div><small>주봉 · 최근 2년</small>'+ch.querySelector('.chart').outerHTML;
-  d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');}});
+  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
+  d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');
+  const vs=(await loadHaCharts())[el.dataset.k]||{{}};if(!d.isConnected)return;
+  d.querySelector('.hz-p').textContent=vs.last||'';
+  const keys=['240','일','주','월'].filter(k=>vs[k]);
+  const show=k=>{{ls('hz-v',k);d.querySelector('.hz-c').innerHTML=vs[k]||'차트 없음';d.querySelector('.hz-s').textContent=HZ_DESC[k]+' · 초록선 = 주봉으로 맞춘 민스키 곡선';
+    d.querySelectorAll('.hz-t button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));}};
+  d.querySelector('.hz-t').innerHTML=keys.map(k=>'<button data-v="'+k+'">'+k+'</button>').join('');
+  d.querySelector('.hz-t').onclick=ev=>{{ev.stopPropagation();const b=ev.target.closest('button');if(b)show(b.dataset.v);}};
+  show(keys.includes(ls('hz-v'))?ls('hz-v'):(keys.includes('주')?'주':keys[0]));}});
 // 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
 let haP=null,haSkip=0;
 function applyHa(order){{if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
@@ -917,6 +955,7 @@ try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}
 function setHv(v){{if(!hapop)return;hapop.dataset.hv=v;ls('ha-v',v);}}
 setHv(ls('ha-v')||'주');
 async function refreshHa(){{
+  loadHaCharts(true);
   try{{const url=new URL(location.href);url.searchParams.set('_refresh',Date.now());
     const doc=new DOMParser().parseFromString(await (await fetch(url,{{cache:'no-store'}})).text(),'text/html'),nh=doc.getElementById('hapop');
     if(nh){{hapop.querySelectorAll('.mk').forEach(c=>c.remove());hapop.append(...nh.querySelectorAll('.mk'));try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}}}
@@ -949,7 +988,7 @@ if(hapop){{
 }}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
-  document.querySelectorAll('.avgpop').forEach(d=>d.remove());const hz=document.querySelector('.hz');if(hz){{hz.remove();return;}}if(hapop)hapop.hidden=true;}});
+  document.querySelectorAll('.avgpop').forEach(d=>d.remove());const hz=document.querySelector('.hz');if(hz){{hz.remove();return;}}}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
 const AVG_CATALOG={avg_catalog};
@@ -1198,13 +1237,13 @@ function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.c
 document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
   if(k==='set'){{openAvgSettings();return;}}
   if(k==='ha'){{if(hapop&&hapop.hidden)document.getElementById('ha').click();paintTab();return;}}
-  const hz=document.querySelector('.hz');if(hz){{hz.remove();history.go(-2);setB(k==='bar');return;}}
-  if(hapop&&!hapop.hidden)history.back();
+  const hz=document.querySelector('.hz');if(hz){{hz.remove();history.back();}}
+  if(hapop)hapop.hidden=true;
   setB(k==='bar');}};
 addEventListener('popstate',paintTab);
 const lastScreen=ls('screen');barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 // 마지막에 보던 화면(보드·바·하)으로 다시 켜짐
-if(lastScreen==='ha'&&hapop){{hapop.hidden=false;history.pushState({{pop:1}},'');paintTab();}}
+if(lastScreen==='ha'&&hapop){{hapop.hidden=false;paintTab();}}
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
 // 테두리는 보드(hl)와 바(hlb)가 따로
