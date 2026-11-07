@@ -991,7 +991,7 @@ addEventListener('storage',e=>{{if(e.key===AVG_KEY){{avgGeneration++;avgSymbols=
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-stamp');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(force=false){{if(!force&&document.visibilityState==='hidden')return false;for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
-  if(r.ok){{lastSlot=sl;const j=await r.json();if(j.b&&j.b!==BUILD)staleReload();for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
+  if(r.ok){{lastSlot=sl;const j=await r.json();if(j.b&&j.b!==BUILD)staleReload(j.b);for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
@@ -1004,14 +1004,16 @@ function showRefreshToast(message){{
 }}
 const BUILD=document.querySelector('meta[name=build]').content;
 // 옛 코드 화면이면 통째로 새로 받음. 배포 직후 엇갈려 계속 새로고침하지 않게 5분에 한 번만
-function staleReload(){{let t=0;try{{t=+sessionStorage.staleAt||0;}}catch(e){{}}if(Date.now()-t<300000)return false;
-  try{{sessionStorage.staleAt=Date.now();}}catch(e){{}}location.reload();return true;}}
+// 주소에 매번 다른 꼬리표를 붙여 GitHub 서버의 10분 캐시(옛 화면)를 건너뛴다. 1분에 한 번까지만
+function staleReload(b){{let t=0;try{{t=+sessionStorage.staleAt||0;}}catch(e){{}}if(Date.now()-t<60000)return false;
+  try{{sessionStorage.staleAt=Date.now();}}catch(e){{}}location.replace(location.pathname+'?b='+(b||'')+'&t='+Date.now());return true;}}
+if(/[?&]b=/.test(location.search))history.replaceState(history.state,'',location.pathname);
 async function refreshCharts(){{
   try{{
     const url=new URL(location.href);url.searchParams.set('_refresh',Date.now());
     const response=await fetch(url,{{cache:'no-store'}});if(!response.ok)return false;
     const next=new DOMParser().parseFromString(await response.text(),'text/html');
-    const nb=next.querySelector('meta[name=build]');if(nb&&nb.content!==BUILD&&staleReload())return true;
+    const nb=next.querySelector('meta[name=build]');if(nb&&nb.content!==BUILD&&staleReload(nb.content))return true;
     const incoming=[...next.querySelectorAll('.tile[data-sym]')];
     if(!next.querySelector('#baravg')||!incoming.length)return false;
     const current=tileBySym;
