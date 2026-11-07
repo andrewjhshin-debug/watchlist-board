@@ -380,7 +380,7 @@ def tile(d: dict) -> str:
     else:
         when = ""
     zoomtools = zoom_tools(d["views"])
-    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{bar_attr}{live_attr} onclick="tap(this)">'
+    return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{bar_attr}{live_attr} onclick="tap(this,event)">'
             f'<div class="name">{html.escape(d["name"])}{when}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
             f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
@@ -679,7 +679,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .hapop[data-hv="일"] .mk[data-hv]:not([data-hv="일"]),.hapop[data-hv="주"] .mk[data-hv]:not([data-hv="주"]),.hapop[data-hv="월"] .mk[data-hv]:not([data-hv="월"]){{display:none!important}}
 .tile{{-webkit-touch-callout:none}}.tile.bo-drag{{outline:2px dashed #ffb300;outline-offset:-2px;opacity:.35}}
 .bo-ghost{{position:fixed!important;z-index:50;margin:0!important;pointer-events:none;outline:2px solid #ffb300;box-shadow:0 12px 30px #000c,0 0 0 4px #ffb30033;opacity:.95;transition:transform .05s}}
-@media(max-width:600px){{body.nochart:not(.baronly) .grid-wrap .tile{{touch-action:none}}}}
+@media(max-width:600px){{body:not(.baronly) .grid-wrap .tile:not(.zoom) .name{{touch-action:none}}}}
 @media(max-width:600px){{body:not(.baronly) .grid-wrap .tile[data-bo]{{order:var(--bo)}}}}.mk-p{{stroke-width:2.2!important}}
 /* 설정 */
 #avg-settings{{border:1px solid var(--edge)!important;border-radius:16px;background:var(--bg)!important}}
@@ -890,7 +890,7 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
 document.getElementById('ttl').onclick=showPct;
 const hapop=document.getElementById('hapop');
 document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;history.pushState({{pop:1}},'');}};
-if(hapop)hapop.onclick=()=>{{if(Date.now()<haSkip)return;history.back();}};
+// 하 화면은 눌러도 닫히지 않음(아래 탭으로 이동)
 // 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
 let haP=null,haSkip=0;
 function applyHa(order){{if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
@@ -1188,9 +1188,10 @@ function openChart(el){{
   }}
   el.classList.add('zoom');history.pushState({{pop:1}},'');
 }}
-function tap(el){{
+let downOnName=false;document.addEventListener('pointerdown',e=>{{downOnName=!!e.target.closest?.('.name');}},true);  // 막대 끌기가 포인터를 잡아서 click 대상이 칸으로 바뀜
+function tap(el,ev){{
   if(el.classList.contains('zoom')){{history.back();return;}}
-  if(document.body.classList.contains('baronly')){{openChart(el);return;}}
+  if(document.body.classList.contains('baronly')&&!downOnName){{openChart(el);return;}}  // 바 모드: 종목명만 두 번 톡톡 = 테두리
   if(tapT&&tapEl===el){{clearTimeout(tapT);tapT=null;toggleHL(el);return;}}
   clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;openChart(el);}},300);
 }}
@@ -1212,7 +1213,7 @@ try{{applyBo(JSON.parse(ls('board-order')||'null'));}}catch(e){{}}
 function boRows(){{return tiles().filter(el=>!el.classList.contains('zoom')&&getComputedStyle(el).display!=='none').sort((a,b)=>(+a.style.getPropertyValue('--bo')||0)-(+b.style.getPropertyValue('--bo')||0)||0);}}
 barBoard.addEventListener('pointerdown',e=>{{
   if(document.body.classList.contains('baronly')||innerWidth>600||document.querySelector('.tile.zoom')||e.button!==0)return;
-  const el=e.target.closest('.tile[data-sym]');if(!el)return;
+  const el=e.target.closest('.name')&&e.target.closest('.tile[data-sym]');if(!el)return;  // 종목명을 꾹 눌러야 이동
   if(!el.style.getPropertyValue('--bo'))applyBo(tiles().map(t=>t.dataset.sym));
   const p={{el,id:e.pointerId,x:e.clientX,y:e.clientY,active:false}};boP=p;
   p.timer=setTimeout(()=>{{if(boP!==p)return;p.active=true;clearTimeout(tapT);tapT=null;
