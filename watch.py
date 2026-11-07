@@ -708,7 +708,6 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수 · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
-<label class="since-row">막대 기준일 <input type="date" id="since-in"></label>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
@@ -1202,11 +1201,11 @@ function tap(el,ev){{
 const SINCE0=(d=>{{d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}})(new Date("{CFG.get('gauge_since', '2026-07-31')}T00:00:00Z"));
 function sinceDay(){{return ls('since')||SINCE0;}}
 function applySince(){{const d=sinceDay(),n=new Date(d+'T00:00:00Z');n.setUTCDate(n.getUTCDate()+1);const from=n.toISOString().slice(0,10);
-  document.getElementById('since-txt').textContent=(+d.slice(5,7))+'/'+(+d.slice(8,10));document.getElementById('since-pick').value=d;const si=document.getElementById('since-in');if(si)si.value=d;
+  document.getElementById('since-txt').textContent=(+d.slice(5,7))+'/'+(+d.slice(8,10));document.getElementById('since-pick').value=d;
   tiles().forEach(el=>{{let m;try{{m=JSON.parse(el.dataset.pd||'null');}}catch(e){{}}if(!m)return;
     const v=Object.entries(m).filter(([k])=>k>=from).map(([,x])=>x);const hi=v.length?Math.max(...v):Math.max(...Object.values(m));
     if(String(hi)!==el.dataset.hi){{el.dataset.hi=hi;apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}}}});}}
-document.getElementById('since-pick').onchange=document.getElementById('since-in').onchange=e=>{{const v=e.target.value;if(!v)return;ls('since',v);applySince();if(ls('sync'))updateShared(m=>{{m._since=v;}});}};
+document.getElementById('since-pick').onchange=e=>{{const v=e.target.value;if(!v)return;ls('since',v);applySince();if(ls('sync'))updateShared(m=>{{m._since=v;}});}};
 applySince();
 // 보드(휴대폰): 꾹(0.45초) 누르면 노란 테두리 → 끌어서 자리 이동. 꾹 눌렀다 그냥 떼면 아무 일 없음
 let boP=null,boSkip=0;
