@@ -405,7 +405,7 @@ HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), 
       ("AXTI", "AXTI"), ("AXTX", "AXTX"), ("^SOX", "필라델피아"),
       ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "AMAT"), ("ASML", "ASML"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
-      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL")]
+      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX")]
 
 
 def mk(x: float) -> float:
@@ -483,7 +483,7 @@ def minsky_html() -> str:
             f = lambda v: lo_t + (v - lo) / ((hi - lo) or 1) * (hi_t - lo_t)
             line = "M" + " L".join(f"{Xc(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
-            if hv == "주":
+            if hv == "주" and r >= .5:  # 아예 안 닮은(50% 미만) 건 불 안 켬
                 now_stages.add(stage)
             # 확대 차트: 주봉으로 맞춘 곡선을 날짜에 고정해 어느 봉에서도 같은 자리에 그림
             t0, t1 = tc[-n][0], tc[-1][0]
