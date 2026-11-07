@@ -397,7 +397,8 @@ STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 �
 HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"),
       ("AXTI", "AXTI"), ("AXTX", "AXTX"), ("^SOX", "필라델피아"),
       ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "어플라이드"), ("ASML", "ASML"), ("OKLO", "오클로"),
-      ("005380.KS", "현대차"), ("011070.KS", "LG이노텍")]
+      ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
+      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm")]
 
 
 def mk(x: float) -> float:
@@ -1193,7 +1194,7 @@ function fitBarViewport(){{const h=Math.floor(window.visualViewport?.height||inn
 addEventListener('resize',fitBarViewport);window.visualViewport?.addEventListener('resize',fitBarViewport);
 const barB=document.getElementById('bar');
 function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();paintTab();if(typeof paintHL==='function')paintHL();}}
-function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.contains('baronly')?'bar':'board';document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}}
+function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.contains('baronly')?'bar':'board';ls('screen',k);document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}}
 document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
   if(k==='set'){{openAvgSettings();return;}}
   if(k==='ha'){{if(hapop&&hapop.hidden)document.getElementById('ha').click();paintTab();return;}}
@@ -1201,7 +1202,9 @@ document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button'
   if(hapop&&!hapop.hidden)history.back();
   setB(k==='bar');}};
 addEventListener('popstate',paintTab);
-barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
+const lastScreen=ls('screen');barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
+// 마지막에 보던 화면(보드·바·하)으로 다시 켜짐
+if(lastScreen==='ha'&&hapop){{hapop.hidden=false;history.pushState({{pop:1}},'');paintTab();}}
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
 // 테두리는 보드(hl)와 바(hlb)가 따로
