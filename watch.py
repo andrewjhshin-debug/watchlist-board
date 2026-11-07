@@ -464,8 +464,10 @@ def minsky_html() -> str:
     # 지금 종목들이 있는 단계는 주황으로
     short = {"자산 가격 이륙": "이륙", "새로운 논리 탄생": "새 논리"}
     seq = "→".join(f'<u>{short.get(t, t)}</u>' if t in now_stages else short.get(t, t) for _, t in STAGES)
+    most = max(now_stages, key=lambda t: sum(f"<u>{t}</u>" in c for c in cells)) if now_stages else ""
     cells.insert(0, f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
-    return f'<div id="hapop" class="hapop" hidden>{"".join(cells)}</div>' if len(cells) > 1 else ""
+    head = f'<div class="mk-h"><small>하이먼 민스키 · 주봉</small><b>대부분 <u>{most}</u></b></div>'
+    return f'<div id="hapop" class="hapop" hidden>{head}{"".join(cells)}</div>' if len(cells) > 1 else ""
 
 
 def render(items: list[dict], errors: list[str], ha: str = "") -> None:
@@ -619,11 +621,58 @@ body:not(.baronly)>header .settings-trigger{{display:none}}
 body.baronly>header>.tabs>#reload{{grid-column:1;grid-row:2}}
 body.baronly>header>.tabs>#pct{{display:none}}body.baronly>header>.tabs>#ha{{grid-column:4;grid-row:2;margin:0!important}}
 body.baronly>header>.tabs>.settings-trigger{{grid-column:2;grid-row:2}}
+/* ===== 새 디자인 (시안 적용) ===== */
+:root{{--bg:#05070d;--tile:#0c111d;--edge:#1a2236;--grid:#141b2e;--cbg:#070b15;--acc:#ffb300;--tabh:calc(58px + env(safe-area-inset-bottom,0px))}}
+body{{padding-bottom:var(--tabh)}}
+.tile{{border:1px solid var(--edge)!important;border-radius:12px}}.tile.hl{{box-shadow:inset 0 0 0 2px var(--acc)}}
+.chart{{border:1px solid var(--edge)!important;border-radius:8px;overflow:hidden}}
+.price{{font-family:'GalmuriMono11','Galmuri11',monospace;font-variant-numeric:tabular-nums}}
+.gauge{{border-radius:3px;overflow:hidden}}.gauge i{{border-radius:3px}}
+header{{border-bottom:0!important}}
+#ttl .ttl-s{{font-size:.8em;color:var(--sub);font-weight:normal}}#avg{{font-size:1.25em}}
+header #pct,header #bar,header #ha,header .settings-trigger,.note .settings-trigger{{display:none!important}}
+header .tabs{{background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:3px;gap:2px!important}}
+header .tabs button,.zoom-tools .tabs button{{border:0!important;border-radius:7px;background:transparent;color:var(--sub);padding:5px 10px}}
+header .tabs button[aria-pressed="true"],.zoom-tools .tabs button[aria-pressed="true"]{{background:#1c2540!important;color:var(--txt)!important}}
+#reload{{color:var(--txt)!important}}
+#live::before,#bar-stamp::before{{content:"";display:inline-block;width:6px;height:6px;margin-right:5px;border-radius:50%;background:#00ff3c;box-shadow:0 0 5px #00ff3c;vertical-align:1px}}
+#fold,#sync{{border-radius:8px}}
+.tabbar{{position:fixed;left:0;right:0;bottom:0;z-index:32;display:flex;background:#070a12;border-top:1px solid var(--edge);padding:6px 0 calc(6px + env(safe-area-inset-bottom,0px))}}
+.tabbar button{{flex:1;font:inherit;font-size:11px;color:#4a5576;background:none!important;border:0!important;padding:2px 0;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}}
+.tabbar button span{{display:block;font-size:19px;line-height:1.2}}.tabbar button.on{{color:var(--acc)}}
+body:has(.tile.zoom) .tabbar{{display:none}}
+/* 바 모드 */
+body.baronly{{padding-bottom:0;height:calc(var(--bar-viewport,100dvh) - var(--tabh))!important}}
+body.baronly>header{{grid-template-columns:minmax(0,1fr) auto!important}}
+body.baronly>header>.tabs{{display:flex!important;width:auto!important;flex:0 0 auto!important;align-self:center}}
+body.baronly>header>.tabs>button{{min-height:0!important;font-size:13px!important;padding:5px 8px!important}}
+body.baronly .grid-wrap .tile:not(.zoom){{grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"name price" "gauge gauge"!important;border:0!important;border-radius:0}}
+body.baronly .grid-wrap .tile:not(.zoom) .price{{grid-area:price!important;justify-self:end!important;padding:0!important;color:var(--sub)!important;font-size:15px!important}}
+body.baronly .grid-wrap .tile:not(.zoom) .gauge{{grid-area:gauge!important;position:relative;border-radius:5px;background:#121a2e}}
+body.baronly .grid-wrap .tile:not(.zoom) .gauge i{{border-radius:5px}}
+body.baronly .below:not(.zoom) .gauge i::after{{content:none!important}}
+body.baronly .tile:not(.zoom) .gauge::after{{content:attr(data-g)!important;position:absolute!important;left:auto!important;right:8px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%);margin:0!important;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:13px;color:#fff;text-shadow:0 0 2px #000,0 0 4px #000;white-space:nowrap}}
+body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);border-radius:14px;background:var(--tile)}}
+/* 하 */
+.hapop{{bottom:var(--tabh)!important;cursor:default;grid-template-rows:auto;grid-auto-rows:calc((100dvh - var(--tabh) - 74px)/4)!important;gap:8px!important;padding:10px!important;background:var(--bg)!important}}
+.mk-h{{grid-column:1/-1;padding:2px 4px}}.mk-h small{{display:block;font-size:12px;color:var(--sub)}}.mk-h b{{font-weight:normal;font-size:20px}}.mk-h b u{{text-decoration:none;color:var(--acc)}}
+.mk{{border:1px solid var(--edge)!important;border-radius:12px;background:var(--tile);padding:7px 8px 4px!important}}
+.mk b u{{background:#3a2500;padding:0 6px;border-radius:9px;font-size:11px!important}}
+.mk svg{{overflow:visible}}.mk-c{{stroke-width:5!important;opacity:.6}}.mk-p{{stroke-width:2.2!important}}
+/* 설정 */
+#avg-settings{{border:1px solid var(--edge)!important;border-radius:16px;background:var(--bg)!important}}
+#avg-options{{grid-template-columns:minmax(0,1fr)!important;gap:0!important;border:1px solid var(--edge);border-radius:12px;background:var(--tile)}}
+.avg-option{{border:0!important;border-bottom:1px solid var(--edge)!important;background:none!important;font-size:14px;padding:8px 14px}}.avg-option:last-child{{border-bottom:0!important}}
+.avg-option input{{order:2;margin-left:auto!important;appearance:none;-webkit-appearance:none;width:38px!important;height:22px!important;border-radius:11px;background:#222b44;position:relative;transition:background .15s}}
+.avg-option input::after{{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#56607c;transition:left .15s}}
+.avg-option input:checked{{background:#0a5a22}}.avg-option input:checked::after{{left:19px;background:#00ff3c}}
+.settings-actions button{{border-radius:10px;border-width:1px!important}}
 </style></head><body>
-<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> 관심종목 <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button id="ha" aria-label="하이먼 민스키 모델 겹쳐 보기">하</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
+<header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> <span class="ttl-s">관심종목</span> <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button id="ha" aria-label="하이먼 민스키 모델 겹쳐 보기">하</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
 
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div>
 {err}{ha}<div class="grid-wrap">{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click();showPct()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
+<nav class="tabbar" aria-label="화면"><button data-k="board"><span>▦</span>보드</button><button data-k="bar"><span>≡</span>바</button><button data-k="ha"><span>∿</span>하</button><button data-k="set"><span>⚙</span>설정</button></nav>
 <dialog id="avg-settings" aria-labelledby="avg-settings-title">
 <form id="avg-settings-form">
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
@@ -789,7 +838,8 @@ function apply(sym,price,prev){{
   el.classList.toggle('up',ch>=0);el.classList.toggle('down',ch<0);
   el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
   el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
-  const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;el.classList.remove('lv1','lv2','lv3','lv4','below');
+  const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;
+  {{const gg=el.querySelector('.gauge');if(ts.length){{const g=price/Math.max(...ts)-1;gg.dataset.g=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}}else delete gg.dataset.g;}}el.classList.remove('lv1','lv2','lv3','lv4','below');
   if(ts.length){{const t=Math.max(...ts),hi=+el.dataset.hi,fill=el.querySelector('.gauge i');
     if(price<t){{const depth=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*depth)+'%');el.dataset.left=-depth;
       fill.style.width=Math.round(depth*100)+'%';fill.dataset.p=f2(price,c);}}
@@ -1076,7 +1126,14 @@ setF(innerWidth<601&&ls('fold')!=='0');
 function fitBarViewport(){{const h=Math.floor(window.visualViewport?.height||innerHeight);if(h>0)document.body.style.setProperty('--bar-viewport',h+'px');}}
 addEventListener('resize',fitBarViewport);window.visualViewport?.addEventListener('resize',fitBarViewport);
 const barB=document.getElementById('bar');
-function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();}}
+function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();paintTab();}}
+function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.contains('baronly')?'bar':'board';document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}}
+document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
+  if(k==='set'){{openAvgSettings();return;}}
+  if(k==='ha'){{if(hapop&&hapop.hidden)document.getElementById('ha').click();paintTab();return;}}
+  if(hapop&&!hapop.hidden)history.back();
+  setB(k==='bar');}};
+addEventListener('popstate',paintTab);
 barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
