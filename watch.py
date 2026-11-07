@@ -403,9 +403,9 @@ STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 �
 GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
 HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"),
       ("AXTI", "AXTI"), ("AXTX", "AXTX"), ("^SOX", "필라델피아"),
-      ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "어플라이드"), ("ASML", "ASML"), ("OKLO", "오클로"),
+      ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "AMAT"), ("ASML", "ASML"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
-      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "인텔 2배(INTW)")]
+      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "INTW")]
 
 
 def mk(x: float) -> float:
@@ -483,7 +483,7 @@ def minsky_html() -> str:
             f = lambda v: lo_t + (v - lo) / ((hi - lo) or 1) * (hi_t - lo_t)
             line = "M" + " L".join(f"{Xc(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
-            if hv == "주":
+            if hv == "주" and r >= .85:  # 덜 닮은 종목(85% 미만)은 모델 칸 단계에 불 안 켬
                 now_stages.add(stage)
             # 확대 차트: 주봉으로 맞춘 곡선을 날짜에 고정해 어느 봉에서도 같은 자리에 그림
             t0, t1 = tc[-n][0], tc[-1][0]
@@ -505,7 +505,7 @@ def minsky_html() -> str:
                     print(f"하 {v} {sym} 실패: {e}")
             charts[name] = vs
             chart = ""
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>{r * 100:.0f}%</i> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg>{chart}</div>')
         except Exception as e:
