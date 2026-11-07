@@ -806,8 +806,8 @@ function pullT(){{
       const doc=await r.json(),m=JSON.parse(doc.fields?.json?.stringValue||'{{}}');if(ls('sync')!==code)return null;
       let changed=false;
       for(const sym in m){{
-        if(sym.startsWith('_')&&sym!=='_hl')continue;
-        const key=sym==='_hl'?'hl':'tg:'+sym,value=JSON.stringify(m[sym]);
+        if(sym.startsWith('_')&&sym!=='_hl'&&sym!=='_hlb')continue;
+        const key=sym==='_hl'?'hl':sym==='_hlb'?'hlb':'tg:'+sym,value=JSON.stringify(m[sym]);
         if(ls(key)!==value){{ls(key,value);changed=true;}}
       }}
       if(changed){{repaint();paintHL();}}
@@ -838,7 +838,7 @@ function pullT(){{
   return targetPullJob;
 }}
 async function pushT(){{
-  const changes={{}};tiles().forEach(el=>changes[el.dataset.sym]=getT(el));changes._hl=getHL();
+  const changes={{}};tiles().forEach(el=>changes[el.dataset.sym]=getT(el));changes._hl=getHL('hl');changes._hlb=getHL('hlb');
   return updateShared(m=>Object.assign(m,changes));
 }}
 
@@ -1167,7 +1167,7 @@ setF(innerWidth<601&&ls('fold')!=='0');
 function fitBarViewport(){{const h=Math.floor(window.visualViewport?.height||innerHeight);if(h>0)document.body.style.setProperty('--bar-viewport',h+'px');}}
 addEventListener('resize',fitBarViewport);window.visualViewport?.addEventListener('resize',fitBarViewport);
 const barB=document.getElementById('bar');
-function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();paintTab();}}
+function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();paintTab();if(typeof paintHL==='function')paintHL();}}
 function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.contains('baronly')?'bar':'board';document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}}
 document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
   if(k==='set'){{openAvgSettings();return;}}
@@ -1178,9 +1178,11 @@ addEventListener('popstate',paintTab);
 barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
-function getHL(){{try{{return JSON.parse(ls('hl')||'[]');}}catch(e){{return [];}}}}
+// 테두리는 보드(hl)와 바(hlb)가 따로
+function hlKey(){{return document.body.classList.contains('baronly')?'hlb':'hl';}}
+function getHL(k=hlKey()){{try{{return JSON.parse(ls(k)||'[]');}}catch(e){{return [];}}}}
 function paintHL(){{const h=getHL();tiles().forEach(el=>el.classList.toggle('hl',h.includes(el.dataset.sym)));}}
-function toggleHL(el){{const h=getHL(),s=el.dataset.sym,i=h.indexOf(s);i<0?h.push(s):h.splice(i,1);ls('hl',JSON.stringify(h));paintHL();pushT();
+function toggleHL(el){{const h=getHL(),s=el.dataset.sym,i=h.indexOf(s);i<0?h.push(s):h.splice(i,1);ls(hlKey(),JSON.stringify(h));paintHL();pushT();
   if(navigator.vibrate)navigator.vibrate(30);}}
 // 차트 모드: 두 번 톡톡 = 테두리만(펼치지 않음), 한 번 = 잠깐 기다렸다 펼침. 바 모드는 바로 펼침.
 let tapT=null,tapEl=null,tapAt=0;
