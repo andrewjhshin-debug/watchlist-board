@@ -658,7 +658,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .mk-h{{grid-column:1/-1;padding:2px 4px}}.mk-h small{{display:block;font-size:12px;color:var(--sub)}}.mk-h b{{font-weight:normal;font-size:20px}}.mk-h b u{{text-decoration:none;color:var(--acc)}}
 .mk{{border:1px solid var(--edge)!important;border-radius:12px;background:var(--tile);padding:7px 8px 4px!important}}
 .mk b u{{background:#3a2500;padding:0 6px;border-radius:9px;font-size:11px!important}}
-.mk svg{{overflow:visible}}.mk-c{{stroke-width:5!important;opacity:.6}}.mk-p{{stroke-width:2.2!important}}
+.mk svg{{overflow:visible}}.mk-p{{stroke-width:2.2!important}}
 /* 설정 */
 #avg-settings{{border:1px solid var(--edge)!important;border-radius:16px;background:var(--bg)!important}}
 #avg-options{{grid-template-columns:minmax(0,1fr)!important;gap:0!important;border:1px solid var(--edge);border-radius:12px;background:var(--tile)}}
