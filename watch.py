@@ -454,7 +454,7 @@ def minsky_html() -> str:
             line = "M" + " L".join(f"{Xc(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
             now_stages.add(stage)
-            cells.append(f'<div class="mk"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small>주봉 {n}개 · 약 {round(n * 7 / 30.4)}개월{" · 고점부터" if ts else ""}</small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}"><b>{html.escape(name)} <i>일치 {r * 100:.0f}%</i> <u>{stage}</u></b><small>주봉 {n}개 · 약 {round(n * 7 / 30.4)}개월{" · 고점부터" if ts else ""}</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg></div>')
         except Exception as e:
@@ -493,7 +493,7 @@ header{{display:flex;gap:12px;justify-content:space-between;align-items:center;p
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
 .toast{{}}body.baronly .grid-wrap{{position:relative;padding-top:16px!important}}body.baronly .grid-wrap::before{{content:"7/30";position:absolute;left:14px;top:3px;font-size:12px;line-height:1;color:var(--sub)}}#ha{{display:none}}body.baronly #ha{{display:block}}
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
-.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
+.mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
 .mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
@@ -733,6 +733,7 @@ function pullT(){{
         if(ls(key)!==value){{ls(key,value);changed=true;}}
       }}
       if(changed){{repaint();paintHL();}}
+      if(Array.isArray(m._haOrder)&&!haP&&JSON.stringify(m._haOrder)!==ls('ha-order'))applyHa(m._haOrder);
       if(generation===avgGeneration&&!ls(avgPendingKey(code))){{
         if(Array.isArray(m._avg))adoptSharedAverage(m._avg);
         else if(ls(AVG_KEY)!=null){{
@@ -808,7 +809,30 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
 document.getElementById('ttl').onclick=showPct;
 const hapop=document.getElementById('hapop');
 document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;history.pushState({{pop:1}},'');}};
-if(hapop)hapop.onclick=()=>history.back();
+if(hapop)hapop.onclick=()=>{{if(Date.now()<haSkip)return;history.back();}};
+// 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
+let haP=null,haSkip=0;
+function applyHa(order){{if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
+  const cells=[...hapop.querySelectorAll('.mk[data-k]')],rk=el=>{{const i=order.indexOf(el.dataset.k);return i<0?999+cells.indexOf(el):i;}};
+  hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));}}
+try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}
+if(hapop){{
+  hapop.addEventListener('pointerdown',e=>{{const el=e.target.closest('.mk[data-k]');if(!el||e.button!==0)return;
+    const p={{el,id:e.pointerId,x:e.clientX,y:e.clientY,active:false}};haP=p;
+    p.timer=setTimeout(()=>{{if(haP!==p)return;p.active=true;el.classList.add('mk-drag');try{{el.setPointerCapture(p.id);}}catch(e){{}}}},450);}});
+  hapop.addEventListener('pointermove',e=>{{const p=haP;if(!p||e.pointerId!==p.id)return;
+    if(!p.active){{if(Math.hypot(e.clientX-p.x,e.clientY-p.y)>10){{clearTimeout(p.timer);haP=null;}}return;}}
+    const t=document.elementFromPoint(e.clientX,e.clientY)?.closest('.mk[data-k]');
+    if(t&&t!==p.el){{const cs=[...hapop.children];cs.indexOf(t)>cs.indexOf(p.el)?t.after(p.el):t.before(p.el);}}
+    const r=hapop.getBoundingClientRect();if(e.clientY>r.bottom-40)hapop.scrollTop+=12;else if(e.clientY<r.top+40)hapop.scrollTop-=12;}});
+  const end=e=>{{const p=haP;if(!p||e.pointerId!==p.id)return;clearTimeout(p.timer);haP=null;if(!p.active)return;
+    p.el.classList.remove('mk-drag');haSkip=Date.now()+500;
+    const order=[...hapop.querySelectorAll('.mk[data-k]')].map(c=>c.dataset.k);applyHa(order);
+    if(ls('sync'))updateShared(m=>{{m._haOrder=order;}});}};
+  for(const t of ['pointerup','pointercancel'])hapop.addEventListener(t,end);
+  hapop.addEventListener('touchmove',e=>{{if(haP?.active)e.preventDefault();}},{{passive:false}});
+  hapop.addEventListener('contextmenu',e=>e.preventDefault());
+}}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
   document.querySelectorAll('.avgpop').forEach(d=>d.remove());if(hapop)hapop.hidden=true;}});
