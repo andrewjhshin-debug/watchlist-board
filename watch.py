@@ -400,6 +400,7 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
           (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
+LEV = {"INTW": "INTC", "MVLL": "MRVL", "APPX": "APP"}  # 레버리지는 본주 단계 그대로
 GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
 HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"),
       ("AXTI", "AXTI"), ("AXTX", "AXTX"), ("^SOX", "필라델피아"),
@@ -424,7 +425,7 @@ def mkf(x: float) -> float:
     return MKT[round(x * 2000)]
 
 
-def minsky_fit(c: list[float], young: bool | None = None) -> tuple[float, int, float, float]:
+def minsky_fit(c: list[float], young: bool | None = None, te_fix: float | None = None) -> tuple[float, int, float, float]:
     """종가 끝부분 n주가 곡선 ts~te 구간과 가장 닮은 (상관계수, n, ts, te).
     1년 안 된 신규상장은 꼭대기에서 시작하니 시작점(ts)도 찾는다."""
     def corr(a, b):
@@ -433,6 +434,9 @@ def minsky_fit(c: list[float], young: bool | None = None) -> tuple[float, int, f
         sa = sum((x - ma) ** 2 for x in a) ** .5
         sb = sum((y - mb) ** 2 for y in b) ** .5
         return sab / (sa * sb) if sa and sb else -1
+    if te_fix is not None:  # 레버리지: 본주와 같은 단계(te)에서 길이만 찾음
+        n = max(range(max(12, len(c) // 2), len(c) + 1), key=lambda n: corr(c[-n:], [mkf(i / (n - 1) * te_fix) for i in range(n)]))
+        return corr(c[-n:], [mkf(i / (n - 1) * te_fix) for i in range(n)]), n, 0.0, te_fix
     if young if young is not None else len(c) < 52:
         best = (-1.0, len(c), 0.0, 1.0)
         for a in range(0, 90):
@@ -465,6 +469,7 @@ def minsky_html() -> str:
     cells, now_stages = [], set()
     young = {}
     charts = {}
+    fits = {}
     for (hv, iv, rg, per), (sym, name) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in HA):
         try:
             q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval={iv}&range={rg}")["chart"]["result"][0]
@@ -474,7 +479,17 @@ def minsky_html() -> str:
                 young[sym] = len(c) < 52
             if len(c) < 12:
                 continue
-            r, n, ts, te = minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
+            if sym in LEV:  # 레버는 본주 단계·일치율 기준
+                if LEV[sym] not in fits:
+                    continue
+                r0, te0 = fits[LEV[sym]]
+                r, n, ts, te = minsky_fit(c, te_fix=te0)
+            else:
+                r, n, ts, te = minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
+                r0 = r
+            if r0 <= .70:  # 70% 이하는 하이먼 모양 아님 → 안 넣음
+                continue
+            fits[sym] = (r0, te)
             seg = c[-n:]
             Xc, bc = frame(min(ts, .66)) if ts else (X, base)
             lo_t = min(mk(ts + i / 100 * (te - ts)) for i in range(101))
@@ -483,7 +498,7 @@ def minsky_html() -> str:
             f = lambda v: lo_t + (v - lo) / ((hi - lo) or 1) * (hi_t - lo_t)
             line = "M" + " L".join(f"{Xc(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
-            if hv == "주" and r >= .5:  # 아예 안 닮은(50% 미만) 건 불 안 켬
+            if hv == "주" and r0 >= .80 and sym not in LEV:  # 80% 미만은 모델 칸 불 안 켬
                 now_stages.add(stage)
             # 확대 차트: 주봉으로 맞춘 곡선을 날짜에 고정해 어느 봉에서도 같은 자리에 그림
             t0, t1 = tc[-n][0], tc[-1][0]
@@ -505,7 +520,7 @@ def minsky_html() -> str:
                     print(f"하 {v} {sym} 실패: {e}")
             charts[name] = vs
             chart = ""
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>{r * 100:.0f}%</i> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>{r0 * 100:.0f}%</i> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg>{chart}</div>')
         except Exception as e:
