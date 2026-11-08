@@ -445,7 +445,7 @@ def minsky_fit(c: list[float], young: bool | None = None) -> tuple[float, int, f
     best = (-1.0, len(c), 0.0, 1.0)
     for n in range(26, len(c) + 1, 4):
         seg = c[-n:]
-        for k in range(66, 101, 1):  # 다들 급등을 거쳤으니 열정 이후 구간에서만 찾음
+        for k in range(80 if c[-1] < .6 * max(c) else 66, 101):  # 열정 이후에서만. 고점서 40%↑ 빠졌으면 고점 이후에서만
             te = k / 100
             r = corr(seg, [mkf(i / (n - 1) * te) for i in range(n)])
             if r > best[0]:
