@@ -487,7 +487,7 @@ def minsky_html() -> str:
             else:
                 r, n, ts, te = minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
                 r0 = r
-            if r0 <= .70:  # 70% 이하는 하이먼 모양 아님 → 안 넣음
+            if r0 <= .70:  # 70% 이하는 하이먼 모양 아님 → 안 넣음(레버는 본주 기준)
                 continue
             fits[sym] = (r0, te)
             seg = c[-n:]
@@ -520,7 +520,7 @@ def minsky_html() -> str:
                     print(f"하 {v} {sym} 실패: {e}")
             charts[name] = vs
             chart = ""
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>{r0 * 100:.0f}%</i> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>{r * 100:.0f}%</i> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/></svg>{chart}</div>')
         except Exception as e:
