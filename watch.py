@@ -637,7 +637,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
-.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
+.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-zoomed{{overflow:hidden}}.mk-zoomed svg{{overflow:hidden}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -1026,6 +1026,7 @@ async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
   try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;const el=e.target.closest('.mk[data-k]');if(!el)return;
+  if(el.classList.contains('mk-zoomed')){{const sv=el.querySelector('svg');sv.style.transform='';sv.dataset.z=1;el.classList.remove('mk-zoomed');return;}}
   const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');el.appendChild(t);return;}}
   const d=document.createElement('div');d.className='hz';
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
@@ -1055,7 +1056,7 @@ async function refreshHa(){{
 // 하 화면: 맨 위에서 아래로 당겼다 놓으면 새로고침
 if(hapop){{const pullEl=hapop.querySelector('.mk-pull');let pull=null;
   hapop.addEventListener('touchstart',e=>{{pull=hapop.scrollTop<=0&&!haP?.active?{{y:e.touches[0].clientY,d:0}}:null;}},{{passive:true}});
-  hapop.addEventListener('touchmove',e=>{{if(!pull||haP?.active)return;const d=e.touches[0].clientY-pull.y;
+  hapop.addEventListener('touchmove',e=>{{if(!pull||haP?.active||e.touches.length>1)return;const d=e.touches[0].clientY-pull.y;
     if(d<=0||hapop.scrollTop>0){{pull.d=0;pullEl.style.height='0';return;}}
     pull.d=d;e.preventDefault();pullEl.style.height=Math.min(d/2,56)+'px';pullEl.textContent=d>110?'놓으면 새로고침':'↓ 당겨서 새로고침';}},{{passive:false}});
   const pullEnd=()=>{{if(!pull)return;const d=pull.d;pull=null;
@@ -1077,6 +1078,15 @@ if(hapop){{
   for(const t of ['pointerup','pointercancel'])hapop.addEventListener(t,end);
   hapop.addEventListener('touchmove',e=>{{if(haP?.active)e.preventDefault();}},{{passive:false}});
   hapop.addEventListener('contextmenu',e=>e.preventDefault());
+  // 두 손가락으로 벌리면 그 칸 그림만 확대(손 뗀 뒤 유지, 한 번 톡 = 원래대로)
+  let pz=null;const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  hapop.addEventListener('touchstart',e=>{{if(e.touches.length!==2)return;const el=e.target.closest('.mk[data-k]'),svg=el?.querySelector('svg');if(!svg)return;
+    if(haP){{clearTimeout(haP.timer);haP=null;}}
+    const r=svg.getBoundingClientRect(),cx=(e.touches[0].clientX+e.touches[1].clientX)/2-r.left,cy=(e.touches[0].clientY+e.touches[1].clientY)/2-r.top,s0=+(svg.dataset.z||1);
+    if(s0<=1.01)svg.style.transformOrigin=cx+'px '+cy+'px';pz={{el,svg,d0:dist(e.touches),s0}};}},{{capture:true,passive:true}});
+  hapop.addEventListener('touchmove',e=>{{if(!pz||e.touches.length!==2)return;e.preventDefault();
+    const z=Math.max(1,Math.min(5,pz.s0*dist(e.touches)/pz.d0));pz.svg.dataset.z=z;pz.svg.style.transform='scale('+z+')';pz.el.classList.toggle('mk-zoomed',z>1.01);}},{{capture:true,passive:false}});
+  hapop.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
 }}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
