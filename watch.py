@@ -239,12 +239,13 @@ def quote(sym: str) -> tuple[float, float]:
     return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
 
 
-def peak(sym: str, day: dict) -> tuple[float, str, dict]:
+def peak(sym: str, day: dict) -> tuple[float, str, dict, dict]:
     """gauge_since 이후 최고점(값, 날짜). 미국 종목은 프리·애프터장 포함(60분봉).
     시간외 봉은 거래량 0 인 잘못 찍힌 꼬리(예: AXTX 9/22 150.56)가 있어 시가·종가만 본다."""
     since = CFG.get("gauge_since", "")
     if sym.startswith(("upbit:", "ecos:")):
         rows = list(zip(day.get("highs", day["closes"]), day["dates"]))
+        lrows = list(zip(day.get("lows", day["closes"]), day["dates"]))
     else:
         d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}"
                      "?range=6mo&interval=60m&includePrePost=true")["chart"]["result"][0]
@@ -252,11 +253,17 @@ def peak(sym: str, day: dict) -> tuple[float, str, dict]:
         rows = [(h if v else max(o, c), datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d"))
                 for t, o, h, c, v in zip(d["timestamp"], q["open"], q["high"], q["close"], q["volume"])
                 if None not in (o, h, c)]
+        lrows = [(lo if v else min(o, c), datetime.fromtimestamp(t, KST).strftime("%Y-%m-%d"))
+                 for t, o, lo, c, v in zip(d["timestamp"], q["open"], q["low"], q["close"], q["volume"])
+                 if None not in (o, lo, c)]
     days = {}
     for v, dt in rows:
         days[dt] = max(v, days.get(dt, v))
+    lows = {}  # 날짜별 최저 → 막대가 목표 아래일 때 '바닥에서 얼마나 올라왔나'
+    for lv, ldt in lrows:
+        lows[ldt] = min(lv, lows.get(ldt, lv))
     v, dt = max([r for r in rows if r[1] >= since] or rows)
-    return v, dt, days
+    return v, dt, days, lows
 
 
 def run_live() -> None:
@@ -370,7 +377,9 @@ def tile(d: dict) -> str:
     lv, left = "", 0.0
     bar_attr = ' data-bar-only="1"' if d.get("bar_only") else ""
     pdays = html.escape(json.dumps(d["peak"][2])) if d.get("peak") and len(d["peak"]) > 2 else ""
-    live_attr = f' data-pd="{pdays}" data-hi="{hi}" data-tgts0="{json.dumps(tgts)}" data-tgts="{json.dumps(tgts)}" data-p="{price}" data-pv="{prev}"'
+    lm = d["peak"][3] if d.get("peak") and len(d["peak"]) > 3 else {}
+    lo = min([v for k, v in lm.items() if k > CFG.get("gauge_since", "")] or list(lm.values()) or [0])
+    live_attr = f' data-ld="{html.escape(json.dumps(lm))}" data-lo="{lo}" data-pd="{pdays}" data-hi="{hi}" data-tgts0="{json.dumps(tgts)}" data-tgts="{json.dumps(tgts)}" data-p="{price}" data-pv="{prev}"'
     if tgts:
         t = max(tgts)  # 여러 목표면 가장 가까운(높은) 목표
         left = max(0.0, min(1.0, (price - t) / (hi - t))) if hi > t else 0.0
@@ -811,7 +820,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <dialog id="avg-settings" aria-labelledby="avg-settings-title">
 <form id="avg-settings-form">
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
-<p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수 · 목표가가 없으면 제외</p>
+<p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수(-100% = 기준일 이후 바닥, 올라올수록 0에 가까움) · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
 <p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (SOXL 3배는 -85/-90/-95%, 2배 레버는 본주 조정치까지 하락폭 x2)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%(SOXL -95%)보다 더 빠졌으면 지금 가격을 바닥으로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
@@ -979,7 +988,7 @@ function apply(sym,price,prev){{
   const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;
   {{const gg=el.querySelector('.gauge');if(ts.length){{const g=price/Math.max(...ts)-1;gg.dataset.g=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}}else delete gg.dataset.g;}}el.classList.remove('lv1','lv2','lv3','lv4','below');
   if(ts.length){{const t=Math.max(...ts),hi=+el.dataset.hi,fill=el.querySelector('.gauge i');
-    if(price<t){{const depth=Math.min(1,(t-price)/t/.3);el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*depth)+'%');el.dataset.left=-depth;
+    if(price<t){{const lo=+el.dataset.lo,depth=Math.max(0,Math.min(1,lo>0&&lo<t?(t-price)/(t-lo):(t-price)/t/.3));el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*depth)+'%');el.dataset.left=-depth;
       fill.style.width=Math.round(depth*100)+'%';fill.dataset.p=f2(price,c);}}
     else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;el.dataset.left=left;
       fill.style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));
@@ -1342,7 +1351,9 @@ function applySince(){{const d=sinceDay(),n=new Date(d+'T00:00:00Z');n.setUTCDat
   document.getElementById('since-txt').textContent=(+d.slice(5,7))+'/'+(+d.slice(8,10));document.getElementById('since-pick').value=d;
   tiles().forEach(el=>{{let m;try{{m=JSON.parse(el.dataset.pd||'null');}}catch(e){{}}if(!m)return;
     const v=Object.entries(m).filter(([k])=>k>=from).map(([,x])=>x);const hi=v.length?Math.max(...v):Math.max(...Object.values(m));
-    if(String(hi)!==el.dataset.hi){{el.dataset.hi=hi;apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}}}});}}
+    let lm;try{{lm=JSON.parse(el.dataset.ld||'null');}}catch(e){{}}
+    const lv=lm?Object.entries(lm).filter(([k])=>k>=from).map(([,x])=>x):[],lo=lv.length?Math.min(...lv):el.dataset.lo;
+    if(String(hi)!==el.dataset.hi||String(lo)!==el.dataset.lo){{el.dataset.hi=hi;el.dataset.lo=lo;el._quoteState=null;apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}}}});}}
 document.getElementById('since-pick').onchange=e=>{{const v=e.target.value;if(!v)return;ls('since',v);applySince();if(ls('sync'))updateShared(m=>{{m._since=v;}});}};
 applySince();
 // 보드(휴대폰): 꾹(0.45초) 누르면 노란 테두리 → 끌어서 자리 이동. 꾹 눌렀다 그냥 떼면 아무 일 없음
