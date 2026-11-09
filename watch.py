@@ -979,7 +979,7 @@ async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
   try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;const el=e.target.closest('.mk[data-k]');if(!el)return;
-  const nm=e.target.closest('.mk-n');if(nm){{el.querySelector('.mk-rp')?.remove();const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%';el.appendChild(t);setTimeout(()=>t.remove(),1500);return;}}
+  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%';el.appendChild(t);return;}}
   const d=document.createElement('div');d.className='hz';
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');
