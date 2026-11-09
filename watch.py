@@ -477,16 +477,24 @@ def minsky_html() -> str:
     W, H, P = 200, 110, 6
     Y = lambda y: H - P - y * (H - 2 * P)
 
-    def frame(x0):  # x0 부터 1 까지 확대한 곡선 (신규상장은 꼭대기 구간만)
-        X = lambda x: P + (x - x0) / (1 - x0) * (W - 2 * P)
-        curve = "M" + " L".join(f"{X(x0 + i / 200 * (1 - x0)):.1f},{Y(mk(x0 + i / 200 * (1 - x0))):.1f}" for i in range(201))
-        return X, (f'<path d="{curve}" class="mk-c"/><line x1="{X(x0)}" y1="{Y(.05 + .17 * x0)}" x2="{X(1)}" y2="{Y(.22)}" class="mk-m"/>')
+    XR = 1.25  # 오른쪽 1/5 은 다음 사이클(반복) 시작 — 정상화 가격 쓸 자리
+
+    def mkx(x):  # 1 넘으면 곡선 처음을 이어 붙임(하이먼은 반복)
+        return mk(x) if x <= 1 else mk(1) + mk(x - 1) - mk(0)
+
+    def frame(x0):  # x0 부터 XR 까지 확대한 곡선 (신규상장은 꼭대기 구간만)
+        X = lambda x: P + (x - x0) / (XR - x0) * (W - 2 * P)
+        pts = [x0 + i / 200 * (XR - x0) for i in range(201)]
+        curve = "M" + " L".join(f"{X(x):.1f},{Y(mkx(x)):.1f}" for x in pts)
+        return X, (f'<path d="{curve}" class="mk-c"/><line x1="{X(x0)}" y1="{Y(.05 + .17 * x0)}" x2="{X(XR)}" y2="{Y(.05 + .17 * XR)}" class="mk-m"/>')
     X, base = frame(0)
     cells, now_stages = [], set()
     young = {}
     charts = {}
     fits = {}
     zd = None
+    alog_p = ROOT / "adj_log.json"
+    alog = json.loads(alog_p.read_text(encoding="utf-8")) if alog_p.exists() else {}
     for (hv, iv, rg, per), (sym, name) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in HA):
         try:
             q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval={iv}&range={rg}")["chart"]["result"][0]
@@ -541,15 +549,25 @@ def minsky_html() -> str:
             sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
             if True:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게
                 ap, ad = adj_target(tc, sym == "SOXL" or sym in LEV, sym)
-                zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}({ad:%y.%m})</text>' if ap and ad > datetime.now(KST) else ""
+                zp = f'<text class="mk-zp" x="{Xc(.90):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}({ad:%y.%m})</text>' if ap and ad > datetime.now(KST) else ""
                 if zp:  # 정상화 참고치: 과거 바닥 뒤 1년 반등(지수·주식 x1.75, 3배 레버 x3)
                     m = 3.0 if (sym == "SOXL" or sym in LEV) else 1.75
-                    zp += f'<text class="mk-zp mk-zn" x="2" y="12">{sp(ap * m)}({ad + timedelta(days=365):%y.%m})</text>'
-                if sym == "SOXL":
-                    zd = ad
+                    zp += f'<text class="mk-zp mk-zn" x="{W - 2}" y="12">{sp(ap * m)}({ad + timedelta(days=365):%y.%m})</text>'
+                    # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
+                    row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}"]
+                    if not alog.get(sym) or alog[sym][-1][1:] != row[1:]:
+                        alog.setdefault(sym, []).append(row)
+                    if sym == "SOXL":
+                        zd = ad
+            sc = ""
+            if stage == "정상화" and alog.get(sym):  # 바닥 지남 → 첫 기록과 실제 바닥 비교
+                ip = max(range(len(tc)), key=lambda i: tc[i][1])
+                ib = min(range(ip, len(tc)), key=lambda i: tc[i][1])
+                d0, p0, m0 = alog[sym][0]
+                sc = f" data-sc=\"{d0[2:7]} 조정치 {sp(p0)}({m0}) &#10;실제 {sp(tc[ib][1])}({datetime.fromtimestamp(tc[ib][0], KST):%y.%m}) {(p0 / tc[ib][1] - 1) * 100:+.0f}%\""
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
             np = sp(v)
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}">{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}</svg>{chart}</div>')
         except Exception as e:
@@ -564,6 +582,7 @@ def minsky_html() -> str:
     seq = "→".join((f'<u class="g">{short.get(t, t)}</u>' if t in GOOD else f'<u>{short.get(t, t)}</u>') if t in now_stages else short.get(t, t) for _, t in STAGES)
     cells.insert(0, f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g></svg></div>')
     (ROOT / "ha.json").write_text(json.dumps(charts, ensure_ascii=False), encoding="utf-8")
+    alog_p.write_text(json.dumps(alog, ensure_ascii=False), encoding="utf-8")
     return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}</div>' if len(cells) > 1 else ""
 
 
@@ -593,7 +612,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
-.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-rp{{position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:start}}.mk svg{{overflow:visible}}
+.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -982,7 +1001,7 @@ async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
   try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;const el=e.target.closest('.mk[data-k]');if(!el)return;
-  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%';el.appendChild(t);return;}}
+  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');el.appendChild(t);return;}}
   const d=document.createElement('div');d.className='hz';
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');
