@@ -637,7 +637,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
-.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-zoomed{{overflow:hidden}}.mk-zoomed svg{{overflow:hidden}}.mk-zd{{fill:#fff;stroke:#000;stroke-width:1.5}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
+.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-zoomed{{overflow:hidden}}.mk-zoomed svg{{overflow:hidden}}.mk-zd{{fill:#fff;stroke:#000;stroke-width:1.5}}.mk.mk-hl{{border:2px solid #ffb300!important}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -1026,7 +1026,7 @@ async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
   try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;const el=e.target.closest('.mk[data-k]');if(!el)return;
-  if(el.classList.contains('mk-zoomed')){{const sv=el.querySelector('svg');sv.style.transform='';Object.assign(sv.dataset,{{z:1,tx:0,ty:0}});el.classList.remove('mk-zoomed');return;}}
+  if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
   const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');el.appendChild(t);return;}}
   const d=document.createElement('div');d.className='hz';
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
@@ -1041,7 +1041,13 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;c
   show(keys.includes(ls('hz-v'))?ls('hz-v'):(keys.includes('주')?'주':keys[0]));}});
 // 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
 let haP=null,haSkip=0;
-function applyHa(order){{if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
+function haZoomMap(){{try{{return JSON.parse(ls('hzoom')||'{{}}');}}catch(e){{return {{}};}}}}
+function setHaZoom(el,z,tx,ty){{const sv=el.querySelector('svg');if(!sv)return;Object.assign(sv.dataset,{{z,tx,ty}});sv.style.transformOrigin='0 0';
+  sv.style.transform=z>1.01?'translate('+tx+'px,'+ty+'px) scale('+z+')':'';el.classList.toggle('mk-zoomed',z>1.01);}}
+function saveHaZoom(el){{const m=haZoomMap(),sv=el.querySelector('svg'),z=+(sv.dataset.z||1);if(z>1.01)m[el.dataset.k]=[z,+sv.dataset.tx,+sv.dataset.ty];else delete m[el.dataset.k];ls('hzoom',JSON.stringify(m));}}
+function paintHaHL(){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const zm=haZoomMap();
+  hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);}});}}
+function applyHa(order){{paintHaHL();if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
   const cells=[...hapop.querySelectorAll('.mk[data-k]')],rk=el=>{{const i=order.indexOf(el.dataset.k);return i<0?999+cells.indexOf(el):i;}};
   hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));}}
 try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}
@@ -1069,10 +1075,11 @@ if(hapop){{
   hapop.addEventListener('pointermove',e=>{{const p=haP;if(!p||e.pointerId!==p.id)return;
     if(!p.active){{if(Math.hypot(e.clientX-p.x,e.clientY-p.y)>10){{clearTimeout(p.timer);haP=null;}}return;}}
     const t=document.elementFromPoint(e.clientX,e.clientY)?.closest('.mk[data-k]');
-    if(t&&t!==p.el){{const cs=[...hapop.children];cs.indexOf(t)>cs.indexOf(p.el)?t.after(p.el):t.before(p.el);}}
+    if(t&&t!==p.el){{p.moved=true;const cs=[...hapop.children];cs.indexOf(t)>cs.indexOf(p.el)?t.after(p.el):t.before(p.el);}}
     const r=hapop.getBoundingClientRect();if(e.clientY>r.bottom-40)hapop.scrollTop+=12;else if(e.clientY<r.top+40)hapop.scrollTop-=12;}});
   const end=e=>{{const p=haP;if(!p||e.pointerId!==p.id)return;clearTimeout(p.timer);haP=null;if(!p.active)return;
     p.el.classList.remove('mk-drag');haSkip=Date.now()+500;
+    if(!p.moved){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const k=p.el.dataset.k,i=h.indexOf(k);i<0?h.push(k):h.splice(i,1);ls('hlha',JSON.stringify(h));paintHaHL();if(navigator.vibrate)navigator.vibrate(30);return;}}  // 꾹 눌렀다 안 움직이고 떼면 테두리
     const order=[...new Set([...hapop.querySelectorAll('.mk[data-k]')].filter(c=>c.offsetParent).map(c=>c.dataset.k))];applyHa(order);
     if(ls('sync'))updateShared(m=>{{m._haOrder=order;}});}};
   for(const t of ['pointerup','pointercancel'])hapop.addEventListener(t,end);
@@ -1088,7 +1095,7 @@ if(hapop){{
   hapop.addEventListener('touchmove',e=>{{if(!pz||e.touches.length!==2)return;e.preventDefault();
     const z=Math.max(1,Math.min(5,pz.z0*dist(e.touches)/pz.d0)),m=mid(e.touches,pz.o),tx=m[0]-pz.p[0]*z,ty=m[1]-pz.p[1]*z,sv=pz.svg;
     Object.assign(sv.dataset,{{z,tx,ty}});sv.style.transform='translate('+tx+'px,'+ty+'px) scale('+z+')';pz.el.classList.add('mk-zoomed');}},{{capture:true,passive:false}});
-  hapop.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
+  hapop.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{saveHaZoom(pz.el);pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
 }}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
