@@ -400,10 +400,10 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
           (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
-LEV = {"INTW": "INTC", "MVLL": "MRVL", "APPX": "APP"}  # 레버리지는 본주 단계 그대로
+LEV = {"INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI"}  # 레버리지는 본주 단계 그대로
 # 조정 참고치: 과거 반도체 하락장(닷컴·금융위기·2018·2022) 고점→바닥 폭과 걸린 달.
 # 지금 하락폭보다 5% 넘게 아래인 첫 단계를 씀. 3배 레버는 더 깊게. ponytail: 고정 표, 사례 늘면 갱신
-ADJ = [(.50, 14), (.66, 16), (.80, 30)]
+ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
 ADJ3 = [(.85, 11), (.90, 14), (.95, 30)]
 # 사용자가 준 애널·분석으로 종목별 덮어쓰기: 심볼 → (하락폭, 고점부터 개월)
 ADJ_OVR = {"^KS11": (.545, 12)}  # 키움 한지영(26.11): 08년 금융위기 12개월 -54.5% 대입
@@ -487,6 +487,7 @@ def minsky_html() -> str:
     charts = {}
     fits = {}
     zd = None
+    adjb = {}  # 본주 조정치(지금 대비 비율, 날짜) → 레버리지는 이걸 2배로
     alog_p = ROOT / "adj_log.json"
     alog = json.loads(alog_p.read_text(encoding="utf-8")) if alog_p.exists() else {}
     for (hv, iv, rg, per), (sym, name) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in HA):
@@ -542,7 +543,13 @@ def minsky_html() -> str:
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
             if True:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게
-                ap, ad = adj_target(tc, sym == "SOXL" or sym in LEV, sym)
+                if sym in LEV and LEV[sym] in adjb:  # 2배 레버: 본주가 조정치까지 갈 때 2배로 빠진 값
+                    br, ad = adjb[LEV[sym]]
+                    ap = c[-1] * max(.02, 1 + 2 * (br - 1))
+                else:
+                    ap, ad = adj_target(tc, sym == "SOXL", sym)
+                    if ap:
+                        adjb[sym] = (ap / c[-1], ad)
                 zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap and ad.date() >= datetime.now(KST).date() else ""
                 if zp:
                     # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
@@ -807,7 +814,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수 · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% (SOXL·레버리지는 -85/-90/-95%)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -80%(레버 -95%)보다 더 빠졌으면 지금 가격을 바닥으로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
+<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (SOXL 3배는 -85/-90/-95%, 2배 레버는 본주 조정치까지 하락폭 x2)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%(SOXL -95%)보다 더 빠졌으면 지금 가격을 바닥으로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
