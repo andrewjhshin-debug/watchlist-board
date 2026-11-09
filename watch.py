@@ -557,6 +557,8 @@ def minsky_html() -> str:
                 ib = min(range(ip, len(tc)), key=lambda i: tc[i][1])
                 d0, p0, m0 = alog[sym][0]
                 sc = f" data-sc=\"{d0[2:7]} 조정치 {sp(p0)}({m0}) &#10;실제 {sp(tc[ib][1])}({datetime.fromtimestamp(tc[ib][0], KST):%y.%m}) {(p0 / tc[ib][1] - 1) * 100:+.0f}%\""
+            px = max((i / 1000 for i in range(1001)), key=mk)  # 곡선 꼭지점(새 논리)에 실제 고점 가격
+            zp += f'<text class="mk-zp" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 5:.1f}">{sp(max(seg))}</text>'
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
             np = sp(v)
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
