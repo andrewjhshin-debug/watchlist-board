@@ -537,7 +537,8 @@ def minsky_html() -> str:
                     print(f"하 {v} {sym} 실패: {e}")
             charts[name] = vs
             chart = ""
-            sp = lambda v: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{v:,.0f}" if v >= 100 else f"{v:.2f}"
+            cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
+            sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
             if True:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게
                 ap, ad = adj_target(tc, sym == "SOXL" or sym in LEV, sym)
                 zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}({ad:%y.%m})</text>' if ap and ad > datetime.now(KST) else ""
