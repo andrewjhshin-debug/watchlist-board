@@ -471,14 +471,22 @@ def minsky_fit(c: list[float], young: bool | None = None, te_fix: float | None =
                 if r > best[0]:
                     best = (r, len(c), ts, te)
         return best
+    px = max((i / 1000 for i in range(1001)), key=mk)  # 곡선 꼭지점(새 논리)
+    rising = c[-1] >= max(c) * .9  # 고점 근처면 아직 오르는 중 → 꼭지점 전 단계도 허용
     best = (-1.0, len(c), 0.0, 1.0)
-    for n in range(26, len(c) + 1, 4):
-        seg = c[-n:]
-        for k in range(80 if c[-1] < .6 * max(c) else 66, 101):  # 열정 이후에서만. 고점서 40%↑ 빠졌으면 고점 이후에서만
-            te = k / 100
-            r = corr(seg, [mkf(i / (n - 1) * te) for i in range(n)])
-            if r > best[0]:
-                best = (r, n, 0.0, te)
+    for aligned in (True, False):  # 1순위: 실제 고점이 곡선 꼭지점 자리(±.03)에 오는 것만. 없으면 예전 방식
+        for n in range(26, len(c) + 1, 4):
+            seg = c[-n:]
+            ip = max(range(n), key=lambda i: seg[i])
+            for k in range(80 if c[-1] < .6 * max(c) else 66, 101):  # 열정 이후에서만. 고점서 40%↑ 빠졌으면 고점 이후에서만
+                te = k / 100
+                if aligned and not rising and (ip == n - 1 or abs(ip / (n - 1) * te - px) > .03):
+                    continue
+                r = corr(seg, [mkf(i / (n - 1) * te) for i in range(n)])
+                if r > best[0]:
+                    best = (r, n, 0.0, te)
+        if best[0] > -1:
+            return best
     return best
 
 
