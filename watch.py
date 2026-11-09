@@ -523,19 +523,21 @@ def minsky_html() -> str:
             charts[name] = vs
             chart = ""
             # 좌절 바닥은 곡선 출발점과 같은 높이 → 그래프 시작 주 가격을 좌절 자리에 적음
-            zp = f'<text class="mk-zp" x="{Xc(.90) - 9:.1f}" y="{Y(mk(.90)) + 3:.1f}">{seg[0]:,.0f}</text>' if sym in ZP and not ts else ""
+            zp = f'<text class="mk-zp" x="{Xc(.90):.1f}" y="{Y(mk(.90)) + 15:.1f}">{seg[0]:,.0f}</text>' if sym in ZP and not ts else ""
             if zp and seg[0] < 1000:
                 zp = zp.replace(f"{seg[0]:,.0f}<", f"{seg[0]:,.2f}<")
             if sym == "SOXL":  # 모델 칸 좌절 옆 예상 시기: SOXL 곡선 속도로 바닥(.90)까지
                 zd = datetime.fromtimestamp(tc[-1][0] + (.90 - te) * n / ((te - ts) or 1) * 7 * 86400, KST)
+            v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
+            np = f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{v:,.0f}" if v >= 100 else f"{v:.2f}"
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b>{html.escape(name)} <i>{r * 100:.0f}%</i> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
-                         f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/>{zp}</svg>{chart}</div>')
+                         f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}</svg>{chart}</div>')
         except Exception as e:
             print(f"하 {hv} {sym} 실패: {e}")
     labels = "".join(f'<text x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in
                      [(.47, "1차 현금화", 0, -7), (.70, "열정", -16, 0), (.735, "새 논리", 0, -6), (.79, "현실 부정", 16, -6),
-                      (.84, "공포", 14, 2), (.90, "좌절" + (f"({zd:%y}년 {zd.month}월 예상)" if zd else ""), -22 if zd else 0, 14)])
+                      (.84, "공포", 14, 2), (.90, "좌절" + (f"({zd:%y.%m})" if zd else ""), 0, 14)])
     labels += "".join(f'<text class="g" x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{short}</text>' for x, t, short, dx, dy in
                       [(.30, "자산 가격 이륙", "이륙", 0, -8), (.99, "정상화", "정상화", -6, -8)] if t in now_stages)
     # 지금 종목들이 있는 단계는 주황으로
@@ -572,7 +574,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
-.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-zp{{fill:#e8ecff;font-size:12px;text-anchor:end}}
+.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:12px;text-anchor:middle}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
