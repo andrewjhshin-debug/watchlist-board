@@ -422,7 +422,7 @@ HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), 
       ("AXTI", "AXTI"), ("AXTX", "AXTX"), ("^SOX", "필라델피아"),
       ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "AMAT"), ("ASML", "ASML"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
-      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX")]
+      ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"), ("BTC-USD", "비트코인")]
 
 
 def mk(x: float) -> float:
@@ -477,16 +477,10 @@ def minsky_html() -> str:
     W, H, P = 200, 110, 6
     Y = lambda y: H - P - y * (H - 2 * P)
 
-    XR = 1.25  # 오른쪽 1/5 은 다음 사이클(반복) 시작 — 정상화 가격 쓸 자리
-
-    def mkx(x):  # 1 넘으면 곡선 처음을 이어 붙임(하이먼은 반복)
-        return mk(x) if x <= 1 else mk(1) + mk(x - 1) - mk(0)
-
-    def frame(x0):  # x0 부터 XR 까지 확대한 곡선 (신규상장은 꼭대기 구간만)
-        X = lambda x: P + (x - x0) / (XR - x0) * (W - 2 * P)
-        pts = [x0 + i / 200 * (XR - x0) for i in range(201)]
-        curve = "M" + " L".join(f"{X(x):.1f},{Y(mkx(x)):.1f}" for x in pts)
-        return X, (f'<path d="{curve}" class="mk-c"/><line x1="{X(x0)}" y1="{Y(.05 + .17 * x0)}" x2="{X(XR)}" y2="{Y(.05 + .17 * XR)}" class="mk-m"/>')
+    def frame(x0):  # x0 부터 1 까지 확대한 곡선 (신규상장은 꼭대기 구간만)
+        X = lambda x: P + (x - x0) / (1 - x0) * (W - 2 * P)
+        curve = "M" + " L".join(f"{X(x0 + i / 200 * (1 - x0)):.1f},{Y(mk(x0 + i / 200 * (1 - x0))):.1f}" for i in range(201))
+        return X, (f'<path d="{curve}" class="mk-c"/><line x1="{X(x0)}" y1="{Y(.05 + .17 * x0)}" x2="{X(1)}" y2="{Y(.22)}" class="mk-m"/>')
     X, base = frame(0)
     cells, now_stages = [], set()
     young = {}
@@ -549,10 +543,8 @@ def minsky_html() -> str:
             sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
             if True:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게
                 ap, ad = adj_target(tc, sym == "SOXL" or sym in LEV, sym)
-                zp = f'<text class="mk-zp" x="{Xc(.90):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}({ad:%y.%m})</text>' if ap and ad.date() >= datetime.now(KST).date() else ""
-                if zp:  # 정상화 참고치: 과거 바닥 뒤 1년 반등(지수·주식 x1.75, 3배 레버 x3)
-                    m = 3.0 if (sym == "SOXL" or sym in LEV) else 1.75
-                    zp += f'<text class="mk-zp mk-zn" x="{W - 2}" y="12">{sp(ap * m)}({ad + timedelta(days=365):%y.%m})</text>'
+                zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap and ad.date() >= datetime.now(KST).date() else ""
+                if zp:
                     # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
                     row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}"]
                     if not alog.get(sym) or alog[sym][-1][1:] != row[1:]:
@@ -574,7 +566,7 @@ def minsky_html() -> str:
             print(f"하 {hv} {sym} 실패: {e}")
     labels = "".join(f'<text x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in
                      [(.47, "1차 현금화", 0, -7), (.70, "열정", -16, 0), (.735, "새 논리", 0, -6), (.79, "현실 부정", 16, -6),
-                      (.84, "공포", 14, 2), (.90, "좌절" + (f"({zd:%y.%m})" if zd else ""), 0, 14)])
+                      (.84, "공포", 14, 2), (.90, "좌절" + (f'(<tspan font-weight="bold">{zd:%y.%m}</tspan>)' if zd else ""), 0, 14)])
     labels += "".join(f'<text class="g" x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{short}</text>' for x, t, short, dx, dy in
                       [(.30, "자산 가격 이륙", "이륙", 0, -8), (.99, "정상화", "정상화", -6, -8)] if t in now_stages)
     # 지금 종목들이 있는 단계는 주황으로
@@ -813,7 +805,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수 · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% (SOXL·레버리지는 -85/-90/-95%)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -80%(레버 -95%)보다 더 빠졌으면 지금 가격을 바닥으로<br>정상화 자리 초록 숫자 = 바닥 뒤 1년 반등 참고치. 과거 바닥→1년 뒤 x1.6~2.3(중간 x1.75), 3배 레버는 x3<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
+<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% (SOXL·레버리지는 -85/-90/-95%)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -80%(레버 -95%)보다 더 빠졌으면 지금 가격을 바닥으로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
