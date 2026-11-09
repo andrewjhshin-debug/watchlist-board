@@ -415,7 +415,7 @@ LEV = {"INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI"}  # 레버�
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
 ADJ3 = [(.85, 11), (.90, 14), (.95, 30)]
 # 사용자가 준 애널·분석으로 종목별 덮어쓰기: 심볼 → (하락폭, 고점부터 개월)
-ADJ_OVR = {"^KS11": (.476, 7)}  # 키움 Post BlueWave(26.11.9): 추가 하락 제한, 선행 PBR 0.9배(≈4,740), 1~2월 실적 확인
+ADJ_OVR = {"^KS11": (.52, 12)}  # 키움 Post BlueWave 의 역대 하락장 표(중간 -54%)만 차용, 낙관은 할인. 하락 속도 역대 최고 → 기간은 08년형 12개월
 
 
 def adj_target(tc, lev3=False, sym=""):
@@ -552,15 +552,15 @@ def minsky_html() -> str:
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
             if True:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게
-                base, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
-                if base and base not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
-                    bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(base)}?interval=1wk&range=5y")["chart"]["result"][0]
+                bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
+                if bsym and bsym not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
+                    bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(bsym)}?interval=1wk&range=5y")["chart"]["result"][0]
                     btc = [(t, v) for t, v in zip(bq["timestamp"], bq["indicators"]["quote"][0]["close"]) if v]
-                    bp, bd = adj_target(btc, False, base)
+                    bp, bd = adj_target(btc, False, bsym)
                     if bp:
-                        adjb[base] = (bp / btc[-1][1], bd)
-                if base in adjb:  # 레버: 본주가 조정치까지 갈 때 배수만큼 빠진 값
-                    br, ad = adjb[base]
+                        adjb[bsym] = (bp / btc[-1][1], bd)
+                if bsym in adjb:  # 레버: 본주가 조정치까지 갈 때 배수만큼 빠진 값
+                    br, ad = adjb[bsym]
                     ap = c[-1] * max(.02, 1 + mult * (br - 1))
                 else:
                     ap, ad = adj_target(tc, False, sym)
@@ -830,7 +830,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수(-100% = 기준일 이후 바닥, 올라올수록 0에 가까움) · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주 조정치까지 하락폭 x배수: SOXL=필라델피아 x3, 2배 레버 x2)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금 가격을 바닥으로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 Post BlueWave(26.11.9) 반영 — 지금(PBR 0.95배)에서 추가 하락 제한, 선행 PBR 0.9배(약 4,740)·1~2월 실적시즌 확인</p>
+<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주 조정치까지 하락폭 x배수: SOXL=필라델피아 x3, 2배 레버 x2)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금 가격을 바닥으로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 보고서의 역대 코스피 하락장 7건(중간 -54%) 데이터만 참고, "추가 하락 제한" 의견은 할인 → -52%(PBR 약 0.82배), 하락이 역대 최고속이라 기간은 08년처럼 12개월</p>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
