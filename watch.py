@@ -414,8 +414,8 @@ def adj_target(tc, lev3=False, sym=""):
     tp, pk = max(tc, key=lambda x: x[1])
     tiers = [ADJ_OVR[sym]] if sym in ADJ_OVR else ADJ3 if lev3 else ADJ
     d, mo = next(((d, mo) for d, mo in tiers if pk * (1 - d) <= tc[-1][1] * .95), (None, 0))
-    if d is None:  # 이미 제일 깊은 단계보다 더 빠짐 → 참고치 없음
-        return None, None
+    if d is None:  # 이미 제일 깊은 단계보다 더 빠짐 → 지금 가격을 바닥으로
+        return tc[-1][1], datetime.now(KST)
     return pk * (1 - d), datetime.fromtimestamp(tp, KST) + timedelta(days=mo * 30.4)
 GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
 HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"),
@@ -549,7 +549,7 @@ def minsky_html() -> str:
             sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
             if True:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게
                 ap, ad = adj_target(tc, sym == "SOXL" or sym in LEV, sym)
-                zp = f'<text class="mk-zp" x="{Xc(.90):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}({ad:%y.%m})</text>' if ap and ad > datetime.now(KST) else ""
+                zp = f'<text class="mk-zp" x="{Xc(.90):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}({ad:%y.%m})</text>' if ap and ad.date() >= datetime.now(KST).date() else ""
                 if zp:  # 정상화 참고치: 과거 바닥 뒤 1년 반등(지수·주식 x1.75, 3배 레버 x3)
                     m = 3.0 if (sym == "SOXL" or sym in LEV) else 1.75
                     zp += f'<text class="mk-zp mk-zn" x="{W - 2}" y="12">{sp(ap * m)}({ad + timedelta(days=365):%y.%m})</text>'
@@ -813,7 +813,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수 · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% (SOXL·레버리지는 -85/-90/-95%)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>정상화 자리 초록 숫자 = 바닥 뒤 1년 반등 참고치. 과거 바닥→1년 뒤 x1.6~2.3(중간 x1.75), 3배 레버는 x3<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
+<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% (SOXL·레버리지는 -85/-90/-95%)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -80%(레버 -95%)보다 더 빠졌으면 지금 가격을 바닥으로<br>정상화 자리 초록 숫자 = 바닥 뒤 1년 반등 참고치. 과거 바닥→1년 뒤 x1.6~2.3(중간 x1.75), 3배 레버는 x3<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
