@@ -542,6 +542,9 @@ def minsky_html() -> str:
             if True:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게
                 ap, ad = adj_target(tc, sym == "SOXL" or sym in LEV, sym)
                 zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}({ad:%y.%m})</text>' if ap and ad > datetime.now(KST) else ""
+                if zp:  # 정상화 참고치: 과거 바닥 뒤 1년 반등(지수·주식 x1.75, 3배 레버 x3)
+                    m = 3.0 if (sym == "SOXL" or sym in LEV) else 1.75
+                    zp += f'<text class="mk-zp mk-zn" x="2" y="12">{sp(ap * m)}({ad + timedelta(days=365):%y.%m})</text>'
                 if sym == "SOXL":
                     zd = ad
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
@@ -590,7 +593,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
-.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-rp{{position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk svg{{overflow:visible}}
+.mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-rp{{position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:start}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -791,7 +794,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수 · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% (SOXL·레버리지는 -85/-90/-95%)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
+<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% (SOXL·레버리지는 -85/-90/-95%)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>정상화 자리 초록 숫자 = 바닥 뒤 1년 반등 참고치. 과거 바닥→1년 뒤 x1.6~2.3(중간 x1.75), 3배 레버는 x3<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 한지영 분석 반영 — 08년 금융위기처럼 고점(6/22)부터 12개월 -54.5%</p>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
