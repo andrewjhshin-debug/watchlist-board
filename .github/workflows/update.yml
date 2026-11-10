@@ -39,17 +39,22 @@ jobs:
           git config --global user.email watchlist-bot@users.noreply.github.com
           REPO="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           for i in $(seq 0 279); do
-            if [ $((i % 10)) -eq 0 ]; then
-              python watch.py || true
-              # 조정치 기록이 바뀌면 main 에 커밋 (하루 몇 번 안 됨)
-              git diff --quiet adj_log.json || (git add adj_log.json && git commit -qm "조정치 기록" && git pull -q --rebase && git push -q "$REPO" HEAD:main) || true
-              rm -rf site && mkdir site && cp index.html manifest.json icon.png icon-192.png sw.js site/ && (cp ha.json site/ || true) && touch site/.nojekyll
-              (cd site && git init -q -b gh-pages && git add -A && git commit -qm "차트" && git push -qf "$REPO" gh-pages) || true
+            # 차트(하이먼 포함) 만들기는 7분쯤 걸려서 뒤에서 돌림 → 1분 시세가 그동안 멈추지 않게. 이전 것이 끝나야 다음 것 시작
+            if [ $((i % 10)) -eq 0 ] && { [ -z "$BPID" ] || ! kill -0 "$BPID" 2>/dev/null; }; then
+              (
+                python watch.py || true
+                # 조정치 기록이 바뀌면 main 에 커밋 (하루 몇 번 안 됨)
+                git diff --quiet adj_log.json || (git add adj_log.json && git commit -qm "조정치 기록" && git pull -q --rebase && git push -q "$REPO" HEAD:main) || true
+                rm -rf site && mkdir site && cp index.html manifest.json icon.png icon-192.png sw.js site/ && (cp ha.json site/ || true) && touch site/.nojekyll
+                (cd site && git init -q -b gh-pages && git add -A && git commit -qm "차트" && git push -qf "$REPO" gh-pages) || true
+              ) &
+              BPID=$!
             fi
             python watch.py --live || true
             (cd livedir && rm -rf .git && git init -q -b live && git add -A && git commit -qm "시세" && git push -qf "$REPO" live) || true
             sleep 50
           done
+          wait
       - name: 한투 토큰 암호화해서 보관
         if: always()
         run: |
