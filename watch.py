@@ -649,7 +649,7 @@ def minsky_html() -> str:
     (ROOT / "ha.json").write_text(json.dumps(charts, ensure_ascii=False), encoding="utf-8")
     alog_p.write_text(json.dumps(alog, ensure_ascii=False), encoding="utf-8")
     xcache_p.write_text(json.dumps(xcache, ensure_ascii=False), encoding="utf-8")
-    return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}<div class="mk-add">+ 종목 고르기</div></div>' if len(cells) > 1 else ""
+    return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}<div class="mk-add">+ 종목 고르기</div><button class="mk-fab" type="button">＋ 종목</button></div>' if len(cells) > 1 else ""
 
 
 def render(items: list[dict], errors: list[str], ha: str = "") -> None:
@@ -682,8 +682,8 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hpick{{position:fixed;inset:0;z-index:70;background:#000a;display:flex;align-items:flex-end;justify-content:center}}.hpick-in{{width:min(480px,100%);max-height:85dvh;display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--edge);border-radius:16px 16px 0 0}}
 .hpick-h{{display:flex;justify-content:space-between;padding:14px 16px;font-size:16px}}.hpick-h b{{font-weight:normal}}.hpick-h span{{cursor:pointer;padding:0 6px}}
 .hpick-l{{overflow:auto;padding:0 12px 16px}}.hpick h4{{margin:12px 4px 4px;font-weight:normal;font-size:12px;color:var(--sub)}}
-.hpick label{{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--edge);font-size:14px}}.hpick label small{{margin-left:auto;color:var(--sub);font-size:11px}}.hpick input{{width:18px;height:18px;accent-color:#00ff3c}}
-.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:2px 8px;pointer-events:none}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
+.hpick label{{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--edge);font-size:14px}}.hpick label small{{margin-left:auto;color:var(--sub);font-size:11px}}.hpick label input{{width:18px;height:18px;accent-color:#00ff3c}}
+.mk-fab{{position:fixed;right:14px;bottom:calc(var(--tabh) + 14px);z-index:35;font:inherit;font-size:13px;color:#000;background:#00ff3c;border:0;border-radius:20px;padding:9px 14px;box-shadow:0 4px 14px #000a;cursor:pointer}}.hapop[hidden] .mk-fab{{display:none}}.hpick-q{{box-sizing:border-box;width:calc(100% - 24px);height:38px;flex:0 0 auto;-webkit-appearance:none;appearance:none;margin:0 12px 6px;font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}}.hpick h4[hidden],.hpick label[hidden]{{display:none}}.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -1077,9 +1077,11 @@ let haCharts=null;
 async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
   try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
-if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-add')){{openHaPick();return;}}const el=e.target.closest('.mk[data-k]');if(!el)return;
+if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
+  if(e.target.closest('.mk-rp-x')){{const c=e.target.closest('.mk[data-k]');c.querySelector('.mk-rp')?.remove();hideHa(c.dataset.k,!!c.dataset.x);return;}}
+  if(e.target.closest('.mk-rp'))return;const el=e.target.closest('.mk[data-k]');if(!el)return;
   if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
-  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');el.appendChild(t);return;}}
+  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
   const d=document.createElement('div');d.className='hz';
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');
@@ -1107,13 +1109,17 @@ function applyHa(order){{paintHaHL();if(!hapop||!Array.isArray(order))return;ls(
   hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));const ad=hapop.querySelector('.mk-add');if(ad)hapop.append(ad);}}
 function openHaPick(){{const on=new Set(haList('ha-on')),off=new Set(haList('ha-off')),box=document.createElement('div');box.className='hpick';
   const cs=[...hapop.querySelectorAll('.mk[data-k]')],gs=[...new Set(cs.map(c=>c.dataset.g))];
-  box.innerHTML='<div class="hpick-in"><div class="hpick-h"><b>하이먼 종목 고르기</b><span>✕</span></div><div class="hpick-l">'+gs.map(g=>'<h4>'+g+'</h4>'+cs.filter(c=>c.dataset.g===g).map(c=>{{
+  box.innerHTML='<div class="hpick-in"><div class="hpick-h"><b>하이먼 종목 고르기</b><span>✕</span></div><input class="hpick-q" placeholder="종목 찾기" type="search"><div class="hpick-l">'+gs.map(g=>'<h4>'+g+'</h4>'+cs.filter(c=>c.dataset.g===g).map(c=>{{
     const k=c.dataset.k,v=c.dataset.x?on.has(k):!off.has(k),st=c.querySelector('u')?.textContent||'',r=c.querySelector('.mk-n')?.dataset.r||'';
     return '<label><input type="checkbox" data-k="'+k+'"'+(v?' checked':'')+'><span>'+k+'</span><small>'+st+' · '+r+'%</small></label>';}}).join('')).join('')+'</div></div>';
   const close=()=>{{const nOn=[],nOff=[];box.querySelectorAll('input').forEach(i=>{{const c=cs.find(x=>x.dataset.k===i.dataset.k);if(!c)return;
       if(c.dataset.x){{if(i.checked)nOn.push(i.dataset.k);}}else if(!i.checked)nOff.push(i.dataset.k);}});
     ls('ha-on',JSON.stringify(nOn));ls('ha-off',JSON.stringify(nOff));paintHaHL();if(ls('sync'))updateShared(m=>{{m._haOn=nOn;m._haOff=nOff;}});box.remove();}};
-  box.onclick=e=>{{if(e.target===box||e.target.closest('.hpick-h span'))close();}};document.body.appendChild(box);}}
+  box.onclick=e=>{{if(e.target===box||e.target.closest('.hpick-h span'))close();}};document.body.appendChild(box);
+  const qi=box.querySelector('.hpick-q');qi.oninput=()=>{{const q=qi.value.trim().toLowerCase();box.querySelectorAll('.hpick-l label').forEach(l=>l.hidden=!!q&&!l.textContent.toLowerCase().includes(q));
+    box.querySelectorAll('.hpick-l h4').forEach(h=>{{let n=h.nextElementSibling,any=false;while(n&&n.tagName==='LABEL'){{if(!n.hidden)any=true;n=n.nextElementSibling;}}h.hidden=!any;}});}};}}
+function hideHa(k,isX){{const key=isX?'ha-on':'ha-off',l=haList(key),i=l.indexOf(k);if(isX){{if(i>=0)l.splice(i,1);}}else if(i<0)l.push(k);
+  ls(key,JSON.stringify(l));paintHaHL();if(ls('sync'))updateShared(m=>{{m._haOn=haList('ha-on');m._haOff=haList('ha-off');}});}}
 try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}
 function setHv(v){{if(!hapop)return;hapop.dataset.hv=v;ls('ha-v',v);}}
 setHv(ls('ha-v')||'주');
