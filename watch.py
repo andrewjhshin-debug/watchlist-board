@@ -282,15 +282,18 @@ def peak(sym: str, day: dict) -> tuple[float, str, dict, dict]:
 
 def run_live() -> None:
     """1분 남짓마다: 시세만 받아 파일로 쓴다(보드가 가져가 숫자·막대 갱신)."""
-    q = {}
-    for s in CFG["symbols"]:
-        if s["sym"].startswith("ecos:"):
-            continue  # 월간 지표는 실시간 없음
+    from concurrent.futures import ThreadPoolExecutor
+    want = [(x["sym"], x["name"]) for x in CFG["symbols"] if not x["sym"].startswith("ecos:")]  # 월간 지표는 실시간 없음
+    want += [(sym, name) for sym, name in HA if sym not in {w[0] for w in want}]  # 하 화면 노란 점 현재가도 (바와 같은 시세)
+
+    def one(w):
         try:
-            price, prev = quote(s["sym"])
-            q[s["sym"]] = [price, prev]
+            return w[0], list(quote(w[0]))
         except Exception as e:
-            print("  실시간 실패:", s["name"], e)
+            print("  실시간 실패:", w[1], e)
+            return w[0], None
+    with ThreadPoolExecutor(8) as ex:  # 동시에 받아 1분 안에 끝나게
+        q = {k: v for k, v in ex.map(one, want) if v}
     # 분마다 새 파일(livedir/m/YYYYMMDDHHMM.json). 같은 주소를 덮어쓰면 GitHub raw 가 5분 캐시해서,
     # 새 이름으로 올리고 보드는 '1분 전 파일'을 받는다. 최근 10개만 남김
     now = datetime.now(KST)
@@ -630,7 +633,7 @@ def minsky_html() -> str:
             zp += f'<text class="mk-zp" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 5:.1f}">{sp(max((0 if ex else true_high(sym)) or 0, max(seg)))}</text>'
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
             np = sp(v)
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}"><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}"><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}</svg>{chart}</div>')
             if ex:
@@ -1103,7 +1106,7 @@ function saveHaZoom(el){{const m=haZoomMap(),sv=el.querySelector('svg'),z=+(sv.d
   if(z>1.01)m[el.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[el.dataset.k];ls('hzoom',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzoom=m;}});}}
 function haList(k){{try{{return JSON.parse(ls(k)||'[]');}}catch(e){{return [];}}}}
 function paintHaHL(){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const zm=haZoomMap(),on=haList('ha-on'),off=haList('ha-off');
-  hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{c.classList.toggle('mk-off',c.dataset.x?!on.includes(c.dataset.k):off.includes(c.dataset.k));c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);else if(c.classList.contains('mk-zoomed'))setHaZoom(c,1,0,0);}});}}
+  hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{c.classList.toggle('mk-off',c.dataset.x?!on.includes(c.dataset.k):off.includes(c.dataset.k));c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);else if(c.classList.contains('mk-zoomed'))setHaZoom(c,1,0,0);}});if(typeof haLastQ!=='undefined'&&haLastQ)paintHaLive(haLastQ);}}
 function applyHa(order){{paintHaHL();if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
   const cells=[...hapop.querySelectorAll('.mk[data-k]')],rk=el=>{{const i=order.indexOf(el.dataset.k);return i<0?999+cells.indexOf(el):i;}};
   hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));const ad=hapop.querySelector('.mk-add');if(ad)hapop.append(ad);}}
@@ -1239,7 +1242,9 @@ addEventListener('storage',e=>{{if(e.key===AVG_KEY){{avgGeneration++;avgSymbols=
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-stamp');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(force=false){{if(!force&&document.visibilityState==='hidden')return false;for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
-  if(r.ok){{lastSlot=sl;const j=await r.json();if(j.b&&j.b!==BUILD)staleReload(j.b);for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
+  if(r.ok){{lastSlot=sl;const j=await r.json();if(j.b&&j.b!==BUILD)staleReload(j.b);for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);paintHaLive(j.q);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
+function haFmt(v,c){{return v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixed(1)+'만':v>=100?c+Math.round(v).toLocaleString():c+v.toFixed(2);}}
+let haLastQ=null;function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0)t.textContent=haFmt(v[0],c.dataset.c||'');}});}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
