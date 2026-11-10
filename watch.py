@@ -652,7 +652,7 @@ def minsky_html() -> str:
     (ROOT / "ha.json").write_text(json.dumps(charts, ensure_ascii=False), encoding="utf-8")
     alog_p.write_text(json.dumps(alog, ensure_ascii=False), encoding="utf-8")
     xcache_p.write_text(json.dumps(xcache, ensure_ascii=False), encoding="utf-8")
-    return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}<div class="mk-add">+ 종목 고르기</div><button class="mk-fab" type="button">＋ 종목</button></div>' if len(cells) > 1 else ""
+    return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}<div class="mk-add">+ 종목 고르기</div><div class="mk-fabs"><button class="mk-rf" type="button" aria-label="새로고침">⟳</button><button class="mk-fab" type="button">＋ 종목</button></div></div>' if len(cells) > 1 else ""
 
 
 def render(items: list[dict], errors: list[str], ha: str = "") -> None:
@@ -686,7 +686,9 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hpick-h{{display:flex;justify-content:space-between;padding:14px 16px;font-size:16px}}.hpick-h b{{font-weight:normal}}.hpick-h span{{cursor:pointer;padding:0 6px}}
 .hpick-l{{overflow:auto;padding:0 12px 16px}}.hpick h4{{margin:12px 4px 4px;font-weight:normal;font-size:12px;color:var(--sub)}}
 .hpick label{{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--edge);font-size:14px}}.hpick label small{{margin-left:auto;color:var(--sub);font-size:11px}}.hpick label input{{width:18px;height:18px;accent-color:#00ff3c}}
-.mk-fab{{position:fixed;right:14px;bottom:calc(var(--tabh) + 14px);z-index:35;font:inherit;font-size:13px;color:#000;background:#00ff3c;border:0;border-radius:20px;padding:9px 14px;box-shadow:0 4px 14px #000a;cursor:pointer}}.hapop[hidden] .mk-fab{{display:none}}.hpick-q{{box-sizing:border-box;width:calc(100% - 24px);height:38px;flex:0 0 auto;-webkit-appearance:none;appearance:none;margin:0 12px 6px;font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}}.hpick h4[hidden],.hpick label[hidden]{{display:none}}.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
+.mk-fabs{{position:fixed;right:14px;bottom:calc(var(--tabh) + 14px);z-index:35;display:flex;gap:8px}}.hapop[hidden] .mk-fabs{{display:none}}
+.mk-fab,.mk-rf{{font:inherit;font-weight:700;font-size:15px;letter-spacing:.5px;color:#00140a;background:#00ff3c;border:2px solid #000;border-radius:22px;padding:10px 16px;box-shadow:0 0 0 2px #00ff3c55,0 6px 16px #000c;cursor:pointer;-webkit-tap-highlight-color:transparent}}
+.mk-rf{{padding:7px 13px;font-size:20px;line-height:1;background:#0c111d;color:#00ff3c;border-color:#00ff3c}}.mk-rf:disabled{{opacity:.5}}.mk-rf:active,.mk-fab:active{{transform:scale(.96)}}.hpick-q{{box-sizing:border-box;width:calc(100% - 24px);height:38px;flex:0 0 auto;-webkit-appearance:none;appearance:none;margin:0 12px 6px;font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}}.hpick h4[hidden],.hpick label[hidden]{{display:none}}.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -1081,6 +1083,7 @@ async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
   try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
+  if(e.target.closest('.mk-rf')){{const b=e.target.closest('.mk-rf');if(b.disabled)return;b.disabled=true;refreshHa().finally(()=>b.disabled=false);return;}}
   if(e.target.closest('.mk-rp-x')){{const c=e.target.closest('.mk[data-k]');c.querySelector('.mk-rp')?.remove();hideHa(c.dataset.k,!!c.dataset.x);return;}}
   if(e.target.closest('.mk-rp'))return;const el=e.target.closest('.mk[data-k]');if(!el)return;
   if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
@@ -1134,7 +1137,10 @@ async function refreshHa(){{
   loadHaCharts(true);
   try{{const url=new URL(location.href);url.searchParams.set('_refresh',Date.now());
     const doc=new DOMParser().parseFromString(await (await fetch(url,{{cache:'no-store'}})).text(),'text/html'),nh=doc.getElementById('hapop');
-    if(nh){{hapop.querySelectorAll('.mk').forEach(c=>c.remove());hapop.append(...nh.querySelectorAll('.mk'));try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}}}
+    if(nh){{const keep=new Set();  // 칸을 제자리에서 하나씩 바꿔 끼움 → 깜빡임·순서 흔들림 없음
+      [...nh.querySelectorAll('.mk')].forEach(n=>{{const k=n.dataset.k,o=k?[...hapop.querySelectorAll('.mk[data-k]')].find(c=>c.dataset.k===k):hapop.querySelector('.mk:not([data-k])');
+        if(o)o.replaceWith(n);else hapop.insertBefore(n,hapop.querySelector('.mk-add'));keep.add(n);}});
+      hapop.querySelectorAll('.mk').forEach(c=>{{if(!keep.has(c))c.remove();}});paintHaHL();pollLive(true);}}
     showRefreshToast(nh?'새로고침했습니다':'새로고침하지 못했습니다');}}catch(e){{showRefreshToast('새로고침하지 못했습니다');}}}}
 // 하 화면: 맨 위에서 아래로 당겼다 놓으면 새로고침
 if(hapop){{const pullEl=hapop.querySelector('.mk-pull');let pull=null;
