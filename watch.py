@@ -423,7 +423,7 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
           (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
-LEV = {"MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS", "OKLL": "OKLO"}  # 레버리지는 본주 단계 그대로
+LEV = {"MUU": "MU", "MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS", "OKLL": "OKLO"}  # 레버리지는 본주 단계 그대로
 # 조정 참고치: 과거 반도체 하락장(닷컴·금융위기·2018·2022) 고점→바닥 폭과 걸린 달.
 # 지금 하락폭보다 5% 넘게 아래인 첫 단계를 씀. 3배 레버는 더 깊게. ponytail: 고정 표, 사례 늘면 갱신
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
@@ -454,7 +454,7 @@ EXTRA = [(s, n, g) for g, lst in [
     ("기타 언급", "RGTI 리게티,SMR 뉴스케일,ACHR 아처,Z 질로우,COIN 코인베이스,SOUN 사운드하운드,ROOT 루트,247540.KQ 에코프로비엠,DKNG 드래프트킹스,005070.KS 코스모신소재,035900.KQ JYP,TTD 트레이드데스크,LI 리오토,NVDA 엔비디아,TSM TSMC,^IXIC 나스닥"),
 ] for s, n in (x.split(" ", 1) for x in lst.split(","))]
 GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
-HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"),
+HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"), ("MUU", "MUU"),
       ("AXTI", "AXTI"), ("AXTX", "AXTX"), ("^SOX", "필라델피아"),
       ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "AMAT"), ("ASML", "ASML"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
@@ -1120,7 +1120,8 @@ function openHaPick(){{const on=new Set(haList('ha-on')),off=new Set(haList('ha-
   L.onchange=e=>{{const i=e.target.closest('input[data-k]');if(!i)return;sel[i.dataset.k]=i.checked;render();}};qi.oninput=render;render();
   const close=()=>{{const nOn=[],nOff=[];cs.forEach(c=>{{const k=c.dataset.k;if(c.dataset.x){{if(sel[k])nOn.push(k);}}else if(!sel[k])nOff.push(k);}});
     ls('ha-on',JSON.stringify(nOn));ls('ha-off',JSON.stringify(nOff));paintHaHL();if(ls('sync'))updateShared(m=>{{m._haOn=nOn;m._haOff=nOff;}});box.remove();}};
-  box.onclick=e=>{{if(e.target===box||e.target.closest('.hpick-h span'))close();}};document.body.appendChild(box);}}
+  box._close=close;  // 뒤로가기 = 닫기(하 화면으로)
+  box.onclick=e=>{{if(e.target===box||e.target.closest('.hpick-h span'))history.back();}};document.body.appendChild(box);history.pushState({{pop:1}},'');}}
 function hideHa(k,isX){{const key=isX?'ha-on':'ha-off',l=haList(key),i=l.indexOf(k);if(isX){{if(i>=0)l.splice(i,1);}}else if(i<0)l.push(k);
   ls(key,JSON.stringify(l));paintHaHL();if(ls('sync'))updateShared(m=>{{m._haOn=haList('ha-on');m._haOff=haList('ha-off');}});}}
 try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}
@@ -1172,7 +1173,7 @@ if(hapop){{
 }}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
-  document.querySelectorAll('.avgpop').forEach(d=>d.remove());const hz=document.querySelector('.hz');if(hz){{hz.remove();return;}}}});
+  document.querySelectorAll('.avgpop').forEach(d=>d.remove());const hp=document.querySelector('.hpick');if(hp){{hp._close();return;}}const hz=document.querySelector('.hz');if(hz){{hz.remove();return;}}}});
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
 const AVG_CATALOG={avg_catalog};
