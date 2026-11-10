@@ -434,11 +434,15 @@ ADJ_OVR = {"^KS11": (.52, 12)}  # 키움 Post BlueWave 의 역대 하락장 표(
 
 def adj_target(tc, lev3=False, sym=""):
     """(가격, 날짜) — 고점에서 과거 하락장 폭·기간만큼."""
-    tp, pk = max(tc, key=lambda x: x[1])
+    ip = max(range(len(tc)), key=lambda i: tc[i][1])
+    tp, pk = tc[ip]
+    tl, lo = min(tc[ip:], key=lambda x: x[1])  # 고점 이후 최저 — 단계는 이걸로 골라 반등해도 조정치가 튀지 않게
+    if tc[-1][1] >= lo * 1.5 and sym not in ADJ_OVR:  # 최저에서 50%↑ 반등 → 좌절은 이미 지난 것으로(그 최저·날짜)
+        return lo, datetime.fromtimestamp(tl, KST)
     tiers = [ADJ_OVR[sym]] if sym in ADJ_OVR else ADJ3 if lev3 else ADJ
-    d, mo = next(((d, mo) for d, mo in tiers if pk * (1 - d) <= tc[-1][1] * .95), (None, 0))
-    if d is None:  # 이미 제일 깊은 단계보다 더 빠짐 → 지금 가격을 바닥으로
-        return tc[-1][1], datetime.now(KST)
+    d, mo = next(((d, mo) for d, mo in tiers if pk * (1 - d) <= lo * .95), (None, 0))
+    if d is None:  # 이미 제일 깊은 단계보다 더 빠짐 → 지금까지 최저를 바닥으로
+        return lo, datetime.now(KST)
     return pk * (1 - d), datetime.fromtimestamp(tp, KST) + timedelta(days=mo * 30.4)
 GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
 HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"),
@@ -583,12 +587,14 @@ def minsky_html() -> str:
                         adjb[bsym] = (bp / btc[-1][1], bd)
                 if bsym in adjb:  # 레버: 본주가 조정치까지 갈 때 배수만큼 빠진 값
                     br, ad = adjb[bsym]
-                    ap = c[-1] * max(.02, 1 + mult * (br - 1))
+                    ap = c[-1] * br ** mult  # 매일 배수 레버라 하락은 복리로(본주 -30% → 3배 약 -66%)
+                    if ad < datetime.now(KST):  # 본주 좌절이 이미 지남 → 그 무렵 레버 실제 최저
+                        ap = min(v for t, v in tc if abs(t - ad.timestamp()) < 15 * 86400) if any(abs(t - ad.timestamp()) < 15 * 86400 for t, _ in tc) else ap
                 else:
                     ap, ad = adj_target(tc, False, sym)
                     if ap:
                         adjb[sym] = (ap / c[-1], ad)
-                zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap and ad.date() >= datetime.now(KST).date() else ""
+                zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap else ""
                 if zp:
                     # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
                     row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}"]
@@ -852,7 +858,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수(-100% = 기준일 이후 바닥, 올라올수록 0에 가까움) · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주 조정치까지 하락폭 x배수: SOXL=필라델피아 x3, 2배 레버 x2)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금 가격을 바닥으로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 보고서의 역대 코스피 하락장 7건(중간 -54%) 데이터만 참고, "추가 하락 제한" 의견은 할인 → -52%(PBR 약 0.82배), 하락이 역대 최고속이라 기간은 08년처럼 12개월</p>
+<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주가 조정치까지 갈 때 복리로 배수만큼: SOXL=필라델피아 3배, 2배 레버는 2배)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금까지 최저를 바닥으로. 단계는 고점 이후 최저로 골라 반등해도 안 튐. 최저에서 50% 넘게 반등했으면 그 최저(과거 날짜)를 좌절로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 보고서의 역대 코스피 하락장 7건(중간 -54%) 데이터만 참고, "추가 하락 제한" 의견은 할인 → -52%(PBR 약 0.82배), 하락이 역대 최고속이라 기간은 08년처럼 12개월</p>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
