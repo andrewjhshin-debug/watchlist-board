@@ -423,7 +423,7 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
           (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
-LEV = {"MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS"}  # 레버리지는 본주 단계 그대로
+LEV = {"MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS", "OKLL": "OKLO"}  # 레버리지는 본주 단계 그대로
 # 조정 참고치: 과거 반도체 하락장(닷컴·금융위기·2018·2022) 고점→바닥 폭과 걸린 달.
 # 지금 하락폭보다 5% 넘게 아래인 첫 단계를 씀. 3배 레버는 더 깊게. ponytail: 고정 표, 사례 늘면 갱신
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
@@ -459,7 +459,7 @@ HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), 
       ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "AMAT"), ("ASML", "ASML"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
       ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"),
-      ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX")]
+      ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL")]
 
 
 def mk(x: float) -> float:
@@ -1108,16 +1108,19 @@ function applyHa(order){{paintHaHL();if(!hapop||!Array.isArray(order))return;ls(
   const cells=[...hapop.querySelectorAll('.mk[data-k]')],rk=el=>{{const i=order.indexOf(el.dataset.k);return i<0?999+cells.indexOf(el):i;}};
   hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));const ad=hapop.querySelector('.mk-add');if(ad)hapop.append(ad);}}
 function openHaPick(){{const on=new Set(haList('ha-on')),off=new Set(haList('ha-off')),box=document.createElement('div');box.className='hpick';
-  const cs=[...hapop.querySelectorAll('.mk[data-k]')],gs=[...new Set(cs.map(c=>c.dataset.g))];
-  box.innerHTML='<div class="hpick-in"><div class="hpick-h"><b>하이먼 종목 고르기</b><span>✕</span></div><input class="hpick-q" placeholder="종목 찾기" type="search"><div class="hpick-l">'+gs.map(g=>'<h4>'+g+'</h4>'+cs.filter(c=>c.dataset.g===g).map(c=>{{
-    const k=c.dataset.k,v=c.dataset.x?on.has(k):!off.has(k),st=c.querySelector('u')?.textContent||'',r=c.querySelector('.mk-n')?.dataset.r||'';
-    return '<label><input type="checkbox" data-k="'+k+'"'+(v?' checked':'')+'><span>'+k+'</span><small>'+st+' · '+r+'%</small></label>';}}).join('')).join('')+'</div></div>';
-  const close=()=>{{const nOn=[],nOff=[];box.querySelectorAll('input').forEach(i=>{{const c=cs.find(x=>x.dataset.k===i.dataset.k);if(!c)return;
-      if(c.dataset.x){{if(i.checked)nOn.push(i.dataset.k);}}else if(!i.checked)nOff.push(i.dataset.k);}});
+  const cs=[...hapop.querySelectorAll('.mk[data-k]')],gs=[...new Set(cs.map(c=>c.dataset.g))],sel={{}};
+  cs.forEach(c=>sel[c.dataset.k]=c.dataset.x?on.has(c.dataset.k):!off.has(c.dataset.k));
+  box.innerHTML='<div class="hpick-in"><div class="hpick-h"><b>하이먼 종목 고르기</b><span>✕</span></div><input class="hpick-q" placeholder="종목 찾기" type="search"><div class="hpick-l"></div></div>';
+  const L=box.querySelector('.hpick-l'),qi=box.querySelector('.hpick-q');
+  const row=c=>{{const k=c.dataset.k,st=c.querySelector('u')?.textContent||'',r=c.querySelector('.mk-n')?.dataset.r||'';
+    return '<label><input type="checkbox" data-k="'+k+'"'+(sel[k]?' checked':'')+'><span>'+k+'</span><small>'+st+' · '+r+'%</small></label>';}};
+  const render=()=>{{const q=qi.value.trim().toLowerCase(),m=c=>!q||(c.dataset.k+' '+(c.querySelector('u')?.textContent||'')).toLowerCase().includes(q),top=L.scrollTop;
+    const onC=cs.filter(c=>sel[c.dataset.k]&&m(c));  // 켠 것은 위에 하 화면 순서대로, 끈 것은 아래에 묶음별로
+    L.innerHTML=(onC.length?'<h4>켜짐 '+onC.length+'</h4>'+onC.map(row).join(''):'')+gs.map(g=>{{const off=cs.filter(c=>c.dataset.g===g&&!sel[c.dataset.k]&&m(c));return off.length?'<h4>'+g+'</h4>'+off.map(row).join(''):'';}}).join('');L.scrollTop=top;}};
+  L.onchange=e=>{{const i=e.target.closest('input[data-k]');if(!i)return;sel[i.dataset.k]=i.checked;render();}};qi.oninput=render;render();
+  const close=()=>{{const nOn=[],nOff=[];cs.forEach(c=>{{const k=c.dataset.k;if(c.dataset.x){{if(sel[k])nOn.push(k);}}else if(!sel[k])nOff.push(k);}});
     ls('ha-on',JSON.stringify(nOn));ls('ha-off',JSON.stringify(nOff));paintHaHL();if(ls('sync'))updateShared(m=>{{m._haOn=nOn;m._haOff=nOff;}});box.remove();}};
-  box.onclick=e=>{{if(e.target===box||e.target.closest('.hpick-h span'))close();}};document.body.appendChild(box);
-  const qi=box.querySelector('.hpick-q');qi.oninput=()=>{{const q=qi.value.trim().toLowerCase();box.querySelectorAll('.hpick-l label').forEach(l=>l.hidden=!!q&&!l.textContent.toLowerCase().includes(q));
-    box.querySelectorAll('.hpick-l h4').forEach(h=>{{let n=h.nextElementSibling,any=false;while(n&&n.tagName==='LABEL'){{if(!n.hidden)any=true;n=n.nextElementSibling;}}h.hidden=!any;}});}};}}
+  box.onclick=e=>{{if(e.target===box||e.target.closest('.hpick-h span'))close();}};document.body.appendChild(box);}}
 function hideHa(k,isX){{const key=isX?'ha-on':'ha-off',l=haList(key),i=l.indexOf(k);if(isX){{if(i>=0)l.splice(i,1);}}else if(i<0)l.push(k);
   ls(key,JSON.stringify(l));paintHaHL();if(ls('sync'))updateShared(m=>{{m._haOn=haList('ha-on');m._haOff=haList('ha-off');}});}}
 try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}
