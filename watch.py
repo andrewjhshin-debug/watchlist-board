@@ -426,7 +426,7 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
           (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
-LEV = {"MUU": "MU", "MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS", "OKLL": "OKLO"}  # 레버리지는 본주 단계 그대로
+LEV = {"SMU": "SMR", "MUU": "MU", "MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS", "OKLL": "OKLO"}  # 레버리지는 본주 단계 그대로
 # 조정 참고치: 과거 반도체 하락장(닷컴·금융위기·2018·2022) 고점→바닥 폭과 걸린 달.
 # 지금 하락폭보다 5% 넘게 아래인 첫 단계를 씀. 3배 레버는 더 깊게. ponytail: 고정 표, 사례 늘면 갱신
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
@@ -462,7 +462,7 @@ HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), 
       ("LRCX", "램리서치"), ("AMD", "AMD"), ("AMAT", "AMAT"), ("ASML", "ASML"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
       ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"),
-      ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL")]
+      ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU")]
 
 
 def mk(x: float) -> float:
@@ -555,8 +555,14 @@ def minsky_html() -> str:
             if len(c) < 12:
                 continue
             if sym in LEV:  # 레버는 본주 단계·일치율 기준
-                if LEV[sym] not in fits:
-                    continue
+                if LEV[sym] not in fits:  # 본주가 하 목록 뒤쪽이거나 없으면 여기서 먼저 계산
+                    try:
+                        bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(LEV[sym])}?interval=1wk&range=5y")["chart"]["result"][0]
+                        bcl = [v for v in bq["indicators"]["quote"][0]["close"] if v]
+                        br0, _, _, bte = minsky_fit(bcl)
+                        fits[LEV[sym]] = (br0, bte)
+                    except Exception:
+                        continue
                 r0, te0 = fits[LEV[sym]]
                 r, n, ts, te = minsky_fit(c, te_fix=te0)
             else:
@@ -687,7 +693,8 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hpick-l{{overflow:auto;padding:0 12px 16px}}.hpick h4{{margin:12px 4px 4px;font-weight:normal;font-size:12px;color:var(--sub)}}
 .hpick label{{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--edge);font-size:14px}}.hpick label small{{margin-left:auto;color:var(--sub);font-size:11px}}.hpick label input{{width:18px;height:18px;accent-color:#00ff3c}}
 .hapop{{padding-bottom:58px!important}}.mk-fabs{{position:fixed;right:10px;bottom:calc(var(--tabh) + 10px);z-index:35;display:flex;gap:8px}}.hapop[hidden] .mk-fabs{{display:none}}
-.mk-fab{{font:inherit;font-weight:700;font-size:14px;color:#00ff3c;background:#05070d99;border:1.5px solid #00ff3caa;border-radius:20px;padding:8px 14px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-fab:active{{background:#00ff3c;color:#00140a}}.hpick-q{{box-sizing:border-box;width:calc(100% - 24px);height:38px;flex:0 0 auto;-webkit-appearance:none;appearance:none;margin:0 12px 6px;font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}}.hpick h4[hidden],.hpick label[hidden]{{display:none}}.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
+.mk-fab{{font:inherit;font-weight:700;font-size:14px;color:#00ff3c;background:#05070d99;border:1.5px solid #00ff3caa;border-radius:20px;padding:8px 14px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-fab:active{{background:#00ff3c;color:#00140a}}.hpick-q{{box-sizing:border-box;width:calc(100% - 24px);height:38px;flex:0 0 auto;-webkit-appearance:none;appearance:none;margin:0 12px 6px;font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}}.hpick h4[hidden],.hpick label[hidden]{{display:none}}.mk-x{{position:absolute;top:5px;right:6px;z-index:4;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;font:400 16px/1 system-ui,sans-serif;color:#5d6888;background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-x:hover,.mk-x:active{{color:#ff5a5a;border-color:#ff5a5a66;background:#ff5a5a14}}
+.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -1075,7 +1082,7 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');}}
 document.getElementById('ttl').onclick=showPct;
 const hapop=document.getElementById('hapop');
-document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;}};
+document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;requestAnimationFrame(()=>hapop.querySelectorAll('.mk[data-k]').forEach(placeNp));}};
 // 하 화면: 칸을 톡 누르면 주봉 차트 크게(뒤로가기·화면 누르면 닫힘), 꾹 누르면 이동
 let haCharts=null;
 async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
@@ -1083,6 +1090,7 @@ async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
   
+  if(e.target.closest('.mk-x')){{const c=e.target.closest('.mk[data-k]');hideHa(c.dataset.k,!!c.dataset.x);return;}}
   if(e.target.closest('.mk-rp-x')){{const c=e.target.closest('.mk[data-k]');c.querySelector('.mk-rp')?.remove();hideHa(c.dataset.k,!!c.dataset.x);return;}}
   if(e.target.closest('.mk-rp'))return;const el=e.target.closest('.mk[data-k]');if(!el)return;
   if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
@@ -1109,7 +1117,8 @@ function saveHaZoom(el){{const m=haZoomMap(),sv=el.querySelector('svg'),z=+(sv.d
 var haLastQ=null;  // var: 아래 순서 적용(applyHa→paintHaHL)이 먼저 불려도 에러 안 나게. let 이면 순번 적용이 조용히 실패했음
 function haList(k){{try{{return JSON.parse(ls(k)||'[]');}}catch(e){{return [];}}}}
 function paintHaHL(){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const zm=haZoomMap(),on=haList('ha-on'),off=haList('ha-off');
-  hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{c.classList.toggle('mk-off',c.dataset.x?!on.includes(c.dataset.k):off.includes(c.dataset.k));c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);else if(c.classList.contains('mk-zoomed'))setHaZoom(c,1,0,0);}});if(haLastQ)paintHaLive(haLastQ);}}
+  hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{if(!c.querySelector('.mk-x')){{const x=document.createElement('button');x.type='button';x.className='mk-x';x.setAttribute('aria-label',c.dataset.k+' 빼기');x.textContent='×';c.appendChild(x);}}
+    c.classList.toggle('mk-off',c.dataset.x?!on.includes(c.dataset.k):off.includes(c.dataset.k));c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);else if(c.classList.contains('mk-zoomed'))setHaZoom(c,1,0,0);}});if(haLastQ)paintHaLive(haLastQ);hapop?.querySelectorAll('.mk[data-k]:not(.mk-off)').forEach(placeNp);}}
 function applyHa(order){{paintHaHL();if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
   const cells=[...hapop.querySelectorAll('.mk[data-k]')],rk=el=>{{const i=order.indexOf(el.dataset.k);return i<0?999+cells.indexOf(el):i;}};
   hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));const ad=hapop.querySelector('.mk-add');if(ad)hapop.append(ad);}}
@@ -1262,7 +1271,10 @@ function haFmt(v,c){{return v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixe
 // 하 칸 높이: 실제로 보이는 하 화면 높이를 재서 4줄(8칸)이 딱 한 화면에 들어가게 (dvh 가 기기마다 달라서)
 if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setProperty('--har',Math.floor((h-10-4*8-6)/4)+'px');}};
   new ResizeObserver(fit).observe(hapop);addEventListener('resize',fit);}}
-function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0)t.textContent=haFmt(v[0],c.dataset.c||'');}});}}
+// 노란 점 현재가: 오른쪽에 자리 없으면 점 왼쪽으로(칸 밖으로 안 넘어가게). 숫자 길이가 바뀔 때마다 다시
+function placeNp(c){{const t=c.querySelector('.mk-np'),d=c.querySelector('.mk-d');if(!t||!d)return;const cx=+d.getAttribute('cx'),vb=c.querySelector('svg').viewBox.baseVal.width||200;
+  let w=0;try{{w=t.getComputedTextLength();}}catch(e){{}}if(!w)return;const right=cx+8+w<=vb-1;t.setAttribute('text-anchor',right?'start':'end');t.setAttribute('x',right?cx+8:cx-8);}}
+function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0)t.textContent=haFmt(v[0],c.dataset.c||'');placeNp(c);}});}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
