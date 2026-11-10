@@ -239,6 +239,20 @@ def quote(sym: str) -> tuple[float, float]:
     return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
 
 
+def true_high(sym: str) -> float | None:
+    """진짜 최고가: 일봉 장중 고가(5년) + 프리·애프터장 포함 60분봉(2년). 거래량 0 시간외 봉은 시가·종가만(잘못 찍힌 꼬리 방지)."""
+    hs = []
+    try:
+        d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range=5y&interval=1d")["chart"]["result"][0]
+        hs += [h for h in d["indicators"]["quote"][0]["high"] if h]
+        d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range=2y&interval=60m&includePrePost=true")["chart"]["result"][0]
+        q = d["indicators"]["quote"][0]
+        hs += [h if v else max(o, c) for o, h, c, v in zip(q["open"], q["high"], q["close"], q["volume"]) if None not in (o, h, c)]
+    except Exception as e:
+        print(f"최고가 {sym} 실패: {e}")
+    return max(hs) if hs else None
+
+
 def peak(sym: str, day: dict) -> tuple[float, str, dict, dict]:
     """gauge_since 이후 최고점(값, 날짜). 미국 종목은 프리·애프터장 포함(60분봉).
     시간외 봉은 거래량 0 인 잘못 찍힌 꼬리(예: AXTX 9/22 150.56)가 있어 시가·종가만 본다."""
@@ -589,7 +603,7 @@ def minsky_html() -> str:
                 d0, p0, m0 = alog[sym][0]
                 sc = f" data-sc=\"{d0[2:7]} 조정치 {sp(p0)}({m0}) &#10;실제 {sp(tc[ib][1])}({datetime.fromtimestamp(tc[ib][0], KST):%y.%m}) {(p0 / tc[ib][1] - 1) * 100:+.0f}%\""
             px = max((i / 1000 for i in range(1001)), key=mk)  # 곡선 꼭지점(새 논리)에 실제 고점 가격
-            zp += f'<text class="mk-zp" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 5:.1f}">{sp(max(seg))}</text>'
+            zp += f'<text class="mk-zp" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 5:.1f}">{sp(max(true_high(sym) or 0, max(seg)))}</text>'
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
             np = sp(v)
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-hv="{hv}"><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
@@ -944,6 +958,11 @@ function pullT(){{
       if(typeof m._since==='string'&&m._since!==ls('since')){{ls('since',m._since);applySince();}}
       if(Array.isArray(m._boardOrder)&&!boP&&JSON.stringify(m._boardOrder)!==ls('board-order'))applyBo(m._boardOrder);
       if(Array.isArray(m._haOrder)&&!haP&&JSON.stringify(m._haOrder)!==ls('ha-order'))applyHa(m._haOrder);
+      // 새로 저장하는 값은 전부 여기(_키)로 웹·앱 공유. ls()만 쓰면 그 기기에만 남음
+      let haChg=false;
+      if(Array.isArray(m._hlha)&&JSON.stringify(m._hlha)!==ls('hlha')){{ls('hlha',JSON.stringify(m._hlha));haChg=true;}}
+      if(m._hzoom&&typeof m._hzoom==='object'&&JSON.stringify(m._hzoom)!==ls('hzoom')){{ls('hzoom',JSON.stringify(m._hzoom));haChg=true;}}
+      if(haChg)paintHaHL();
       if(generation===avgGeneration&&!ls(avgPendingKey(code))){{
         if(Array.isArray(m._avg))adoptSharedAverage(m._avg);
         else if(ls(AVG_KEY)!=null){{
@@ -1042,11 +1061,13 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;c
 // 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
 let haP=null,haSkip=0;
 function haZoomMap(){{try{{return JSON.parse(ls('hzoom')||'{{}}');}}catch(e){{return {{}};}}}}
-function setHaZoom(el,z,tx,ty){{const sv=el.querySelector('svg');if(!sv)return;Object.assign(sv.dataset,{{z,tx,ty}});sv.style.transformOrigin='0 0';
-  sv.style.transform=z>1.01?'translate('+tx+'px,'+ty+'px) scale('+z+')':'';el.classList.toggle('mk-zoomed',z>1.01);}}
-function saveHaZoom(el){{const m=haZoomMap(),sv=el.querySelector('svg'),z=+(sv.dataset.z||1);if(z>1.01)m[el.dataset.k]=[z,+sv.dataset.tx,+sv.dataset.ty];else delete m[el.dataset.k];ls('hzoom',JSON.stringify(m));}}
+function setHaZoom(el,z,fx,fy){{const sv=el.querySelector('svg');if(!sv)return;if(!(z>1.01)||Math.abs(fx)>5||Math.abs(fy)>5){{z=1;fx=0;fy=0;}}
+  Object.assign(sv.dataset,{{z,fx,fy}});sv.style.transformOrigin='0 0';
+  sv.style.transform=z>1.01?'translate('+fx*100+'%,'+fy*100+'%) scale('+z+')':'';el.classList.toggle('mk-zoomed',z>1.01);}}
+function saveHaZoom(el){{const m=haZoomMap(),sv=el.querySelector('svg'),z=+(sv.dataset.z||1);
+  if(z>1.01)m[el.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[el.dataset.k];ls('hzoom',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzoom=m;}});}}
 function paintHaHL(){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const zm=haZoomMap();
-  hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);}});}}
+  hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);else if(c.classList.contains('mk-zoomed'))setHaZoom(c,1,0,0);}});}}
 function applyHa(order){{paintHaHL();if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
   const cells=[...hapop.querySelectorAll('.mk[data-k]')],rk=el=>{{const i=order.indexOf(el.dataset.k);return i<0?999+cells.indexOf(el):i;}};
   hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));}}
@@ -1079,7 +1100,7 @@ if(hapop){{
     const r=hapop.getBoundingClientRect();if(e.clientY>r.bottom-40)hapop.scrollTop+=12;else if(e.clientY<r.top+40)hapop.scrollTop-=12;}});
   const end=e=>{{const p=haP;if(!p||e.pointerId!==p.id)return;clearTimeout(p.timer);haP=null;if(!p.active)return;
     p.el.classList.remove('mk-drag');haSkip=Date.now()+500;
-    if(!p.moved){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const k=p.el.dataset.k,i=h.indexOf(k);i<0?h.push(k):h.splice(i,1);ls('hlha',JSON.stringify(h));paintHaHL();if(navigator.vibrate)navigator.vibrate(30);return;}}  // 꾹 눌렀다 안 움직이고 떼면 테두리
+    if(!p.moved){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const k=p.el.dataset.k,i=h.indexOf(k);i<0?h.push(k):h.splice(i,1);ls('hlha',JSON.stringify(h));paintHaHL();if(ls('sync'))updateShared(x=>{{x._hlha=h;}});if(navigator.vibrate)navigator.vibrate(30);return;}}  // 꾹 눌렀다 안 움직이고 떼면 테두리
     const order=[...new Set([...hapop.querySelectorAll('.mk[data-k]')].filter(c=>c.offsetParent).map(c=>c.dataset.k))];applyHa(order);
     if(ls('sync'))updateShared(m=>{{m._haOrder=order;}});}};
   for(const t of ['pointerup','pointercancel'])hapop.addEventListener(t,end);
@@ -1090,11 +1111,11 @@ if(hapop){{
   const mid=(t,o)=>[(t[0].clientX+t[1].clientX)/2-o[0],(t[0].clientY+t[1].clientY)/2-o[1]];
   hapop.addEventListener('touchstart',e=>{{if(e.touches.length!==2)return;const el=e.target.closest('.mk[data-k]'),svg=el?.querySelector('svg');if(!svg)return;
     if(haP){{clearTimeout(haP.timer);haP=null;}}
-    const z=+(svg.dataset.z||1),tx=+(svg.dataset.tx||0),ty=+(svg.dataset.ty||0),sr=svg.getBoundingClientRect(),o=[sr.left-tx,sr.top-ty],m=mid(e.touches,o);
-    svg.style.transformOrigin='0 0';pz={{el,svg,o,d0:dist(e.touches),z0:z,p:[(m[0]-tx)/z,(m[1]-ty)/z]}};}},{{capture:true,passive:true}});
+    const z=+(svg.dataset.z||1),sr=svg.getBoundingClientRect(),w=sr.width/z,h=sr.height/z,tx=+(svg.dataset.fx||0)*w,ty=+(svg.dataset.fy||0)*h,o=[sr.left-tx,sr.top-ty],m=mid(e.touches,o);
+    pz={{el,svg,o,w,h,d0:dist(e.touches),z0:z,p:[(m[0]-tx)/z,(m[1]-ty)/z]}};}},{{capture:true,passive:true}});
   hapop.addEventListener('touchmove',e=>{{if(!pz||e.touches.length!==2)return;e.preventDefault();
     const z=Math.max(1,Math.min(5,pz.z0*dist(e.touches)/pz.d0)),m=mid(e.touches,pz.o),tx=m[0]-pz.p[0]*z,ty=m[1]-pz.p[1]*z,sv=pz.svg;
-    Object.assign(sv.dataset,{{z,tx,ty}});sv.style.transform='translate('+tx+'px,'+ty+'px) scale('+z+')';pz.el.classList.add('mk-zoomed');}},{{capture:true,passive:false}});
+    setHaZoom(pz.el,Math.max(1.02,z),tx/pz.w,ty/pz.h);}},{{capture:true,passive:false}});
   hapop.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{saveHaZoom(pz.el);pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
 }}
 document.getElementById('pct').onclick=showPct;
