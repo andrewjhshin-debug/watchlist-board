@@ -423,7 +423,7 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
           (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
-LEV = {"INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS"}  # 레버리지는 본주 단계 그대로
+LEV = {"MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS"}  # 레버리지는 본주 단계 그대로
 # 조정 참고치: 과거 반도체 하락장(닷컴·금융위기·2018·2022) 고점→바닥 폭과 걸린 달.
 # 지금 하락폭보다 5% 넘게 아래인 첫 단계를 씀. 3배 레버는 더 깊게. ponytail: 고정 표, 사례 늘면 갱신
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
@@ -449,8 +449,8 @@ def adj_target(tc, lev3=False, sym=""):
 EXTRA = [(s, n, g) for g, lst in [
     ("좌절·투매", "298380.KQ 에이비엘바이오,950160.KQ 코오롱티슈진,240810.KQ 원익IPS,007660.KS 이수페타시스,336260.KS 두산퓨얼셀,LMND 레모네이드,141080.KQ 리가켐바이오,064350.KS 현대로템,329180.KS HD현대중,QBTS 디웨이브,196170.KQ 알테오젠,214150.KQ 클래시스,028300.KQ HLB,015760.KS 한전"),
     ("공포", "009150.KS 삼성전기,042700.KS 한미반도체"),
-    ("반등 중(모더나형)", "MRNA 모더나,W 웨이페어,006400.KS 삼성SDI,ETSY 엣시,MP MP머티리얼즈,APA APA,PACB 팩바이오,SEDG 솔라엣지,OPEN 오픈도어,CHPT 차지포인트,AMC AMC,AFRM 어펌,TWLO 트윌리오,OKTA 옥타,ARKK 아크,PDD 핀둬둬,SE 씨,DOCU 도큐사인,XYZ 블록,EDU 신동방,TAL TAL,NVAX 노바백스,GME 게임스탑,MDB 몽고DB,128940.KS 한미약품"),
-    ("이미 회복", "CVNA 카바나,PLTR 팔란티어,IONQ 아이온큐,NET 클라우드플레어,MSTR 마이크로스트래티지,SHOP 쇼피파이,TSLA 테슬라,VKTX 바이킹,RIOT 라이엇,FCX 프리포트"),
+    ("반등 중(모더나형)", "MRNA 모더나,MRNX MRNX,W 웨이페어,006400.KS 삼성SDI,ETSY 엣시,MP MP머티리얼즈,APA APA,PACB 팩바이오,SEDG 솔라엣지,OPEN 오픈도어,CHPT 차지포인트,AMC AMC,AFRM 어펌,TWLO 트윌리오,OKTA 옥타,ARKK 아크,PDD 핀둬둬,SE 씨,DOCU 도큐사인,XYZ 블록,EDU 신동방,TAL TAL,NVAX 노바백스,GME 게임스탑,MDB 몽고DB,128940.KS 한미약품"),
+    ("이미 회복", "CVNA 카바나,PLTR 팔란티어,PTIR PTIR,IONQ 아이온큐,NET 클라우드플레어,MSTR 마이크로스트래티지,SHOP 쇼피파이,TSLA 테슬라,VKTX 바이킹,RIOT 라이엇,FCX 프리포트"),
     ("기타 언급", "RGTI 리게티,SMR 뉴스케일,ACHR 아처,Z 질로우,COIN 코인베이스,SOUN 사운드하운드,ROOT 루트,247540.KQ 에코프로비엠,DKNG 드래프트킹스,005070.KS 코스모신소재,035900.KQ JYP,TTD 트레이드데스크,LI 리오토,NVDA 엔비디아,TSM TSMC,^IXIC 나스닥"),
 ] for s, n in (x.split(" ", 1) for x in lst.split(","))]
 GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
@@ -539,8 +539,9 @@ def minsky_html() -> str:
     alog = json.loads(alog_p.read_text(encoding="utf-8")) if alog_p.exists() else {}
     for (hv, iv, rg, per), (sym, name, grp) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in [(a, b, "기본") for a, b in HA] + EXTRA):
         ex = grp != "기본"
-        if ex and name in xcache and time.time() - xcache[name][0] < 3600:  # 고르기 목록은 1시간에 한 번만 다시 계산
+        if ex and name in xcache and len(xcache[name]) > 3 and time.time() - xcache[name][0] < 3600:  # 고르기 목록은 1시간에 한 번만 다시 계산
             cells.append(xcache[name][1])
+            fits[sym] = tuple(xcache[name][2:4])  # 레버가 본주 단계 따라가게
             continue
         try:
             q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval={iv}&range={rg}")["chart"]["result"][0]
@@ -633,7 +634,7 @@ def minsky_html() -> str:
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}</svg>{chart}</div>')
             if ex:
-                xcache[name] = [time.time(), cells[-1]]
+                xcache[name] = [time.time(), cells[-1], *fits.get(sym, (0, 0))]
         except Exception as e:
             print(f"하 {hv} {sym} 실패: {e}")
     labels = "".join(f'<text x="{X(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in
