@@ -1000,7 +1000,7 @@ function pullT(){{
       if(changed){{repaint();paintHL();}}
       if(typeof m._since==='string'&&m._since!==ls('since')){{ls('since',m._since);applySince();}}
       if(Array.isArray(m._boardOrder)&&!boP&&JSON.stringify(m._boardOrder)!==ls('board-order'))applyBo(m._boardOrder);
-      if(Array.isArray(m._haOrder)&&!haP&&JSON.stringify(m._haOrder)!==ls('ha-order'))applyHa(m._haOrder);
+      if(Array.isArray(m._haOrder)&&!haP&&JSON.stringify(m._haOrder)!==ls('ha-order'))applyHa(m._haOrder.some(k=>HA_FRESH.includes(k))&&!ls('ha-mig2')?(ls('ha-mig2','1'),ls('ha-mig1',''),haMig(m._haOrder)):m._haOrder);
       // 새로 저장하는 값은 전부 여기(_키)로 웹·앱 공유. ls()만 쓰면 그 기기에만 남음
       let haChg=false;
       if(Array.isArray(m._hlha)&&JSON.stringify(m._hlha)!==ls('hlha')){{ls('hlha',JSON.stringify(m._hlha));haChg=true;}}
@@ -1139,7 +1139,13 @@ function openHaPick(){{const on=new Set(haList('ha-on')),off=new Set(haList('ha-
   box.onclick=e=>{{if(e.target===box||e.target.closest('.hpick-h span'))history.back();}};document.body.appendChild(box);history.pushState({{pop:1}},'');}}
 function hideHa(k,isX){{const key=isX?'ha-on':'ha-off',l=haList(key),i=l.indexOf(k);if(isX){{if(i>=0)l.splice(i,1);}}else if(i<0)l.push(k);
   ls(key,JSON.stringify(l));paintHaHL();if(ls('sync'))updateShared(m=>{{m._haOn=haList('ha-on');m._haOff=haList('ha-off');}});}}
-try{{applyHa(JSON.parse(ls('ha-order')||'null'));}}catch(e){{}}
+// 새로 넣은 종목은 맨 밑부터: 순번이 없던 기기에서 기본 자리로 끼어든 최근 레버들을 한 번만 맨 밑으로 옮김
+const HA_FRESH=['코스피2배','LRCU','AMDL','AMAU','ASMG','ARMG','SMU'];
+function haMig(o){{if(ls('ha-mig1')||!hapop)return o;const dom=[...hapop.querySelectorAll('.mk[data-k]')].map(c=>c.dataset.k),
+    ks=(Array.isArray(o)?o:[]).concat(dom.filter(k=>!(Array.isArray(o)&&o.includes(k))));  // 저장 순번 + 나머지 칸
+  ls('ha-mig1','1');const n=ks.filter(k=>!HA_FRESH.includes(k)).concat(HA_FRESH.filter(k=>ks.includes(k)));
+  if(ls('sync'))updateShared(m=>{{m._haOrder=n;}});return n;}}
+try{{applyHa(haMig(JSON.parse(ls('ha-order')||'null')));}}catch(e){{}}
 function setHv(v){{if(!hapop)return;hapop.dataset.hv=v;ls('ha-v',v);}}
 setHv(ls('ha-v')||'주');
 async function refreshHa(){{
