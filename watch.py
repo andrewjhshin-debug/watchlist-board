@@ -1180,7 +1180,11 @@ if(hapop){{
     setHaZoom(pz.el,Math.max(1.02,z),tx/pz.w,ty/pz.h);}},{{capture:true,passive:false}});
   hapop.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{saveHaZoom(pz.el);pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
   // 노트북 터치패드 두 손가락 벌리기(=Ctrl+휠)·Ctrl+마우스휠: 커서 자리 중심으로 확대/축소
-  let wzT=null;hapop.addEventListener('wheel',e=>{{if(!e.ctrlKey)return;const el=e.target.closest('.mk[data-k]'),svg=el?.querySelector('svg');if(!svg)return;e.preventDefault();
+  let wzT=null;hapop.addEventListener('wheel',e=>{{const el=e.target.closest('.mk[data-k]'),svg=el?.querySelector('svg');if(!svg)return;
+    if(!e.ctrlKey){{if(!el.classList.contains('mk-zoomed'))return;e.preventDefault();  // 확대된 칸 위에서 두 손가락 쓸기 = 그림 이동
+      const z=+svg.dataset.z,r=svg.getBoundingClientRect(),w=r.width/z,h=r.height/z;setHaZoom(el,z,+svg.dataset.fx-e.deltaX/w,+svg.dataset.fy-e.deltaY/h);
+      clearTimeout(wzT);wzT=setTimeout(()=>saveHaZoom(el),400);return;}}
+    e.preventDefault();
     const z0=+(svg.dataset.z||1),sr=svg.getBoundingClientRect(),w=sr.width/z0,h=sr.height/z0,tx=+(svg.dataset.fx||0)*w,ty=+(svg.dataset.fy||0)*h,
       mx=e.clientX-(sr.left-tx),my=e.clientY-(sr.top-ty),px=(mx-tx)/z0,py=(my-ty)/z0,z=Math.max(1,Math.min(5,z0*Math.exp(-e.deltaY*.01)));
     setHaZoom(el,z,(mx-px*z)/w,(my-py*z)/h);clearTimeout(wzT);wzT=setTimeout(()=>saveHaZoom(el),400);}},{{passive:false}});
