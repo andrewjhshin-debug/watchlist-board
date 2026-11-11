@@ -1132,9 +1132,13 @@ function openHaPick(){{const on=new Set(haList('ha-on')),off=new Set(haList('ha-
   const render=()=>{{const q=qi.value.trim().toLowerCase(),m=c=>!q||(c.dataset.k+' '+(c.querySelector('u')?.textContent||'')).toLowerCase().includes(q),top=L.scrollTop;
     const onC=cs.filter(c=>sel[c.dataset.k]&&m(c));  // 켠 것은 위에 하 화면 순서대로, 끈 것은 아래에 묶음별로
     L.innerHTML=(onC.length?'<h4>켜짐 '+onC.length+'</h4>'+onC.map(row).join(''):'')+gs.map(g=>{{const off=cs.filter(c=>c.dataset.g===g&&!sel[c.dataset.k]&&m(c));return off.length?'<h4>'+g+'</h4>'+off.map(row).join(''):'';}}).join('');L.scrollTop=top;}};
-  L.onchange=e=>{{const i=e.target.closest('input[data-k]');if(!i)return;sel[i.dataset.k]=i.checked;render();}};qi.oninput=render;render();
+  const onSeq=[];L.onchange=e=>{{const i=e.target.closest('input[data-k]');if(!i)return;sel[i.dataset.k]=i.checked;if(i.checked)onSeq.push(i.dataset.k);render();}};qi.oninput=render;render();
   const close=()=>{{const nOn=[],nOff=[];cs.forEach(c=>{{const k=c.dataset.k;if(c.dataset.x){{if(sel[k])nOn.push(k);}}else if(!sel[k])nOff.push(k);}});
-    ls('ha-on',JSON.stringify(nOn));ls('ha-off',JSON.stringify(nOff));paintHaHL();if(ls('sync'))updateShared(m=>{{m._haOn=nOn;m._haOff=nOff;}});box.remove();}};
+    const was=new Set(cs.filter(c=>!c.classList.contains('mk-off')).map(c=>c.dataset.k)),added=[...new Set(onSeq)].filter(k=>sel[k]&&!was.has(k));
+    ls('ha-on',JSON.stringify(nOn));ls('ha-off',JSON.stringify(nOff));
+    // 새로 켠 종목은 무조건 맨 밑부터 채움(켠 순서대로)
+    const order=[...hapop.querySelectorAll('.mk[data-k]')].map(c=>c.dataset.k).filter(k=>!added.includes(k)).concat(added);applyHa(order);
+    if(ls('sync'))updateShared(m=>{{m._haOn=nOn;m._haOff=nOff;m._haOrder=order;}});box.remove();}};
   box._close=close;  // 뒤로가기 = 닫기(하 화면으로)
   box.onclick=e=>{{if(e.target===box||e.target.closest('.hpick-h span'))history.back();}};document.body.appendChild(box);history.pushState({{pop:1}},'');}}
 function hideHa(k,isX){{const key=isX?'ha-on':'ha-off',l=haList(key),i=l.indexOf(k);if(isX){{if(i>=0)l.splice(i,1);}}else if(i<0)l.push(k);
