@@ -506,6 +506,18 @@ def vol52(c):  # 최근 52주 주간 수익률의 연환산 변동성
     return (sum((v - mu) ** 2 for v in r) / len(r) * 52) ** .5
 
 
+def chip_te(te, tc, sym):
+    """칩(단계)·노란 점을 조정치 엔진 판단에 맞춤: 좌절이 아직 앞이면 정상화로 못 감, 이미 지났으면 정상화."""
+    # ponytail: 흔들림 방지로 화면 날짜가 최대 2개월 달라질 수 있어 경계에선 드물게 어긋날 수 있음
+    try:
+        ap, ad = adj_target(tc, False, "^SOX" if sym == "SOXL" else sym)
+    except Exception:
+        return te
+    if not ap:
+        return te
+    return max(te, .96) if ad < datetime.now(KST) else min(te, .94)
+
+
 def adj_target(tc, lev3=False, sym=""):
     """(가격, 날짜) — 고점에서 과거 하락장 폭·기간만큼."""
     if sym not in ADJ_OVR and not lev3:
@@ -634,8 +646,10 @@ def minsky_html() -> str:
                 if LEV[sym] not in fits:  # 본주가 하 목록 뒤쪽이거나 없으면 여기서 먼저 계산
                     try:
                         bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(LEV[sym])}?interval=1wk&range=5y")["chart"]["result"][0]
-                        bcl = [v for v in bq["indicators"]["quote"][0]["close"] if v]
+                        btc0 = [(t, v) for t, v in zip(bq["timestamp"], bq["indicators"]["quote"][0]["close"]) if v]
+                        bcl = [v for _, v in btc0]
                         br0, _, _, bte = minsky_fit(bcl)
+                        bte = chip_te(bte, btc0, LEV[sym])
                         fits[LEV[sym]] = (br0, bte)
                     except Exception:
                         continue
@@ -643,6 +657,9 @@ def minsky_html() -> str:
                 r, n, ts, te = minsky_fit(c, te_fix=te0)
             else:
                 r, n, ts, te = minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
+                if ts is not None:
+                    sox = tc if sym != "SOXL" else [(t, v) for t, v in zip(*(lambda r_: (r_["timestamp"], r_["indicators"]["quote"][0]["close"]))(get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0])) if v]
+                    te = chip_te(te, sox, sym)  # 칩은 엔진(좌절 지났나)에 맞춤 → 레버는 이 te 를 그대로 따라감
                 r0 = r
             if r0 <= .70:  # 70% 이하는 하이먼 모양 아님 → 안 넣음(레버는 본주 기준)
                 continue
@@ -657,7 +674,7 @@ def minsky_html() -> str:
             stage = next(t for x, t in STAGES if te < x)
             if sym == "SOXL":
                 sx = ('<g class="mk-sx"><path d="M' + " L".join(f"{X(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg)) + '" class="mk-p"/>'
-                      f'<circle cx="{X(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="4" class="mk-d"/><text class="mk-np" x="{X(te) - 6:.1f}" y="{Y(f(seg[-1])) - 8:.1f}" text-anchor="end">SOXL</text></g>')
+                      f'<circle cx="{X(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="4" class="mk-d"/><text class="mk-np" x="{X(te) - 6:.1f}" y="{Y(f(seg[-1])) - 8:.1f}" text-anchor="end">${seg[-1]:.2f}</text></g>')
             if hv == "주" and r0 >= .80 and sym not in LEV and not ex:  # 80% 미만·고르기 목록은 모델 칸 불 안 켬
                 now_stages.add(stage)
             # 확대 차트: 주봉으로 맞춘 곡선을 날짜에 고정해 어느 봉에서도 같은 자리에 그림
@@ -782,7 +799,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hpick label{{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--edge);font-size:14px}}.hpick label small{{margin-left:auto;color:var(--sub);font-size:11px}}.hpick label input{{width:18px;height:18px;accent-color:#00ff3c}}
 .hapop{{padding-bottom:58px!important}}.mk-fabs{{position:fixed;right:10px;bottom:calc(var(--tabh) + 10px);z-index:35;display:flex;gap:8px}}.hapop[hidden] .mk-fabs{{display:none}}
 .mk-fab{{font:inherit;font-weight:700;font-size:14px;color:#00ff3c;background:#05070d99;border:1.5px solid #00ff3caa;border-radius:20px;padding:8px 14px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-fab:active{{background:#00ff3c;color:#00140a}}.hpick-q{{box-sizing:border-box;width:calc(100% - 24px);height:38px;flex:0 0 auto;-webkit-appearance:none;appearance:none;margin:0 12px 6px;font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}}.hpick h4[hidden],.hpick label[hidden]{{display:none}}.mk-x{{position:absolute;top:5px;right:6px;z-index:4;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;font:400 16px/1 system-ui,sans-serif;color:#5d6888;background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-x:hover,.mk-x:active{{color:#ff5a5a;border-color:#ff5a5a66;background:#ff5a5a14}}
-.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-np,.mk-zp{{paint-order:stroke;stroke:var(--tile);stroke-width:3.5px;stroke-linejoin:round}}.mk-gp{{font-style:normal;color:#e8ecff}}.mk-sort{{color:#e8ecff;border-color:#8a96c0aa}}.mk-sx{{display:none}}.hz-m.sx .mk-sx{{display:inline}}.hz-sx{{margin-left:auto;font:inherit;font-size:13px;color:var(--sub);background:var(--tile);border:1px solid var(--edge);border-radius:8px;padding:5px 12px;cursor:pointer}}.hz-sx.on{{color:#ff5a5a;border-color:#ff5a5a88;background:#2a1018}}.hz-m svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-m .mk-s{{font-size:13px!important;line-height:1.5;white-space:normal}}.hz-m .mk-s u{{text-decoration:none;color:#ffb300}}.adjl{{stroke:#e8ecff;stroke-width:1.5;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}}.ax.adj{{left:auto;right:3px;color:#e8ecff;transform:translateY(-115%)}}.settings-more{{flex:0 0 auto;font-size:12px;color:var(--sub);margin:0 0 10px}}.settings-more summary{{cursor:pointer;padding:4px 0}}.settings-more .settings-hint{{max-height:30dvh;overflow:auto;margin:4px 0 0}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
+.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-np,.mk-zp{{paint-order:stroke;stroke:var(--tile);stroke-width:3.5px;stroke-linejoin:round}}.mk-gp{{font-style:normal;color:#e8ecff}}.mk-sort{{color:#e8ecff;border-color:#8a96c0aa}}.mk-sx{{display:none}}.hz-m.sx .mk-sx{{display:inline}}.hz-sx{{align-self:flex-start;margin:16px 0 0;font:inherit;font-weight:700;font-size:16px;color:#ffb300;background:#3a2500;border:2px solid #ffb300;border-radius:22px;padding:10px 20px;cursor:pointer;-webkit-tap-highlight-color:transparent}}.hz-sx.on{{color:#fff;background:#ff2a3c;border-color:#ff2a3c}}.hz-m svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-m .mk-s{{font-size:13px!important;line-height:1.5;white-space:normal}}.hz-m .mk-s u{{text-decoration:none;color:#ffb300}}.adjl{{stroke:#e8ecff;stroke-width:1.5;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}}.ax.adj{{left:auto;right:3px;color:#e8ecff;transform:translateY(-115%)}}.settings-more{{flex:0 0 auto;font-size:12px;color:var(--sub);margin:0 0 10px}}.settings-more summary{{cursor:pointer;padding:4px 0}}.settings-more .settings-hint{{max-height:30dvh;overflow:auto;margin:4px 0 0}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -1178,8 +1195,8 @@ async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-sort')){{haSort();return;}}if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
   if(e.target.closest('.mk:not([data-k])')){{const m=e.target.closest('.mk'),d=document.createElement('div');d.className='hz hz-m';
-    d.innerHTML='<div class="hz-h"><b>하이먼 민스키 모델</b>'+(m.querySelector('.mk-sx')?'<button class="hz-sx" type="button">SOXL 겹쳐보기</button>':'')+'<span>✕</span></div>'+(m.querySelector('.mk-s')?.outerHTML||'')+m.querySelector('svg').outerHTML;
-    const sb=d.querySelector('.hz-sx');if(sb)sb.onclick=e=>{{e.stopPropagation();sb.classList.toggle('on',d.classList.toggle('sx'));}};
+    d.innerHTML='<div class="hz-h"><b>하이먼 민스키 모델</b><span>✕</span></div>'+(m.querySelector('.mk-s')?.outerHTML||'')+(m.querySelector('.mk-sx')?'<button class="hz-sx" type="button">＋ SOXL 겹쳐보기</button>':'')+m.querySelector('svg').outerHTML;
+    const sb=d.querySelector('.hz-sx');if(sb)sb.onclick=e=>{{e.stopPropagation();const on=d.classList.toggle('sx');sb.classList.toggle('on',on);const lp=hapop.querySelector('.mk[data-s="SOXL"] .mk-np')?.textContent,lt=d.querySelector('.mk-sx text');if(lp&&lt)lt.textContent=lp;sb.textContent=on?'－ SOXL 빼기':'＋ SOXL 겹쳐보기';}};
     d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');return;}}
   
   if(e.target.closest('.mk-x')){{const c=e.target.closest('.mk[data-k]');hideHa(c.dataset.k,!!c.dataset.x);return;}}
