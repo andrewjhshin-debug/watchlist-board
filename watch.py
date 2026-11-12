@@ -324,7 +324,7 @@ def targets(t) -> list[float]:
 MAX_CANDLES = 70  # 봉이 많으면 몇 개씩 묶어서 이 수 이하로
 
 
-def chart_svg(d: dict, curve=None) -> str:
+def chart_svg(d: dict, curve=None, adj=None) -> str:
     W, H = COLS * CELL, ROWS * CELL
     closes, tgts = d["closes"], targets(d.get("target"))
     n = len(closes)
@@ -334,7 +334,7 @@ def chart_svg(d: dict, curve=None) -> str:
     k = -(-n // MAX_CANDLES)  # 묶음 크기
     cs = [(opens[i], max(highs[i:i + k]), min(lows[i:i + k]), closes[min(i + k, n) - 1]) for i in range(0, n, k)]
     m = len(cs)
-    vmin, vmax = min([c[2] for c in cs] + tgts), max(c[1] for c in cs)
+    vmin, vmax = min([c[2] for c in cs] + tgts + ([adj] if adj else [])), max(c[1] for c in cs)
     span = (vmax - vmin) or 1
     y = lambda v: H - CELL / 2 - round((v - vmin) / span * (ROWS - 1)) * CELL  # 칸 단위로 스냅
     cw = W / m
@@ -361,11 +361,16 @@ def chart_svg(d: dict, curve=None) -> str:
         pts = [(j, curve(dates[min(j * k + k - 1, n - 1)])) for j in range(m)]
         ov = " ".join(f"{(j + .5) * cw:.1f},{yy(v):.1f}" for j, v in pts if v is not None)
         ov = f'<polyline class="mk-ov" points="{ov}"/>' if ov.count(",") > 1 else ""
+    al = ""
+    if adj:  # 하 확대 차트: 좌절(조정치) 가격 점선
+        ay = H - CELL / 2 - (adj - vmin) / span * (ROWS - 1) * CELL
+        al = f'<line class="adjl" x1="0" y1="{ay:.1f}" x2="{W}" y2="{ay:.1f}"/>'
+        peak += f'<span class="ax adj" style="top:{ay / H * 100:.1f}%">좌절 {fmt(adj, cur)}</span>'
     return f'''{peak}<span class="ax top">{fmt(vmax, cur)}</span><span class="ax bot">{fmt(vmin, cur)}</span><svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" data-vmin="{vmin}" data-vmax="{vmax}">
 <g class="grid">{grid}</g>
 {body}
 {"".join(f'<line class="tgt" x1="0" y1="{y(t)}" x2="{W}" y2="{y(t)}"/>' for t in tgts)}
-{ov}</svg>'''
+{ov}{al}</svg>'''
 
 
 def zoom_tools(views) -> str:
@@ -590,17 +595,6 @@ def minsky_html() -> str:
                 if t < t0 - 3 * 86400:
                     return None
                 return g(mk(min(te, max(ts, ts + (t - t0) / ((t1 - t0) or 1) * (te - ts)))))
-            vs = {}
-            for v in (() if ex else VIEWS):
-                try:
-                    d = fetch(sym, v)
-                    vs[v] = f'<div class="chart">{chart_svg(d, cprice)}</div>'
-                    if v == "주":
-                        vs["last"] = fmt(d["closes"][-1], d["currency"])
-                except Exception as e:
-                    print(f"하 {v} {sym} 실패: {e}")
-            if vs:
-                charts[name] = vs
             chart = ""
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
@@ -629,6 +623,17 @@ def minsky_html() -> str:
                         alog.setdefault(sym, []).append(row)
                     if sym == "SOXL":
                         zd = ad
+            vs = {}
+            for v in (() if ex else VIEWS):
+                try:
+                    d = fetch(sym, v)
+                    vs[v] = f'<div class="chart">{chart_svg(d, cprice, ap if v in ("주", "월") else None)}</div>'
+                    if v == "주":
+                        vs["last"] = fmt(d["closes"][-1], d["currency"])
+                except Exception as e:
+                    print(f"하 {v} {sym} 실패: {e}")
+            if vs:
+                charts[name] = vs
             sc = ""
             if stage == "정상화" and alog.get(sym):  # 바닥 지남 → 첫 기록과 실제 바닥 비교
                 ip = max(range(len(tc)), key=lambda i: tc[i][1])
@@ -638,8 +643,12 @@ def minsky_html() -> str:
             px = max((i / 1000 for i in range(1001)), key=mk)  # 곡선 꼭지점(새 논리)에 실제 고점 가격
             zp += f'<text class="mk-zp" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 5:.1f}">{sp(max((0 if ex else true_high(sym)) or 0, max(seg)))}</text>'
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
+            az = bool(ap) and ad < datetime.now(KST)  # 좌절이 이미 지남
+            gp = ((v / ap - 1) if az else (ap / v - 1)) if ap else 0
+            gpa = f' data-ap="{ap:.4f}" data-gp="{gp:.4f}"{chr(32) + "data-az=1" if az else ""}' if ap else ""
+            gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}"><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월</small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}</svg>{chart}</div>')
             if ex:
@@ -658,7 +667,7 @@ def minsky_html() -> str:
     (ROOT / "ha.json").write_text(json.dumps(charts, ensure_ascii=False), encoding="utf-8")
     alog_p.write_text(json.dumps(alog, ensure_ascii=False), encoding="utf-8")
     xcache_p.write_text(json.dumps(xcache, ensure_ascii=False), encoding="utf-8")
-    return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}<div class="mk-add">+ 종목 고르기</div><div class="mk-fabs"><button class="mk-fab" type="button">＋ 종목</button></div></div>' if len(cells) > 1 else ""
+    return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}<div class="mk-add">+ 종목 고르기</div><div class="mk-fabs"><button class="mk-fab mk-sort" type="button">내 순서</button><button class="mk-fab" type="button">＋ 종목</button></div></div>' if len(cells) > 1 else ""
 
 
 def render(items: list[dict], errors: list[str], ha: str = "") -> None:
@@ -694,7 +703,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hpick label{{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--edge);font-size:14px}}.hpick label small{{margin-left:auto;color:var(--sub);font-size:11px}}.hpick label input{{width:18px;height:18px;accent-color:#00ff3c}}
 .hapop{{padding-bottom:58px!important}}.mk-fabs{{position:fixed;right:10px;bottom:calc(var(--tabh) + 10px);z-index:35;display:flex;gap:8px}}.hapop[hidden] .mk-fabs{{display:none}}
 .mk-fab{{font:inherit;font-weight:700;font-size:14px;color:#00ff3c;background:#05070d99;border:1.5px solid #00ff3caa;border-radius:20px;padding:8px 14px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-fab:active{{background:#00ff3c;color:#00140a}}.hpick-q{{box-sizing:border-box;width:calc(100% - 24px);height:38px;flex:0 0 auto;-webkit-appearance:none;appearance:none;margin:0 12px 6px;font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}}.hpick h4[hidden],.hpick label[hidden]{{display:none}}.mk-x{{position:absolute;top:5px;right:6px;z-index:4;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;font:400 16px/1 system-ui,sans-serif;color:#5d6888;background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-x:hover,.mk-x:active{{color:#ff5a5a;border-color:#ff5a5a66;background:#ff5a5a14}}
-.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
+.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-np,.mk-zp{{paint-order:stroke;stroke:var(--tile);stroke-width:3.5px;stroke-linejoin:round}}.mk-gp{{font-style:normal;color:#e8ecff}}.mk-sort{{color:#e8ecff;border-color:#8a96c0aa}}.hz-m svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-m .mk-s{{font-size:13px!important;line-height:1.5;white-space:normal}}.hz-m .mk-s u{{text-decoration:none;color:#ffb300}}.adjl{{stroke:#e8ecff;stroke-width:1.5;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}}.ax.adj{{left:auto;right:3px;color:#e8ecff;transform:translateY(-115%)}}.settings-more{{flex:0 0 auto;font-size:12px;color:var(--sub);margin:0 0 10px}}.settings-more summary{{cursor:pointer;padding:4px 0}}.settings-more .settings-hint{{max-height:30dvh;overflow:auto;margin:4px 0 0}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -769,7 +778,7 @@ body.baronly .grid-wrap .tile:not(.zoom) .gauge[hidden]{{display:block!important
 @media(max-height:700px){{body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:17px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:18px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:22px!important}}}}
 @media(max-height:620px){{body.baronly .grid-wrap{{gap:4px;padding-block:4px}}body.baronly .tile:not(.zoom){{row-gap:3px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:19px!important}}}}
 @media(max-height:580px){{body.baronly .grid-wrap{{gap:1px;padding-block:3px}}body.baronly .tile:not(.zoom){{row-gap:2px}}body.baronly .grid-wrap .tile:not(.zoom) .name{{font-size:12px!important}}body.baronly .grid-wrap .tile:not(.zoom) .price{{font-size:14px!important}}body.baronly .grid-wrap .tile:not(.zoom) .gauge{{height:15px!important}}}}
-body.baronly .below:not(.zoom) .gauge i{{position:relative}}body.baronly .below:not(.zoom) .gauge i::after{{content:attr(data-p);position:absolute;right:6px;top:50%;transform:translateY(-50%);font-family:'GalmuriMono11','Galmuri11',monospace;font-size:18px;line-height:1;color:#000;white-space:nowrap}}
+body.baronly .grid-wrap .tile.pd:not(.zoom) .price,body.baronly .grid-wrap .tile:not(.zoom):has(.gauge[hidden]) .price{{color:#e8ecff;text-shadow:1px 0 #000,-1px 0 #000,0 1px #000,0 -1px #000}}body.baronly .grid-wrap .tile.below:not(.zoom) .price{{visibility:hidden}}body.baronly .below.pr:not(.zoom) .gauge i::after{{color:var(--win)!important}}body.baronly .below:not(.zoom) .gauge i{{position:relative}}body.baronly .below:not(.zoom) .gauge i::after{{content:attr(data-p);position:absolute;right:6px;top:50%;transform:translateY(-50%);font-family:'GalmuriMono11','Galmuri11',monospace;font-size:18px;line-height:1;color:#000;white-space:nowrap}}
 /* 꾹 누른 막대만 이동. 확대 차트의 터치·스크롤은 기존대로. */
 body.baronly .grid-wrap .tile:not(.zoom)[data-bar-order]{{order:var(--bar-order);touch-action:none;-webkit-touch-callout:none}}
 body.baronly .grid-wrap .tile.bar-dragging:not(.zoom){{position:relative;z-index:12;cursor:grabbing;background:#07150f;outline:2px solid var(--tgt);outline-offset:0;transform:translateY(var(--bar-drag-y,0px))}}
@@ -851,7 +860,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .mk-h{{grid-column:1/-1;padding:2px 4px}}.mk-h small{{display:block;font-size:12px;color:var(--sub)}}.mk-h b{{font-weight:normal;font-size:20px}}.mk-h b u{{text-decoration:none;color:var(--acc)}}
 .mk{{border:1px solid var(--edge)!important;border-radius:12px;background:var(--tile);padding:7px 8px 4px!important}}
 .mk b u{{background:#3a2500;padding:0 6px;border-radius:9px;font-size:11px!important}}
-.mk svg{{overflow:visible}}.mk{{position:relative}}.mk .mk-w{{position:absolute;right:9px;top:30px;font-size:10px}}
+.mk svg{{overflow:visible}}.mk{{position:relative}}.mk .mk-w{{position:absolute;left:9px;top:30px;font-size:10px}}
 .mk.mk-drag{{border:2px solid #ffb300!important}}.mk u.g{{color:#00ff3c!important}}.mk b u.g{{background:#0a3a18}}
 .mk-pull{{grid-column:1/-1;height:0;overflow:hidden;transition:height .15s;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sub);white-space:nowrap}}
 .hz{{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:16px 14px;cursor:zoom-out}}
@@ -895,7 +904,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수(-100% = 기준일 이후 바닥, 올라올수록 0에 가까움) · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주가 조정치까지 갈 때 복리로 배수만큼: SOXL=필라델피아 3배, 2배 레버는 2배)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금까지 최저를 바닥으로. 단계는 고점 이후 최저로 골라 반등해도 안 튐. 최저에서 50% 넘게 반등했으면 그 최저(과거 날짜)를 좌절로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 보고서의 역대 코스피 하락장 7건(중간 -54%) 데이터만 참고, "추가 하락 제한" 의견은 할인 → -52%(PBR 약 0.82배), 하락이 역대 최고속이라 기간은 08년처럼 12개월</p>
+<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주가 조정치까지 갈 때 복리로 배수만큼: SOXL=필라델피아 3배, 2배 레버는 2배)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금까지 최저를 바닥으로. 단계는 고점 이후 최저로 골라 반등해도 안 튐. 최저에서 50% 넘게 반등했으면 그 최저(과거 날짜)를 좌절로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 보고서의 역대 코스피 하락장 7건(중간 -54%) 데이터만 참고, "추가 하락 제한" 의견은 할인 → -52%(PBR 약 0.82배), 하락이 역대 최고속이라 기간은 08년처럼 12개월</p></details>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
@@ -1064,12 +1073,12 @@ function apply(sym,price,prev){{
   el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
   el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
   const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;
-  {{const gg=el.querySelector('.gauge');if(ts.length){{const g=price/Math.max(...ts)-1;gg.dataset.g=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}}else delete gg.dataset.g;}}el.classList.remove('lv1','lv2','lv3','lv4','below');
+  {{const gg=el.querySelector('.gauge');if(ts.length){{const g=price/Math.max(...ts)-1;gg.dataset.g=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}}else delete gg.dataset.g;}}el.classList.remove('lv1','lv2','lv3','lv4','below','pd','pr');
   if(ts.length){{const t=Math.max(...ts),hi=+el.dataset.hi,fill=el.querySelector('.gauge i');
     if(price<t){{const lo=+el.dataset.lo,depth=Math.max(0,Math.min(1,lo>0&&lo<t?(t-price)/(t-lo):(t-price)/t/.3));el.classList.add('below');el.style.setProperty('--gp',Math.round(75+25*depth)+'%');el.dataset.left=-depth;
-      fill.style.width=Math.round(depth*100)+'%';fill.dataset.p=f2(price,c);}}
+      fill.style.width=Math.round(depth*100)+'%';if(depth<.3)el.classList.add('pr');fill.dataset.p=f2(price,c);}}
     else{{const left=hi>t?Math.max(0,Math.min(1,(price-t)/(hi-t))):0;el.dataset.left=left;
-      fill.style.width=Math.round(left*100)+'%';el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));
+      fill.style.width=Math.round(left*100)+'%';if(left*(innerWidth-28)<f2(price,c).length*10+10)el.classList.add('pd');el.classList.add('lv'+(left>=.75?4:left>=.5?3:left>=.25?2:1));
       el.style.setProperty('--lv',['#00ff2a','#22ff00','#55ff00','#88ff00','#ffee00','#ffbb00','#ff8000','#ff5500','#ff2a00','#ff0033'][Math.min(9,Math.floor(left*10))]);}}
   }}
   queueAvg();
@@ -1088,7 +1097,10 @@ let haCharts=null;
 async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
   try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
-if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
+if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-sort')){{haSort();return;}}if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
+  if(e.target.closest('.mk:not([data-k])')){{const m=e.target.closest('.mk'),d=document.createElement('div');d.className='hz hz-m';
+    d.innerHTML='<div class="hz-h"><b>하이먼 민스키 모델</b><span>✕</span></div>'+(m.querySelector('.mk-s')?.outerHTML||'')+m.querySelector('svg').outerHTML;
+    d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');return;}}
   
   if(e.target.closest('.mk-x')){{const c=e.target.closest('.mk[data-k]');hideHa(c.dataset.k,!!c.dataset.x);return;}}
   if(e.target.closest('.mk-rp-x')){{const c=e.target.closest('.mk[data-k]');c.querySelector('.mk-rp')?.remove();hideHa(c.dataset.k,!!c.dataset.x);return;}}
@@ -1119,10 +1131,18 @@ function haList(k){{try{{return JSON.parse(ls(k)||'[]');}}catch(e){{return [];}}
 function paintHaHL(){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const zm=haZoomMap(),on=haList('ha-on'),off=haList('ha-off');
   hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{if(!c.querySelector('.mk-x')){{const x=document.createElement('button');x.type='button';x.className='mk-x';x.setAttribute('aria-label',c.dataset.k+' 빼기');x.textContent='×';c.appendChild(x);}}
     c.classList.toggle('mk-off',c.dataset.x?!on.includes(c.dataset.k):off.includes(c.dataset.k));c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);else if(c.classList.contains('mk-zoomed'))setHaZoom(c,1,0,0);}});if(haLastQ)paintHaLive(haLastQ);hapop?.querySelectorAll('.mk[data-k]:not(.mk-off)').forEach(placeNp);}}
-function applyHa(order){{paintHaHL();if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
+var haSortM=0,haBase=null;
+function haPut(ks){{const cs=[...hapop.querySelectorAll('.mk[data-k]')];hapop.append(...ks.map(k=>cs.find(c=>c.dataset.k===k)).filter(Boolean));const ad=hapop.querySelector('.mk-add');if(ad)hapop.append(ad);}}
+function haSort(m){{if(!hapop)return;const cs=[...hapop.querySelectorAll('.mk[data-k]')],was=haSortM;haSortM=m==null?(was+1)%3:m;
+  const b=hapop.querySelector('.mk-sort');if(b)b.textContent=['내 순서','좌절순','단계순'][haSortM];if(haSortM===was)return;
+  if(!was)haBase=cs.map(c=>c.dataset.k);
+  if(!haSortM){{if(haBase)haPut(haBase);return;}}
+  const i=k=>haBase.indexOf(k),key=haSortM===1?c=>c.dataset.ap&&!c.dataset.az?Math.abs(+c.dataset.gp):9:c=>-(+c.dataset.st||0);
+  haPut(cs.sort((x,y)=>key(x)-key(y)||i(x.dataset.k)-i(y.dataset.k)).map(c=>c.dataset.k));hapop.scrollTop=0;}}
+function applyHa(order){{haSortM=0;{{const b=hapop?.querySelector('.mk-sort');if(b)b.textContent='내 순서';}}paintHaHL();if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
   const cells=[...hapop.querySelectorAll('.mk[data-k]')],rk=el=>{{const i=order.indexOf(el.dataset.k);return i<0?999+cells.indexOf(el):i;}};
   hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));const ad=hapop.querySelector('.mk-add');if(ad)hapop.append(ad);}}
-function openHaPick(){{const on=new Set(haList('ha-on')),off=new Set(haList('ha-off')),box=document.createElement('div');box.className='hpick';
+function openHaPick(){{haSort(0);const on=new Set(haList('ha-on')),off=new Set(haList('ha-off')),box=document.createElement('div');box.className='hpick';
   const cs=[...hapop.querySelectorAll('.mk[data-k]')],gs=[...new Set(cs.map(c=>c.dataset.g))],sel={{}};
   cs.forEach(c=>sel[c.dataset.k]=c.dataset.x?on.has(c.dataset.k):!off.has(c.dataset.k));
   box.innerHTML='<div class="hpick-in"><div class="hpick-h"><b>하이먼 종목 고르기</b><span>✕</span></div><input class="hpick-q" placeholder="종목 찾기" type="search"><div class="hpick-l"></div></div>';
@@ -1173,7 +1193,7 @@ if(hapop){{const pullEl=hapop.querySelector('.mk-pull');let pull=null;
 if(hapop){{
   hapop.addEventListener('pointerdown',e=>{{const el=e.target.closest('.mk[data-k]');if(!el||e.button!==0)return;
     const p={{el,id:e.pointerId,x:e.clientX,y:e.clientY,active:false}};haP=p;
-    p.timer=setTimeout(()=>{{if(haP!==p)return;p.active=true;el.classList.add('mk-drag');try{{el.setPointerCapture(p.id);}}catch(e){{}}}},450);}});
+    p.timer=setTimeout(()=>{{if(haP!==p)return;if(haSortM)haSort(0);p.active=true;el.classList.add('mk-drag');try{{el.setPointerCapture(p.id);}}catch(e){{}}}},450);}});
   hapop.addEventListener('pointermove',e=>{{const p=haP;if(!p||e.pointerId!==p.id)return;
     if(!p.active){{if(Math.hypot(e.clientX-p.x,e.clientY-p.y)>10){{clearTimeout(p.timer);haP=null;}}return;}}
     const t=document.elementFromPoint(e.clientX,e.clientY)?.closest('.mk[data-k]');
@@ -1284,7 +1304,8 @@ if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setPr
 // 노란 점 현재가: 오른쪽에 자리 없으면 점 왼쪽으로(칸 밖으로 안 넘어가게). 숫자 길이가 바뀔 때마다 다시
 function placeNp(c){{const t=c.querySelector('.mk-np'),d=c.querySelector('.mk-d');if(!t||!d)return;const cx=+d.getAttribute('cx'),vb=c.querySelector('svg').viewBox.baseVal.width||200;
   let w=0;try{{w=t.getComputedTextLength();}}catch(e){{}}if(!w)return;const right=cx+8+w<=vb-1;t.setAttribute('text-anchor',right?'start':'end');t.setAttribute('x',right?cx+8:cx-8);}}
-function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0)t.textContent=haFmt(v[0],c.dataset.c||'');placeNp(c);}});}}
+function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0)t.textContent=haFmt(v[0],c.dataset.c||'');placeNp(c);
+  const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;g.textContent=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';}}}});}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
