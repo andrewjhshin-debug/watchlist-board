@@ -1187,7 +1187,7 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');}}
 document.getElementById('ttl').onclick=showPct;
 const hapop=document.getElementById('hapop');
-document.getElementById('ha').onclick=()=>{{if(!hapop)return;hapop.hidden=false;paintTab();requestAnimationFrame(()=>hapop.querySelectorAll('.mk[data-k]').forEach(placeNp));}};
+document.getElementById('ha').onclick=()=>{{if(!hapop)return;const hm=ls('hm')==='1';hapop.hidden=false;paintTab();if(hm)hapop.querySelector('.mk:not([data-k])')?.click();requestAnimationFrame(()=>hapop.querySelectorAll('.mk[data-k]').forEach(placeNp));}};  // 모델 크게 보던 중이었으면 그대로
 // 하 화면: 칸을 톡 누르면 주봉 차트 크게(뒤로가기·화면 누르면 닫힘), 꾹 누르면 이동
 let haCharts=null;
 async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
@@ -1581,7 +1581,7 @@ function fitBarViewport(){{const h=Math.floor(window.visualViewport?.height||inn
 addEventListener('resize',fitBarViewport);window.visualViewport?.addEventListener('resize',fitBarViewport);
 const barB=document.getElementById('bar');
 function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();paintTab();if(typeof paintHL==='function')paintHL();}}
-function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.contains('baronly')?'bar':'board';ls('screen',k);ls('hm',k==='ha'&&document.querySelector('.hz-m')?'1':'');document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}}
+function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.contains('baronly')?'bar':'board';ls('screen',k);if(k==='ha')ls('hm',document.querySelector('.hz-m')?'1':'');document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}}
 document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
   if(k==='set'){{openAvgSettings();return;}}
   if(k==='ha'){{if(hapop&&hapop.hidden)document.getElementById('ha').click();else if(hapop)refreshHa();paintTab();return;}}  // 하 화면에서 하 탭 한 번 더 = 새로고침
@@ -1589,9 +1589,9 @@ document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button'
   if(hapop)hapop.hidden=true;
   setB(k==='bar');}};
 addEventListener('popstate',paintTab);
-const lastScreen=ls('screen'),lastHm=ls('hm')==='1';barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
+const lastScreen=ls('screen');barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 // 마지막에 보던 화면(보드·바·하)으로 다시 켜짐
-if(lastScreen==='ha'&&hapop){{hapop.hidden=false;paintTab();if(lastHm)hapop.querySelector('.mk:not([data-k])')?.click();}}  // 모델 크게 보던 중이면 그것도
+if(lastScreen==='ha'&&hapop)document.getElementById('ha').click();  // 모델 크게 보던 중이면 그것도
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
 // 테두리는 보드(hl)와 바(hlb)가 따로
