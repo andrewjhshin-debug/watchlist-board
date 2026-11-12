@@ -426,7 +426,7 @@ MINSKY = [(0, .03), (.20, .07), (.35, .13), (.42, .18), (.47, .20), (.52, .15), 
           (.80, .78), (.83, .55), (.86, .25), (.885, .06), (.90, 0), (.93, .03), (.96, .12), (1, .20)]
 STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 하락"), (.69, "열정"), (.705, "탐욕"), (.725, "환상"),
           (.75, "새로운 논리 탄생"), (.775, "2차 하락"), (.81, "현실 부정"), (.85, "공포"), (.885, "투매"), (.95, "좌절"), (9, "정상화")]
-LEV = {"122630.KS": "^KS11", "LRCU": "LRCX", "AMDL": "AMD", "AMAU": "AMAT", "ASMG": "ASML", "ARMG": "ARM", "SMU": "SMR", "MUU": "MU", "MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS", "OKLL": "OKLO"}  # 레버리지는 본주 단계 그대로
+LEV = {"NVDL": "NVDA", "122630.KS": "^KS11", "LRCU": "LRCX", "AMDL": "AMD", "AMAU": "AMAT", "ASMG": "ASML", "ARMG": "ARM", "SMU": "SMR", "MUU": "MU", "MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS", "OKLL": "OKLO"}  # 레버리지는 본주 단계 그대로
 # 조정 참고치: 과거 반도체 하락장(닷컴·금융위기·2018·2022) 고점→바닥 폭과 걸린 달.
 # 지금 하락폭보다 5% 넘게 아래인 첫 단계를 씀. 3배 레버는 더 깊게. ponytail: 고정 표, 사례 늘면 갱신
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
@@ -462,7 +462,7 @@ HA = [("^KS11", "코스피"), ("122630.KS", "코스피2배"), ("000660.KS", "하
       ("LRCX", "램리서치"), ("LRCU", "LRCU"), ("AMD", "AMD"), ("AMDL", "AMDL"), ("AMAT", "AMAT"), ("AMAU", "AMAU"), ("ASML", "ASML"), ("ASMG", "ASMG"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
       ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("ARMG", "ARMG"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"),
-      ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU")]
+      ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU"), ("NVDL", "NVDL")]
 
 
 def mk(x: float) -> float:
