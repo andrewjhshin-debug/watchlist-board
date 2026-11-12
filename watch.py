@@ -437,7 +437,20 @@ LEV = {"NVDL": "NVDA", "122630.KS": "^KS11", "LRCU": "LRCX", "AMDL": "AMD", "AMA
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
 ADJ3 = [(.85, 11), (.90, 14), (.95, 30)]
 # 사용자가 준 애널·분석으로 종목별 덮어쓰기: 심볼 → (하락폭, 고점부터 개월)
-ADJ_OVR = {"^KS11": (.52, 12)}  # 키움 Post BlueWave 의 역대 하락장 표(중간 -54%)만 차용, 낙관은 할인. 하락 속도 역대 최고 → 기간은 08년형 12개월
+ADJ_OVR = {"^KS11": (.52, 12), "005930.KS": (.55, 14), "MU": (.58, 14), "AMAT": (.60, 14), "APP": (.66, 16),
+           "011070.KS": (.90, 16), "267260.KS": (.80, 16), "034020.KS": (.80, 16), "042660.KS": (.80, 16)}
+# 종목별 근거(이름을 누르면 뜸). 바꿀 때는 근거부터 적는다
+ADJ_WHY = {
+    "^KS11": "역대 코스피 하락장 7건 중간 -54%, 08년형 12개월",
+    "005930.KS": "5개월 만에 이미 -47%. 코스피 남은 하락을 같은 비율로 대입하면 -55%, 2000년 자체 하락 -62%",
+    "MU": "자체 하락장 5번 -50~-70%(중간 -61%), 필라델피아 -50% 대입 시 -56%",
+    "AMAT": "4개월 만에 이미 -47%. 필라델피아 -50% 대입 시 -65%, 동종 램리서치 -66%",
+    "APP": "10개월에 -68% 찍고 3주 반등. 22년 자체 하락은 14개월·중간 급반등 여러 번 → 16개월째 그 최저 재시험",
+    "011070.KS": "깊이는 그대로, 날짜만: 코스피 하락장 13~21개월, 개별주도 지수와 같이 바닥 → 16개월",
+    "267260.KS": "깊이는 그대로, 날짜만: 코스피 하락장 13~21개월, 개별주도 지수와 같이 바닥 → 16개월",
+    "034020.KS": "깊이는 그대로, 날짜만: 코스피 하락장 13~21개월, 개별주도 지수와 같이 바닥 → 16개월",
+    "042660.KS": "깊이는 그대로, 날짜만: 코스피 하락장 13~21개월, 개별주도 지수와 같이 바닥 → 16개월",
+}  # 키움 Post BlueWave 의 역대 하락장 표(중간 -54%)만 차용, 낙관은 할인. 하락 속도 역대 최고 → 기간은 08년형 12개월
 
 
 def adj_target(tc, lev3=False, sym=""):
@@ -445,12 +458,13 @@ def adj_target(tc, lev3=False, sym=""):
     ip = max(range(len(tc)), key=lambda i: tc[i][1])
     tp, pk = tc[ip]
     tl, lo = min(tc[ip:], key=lambda x: x[1])  # 고점 이후 최저 — 단계는 이걸로 골라 반등해도 조정치가 튀지 않게
-    if tc[-1][1] >= lo * 1.5 and sym not in ADJ_OVR:  # 최저에서 50%↑ 반등 → 좌절은 이미 지난 것으로(그 최저·날짜)
+    # 최저에서 50%↑ 반등 + 13주 넘게 유지 → 좌절은 이미 지난 것으로. (2001·08·22년 하락장 중간 반등은 2~3개월 안에 꺾였음 → 3주짜리 급반등은 바닥 확인 아님)
+    if tc[-1][1] >= lo * 1.5 and tc[-1][0] - tl >= 13 * 7 * 86400 and sym not in ADJ_OVR:
         return lo, datetime.fromtimestamp(tl, KST)
     tiers = [ADJ_OVR[sym]] if sym in ADJ_OVR else ADJ3 if lev3 else ADJ
     d, mo = next(((d, mo) for d, mo in tiers if pk * (1 - d) <= lo * .95), (None, 0))
-    if d is None:  # 이미 제일 깊은 단계보다 더 빠짐 → 지금까지 최저를 바닥으로
-        return lo, datetime.now(KST)
+    if d is None:  # 이미 제일 깊은 단계보다 더 빠짐 → 지금까지 최저를 바닥으로 (종목별 추정이면 그 날짜에 최저 재시험)
+        return lo, max(datetime.now(KST), datetime.fromtimestamp(tp, KST) + timedelta(days=ADJ_OVR[sym][1] * 30.4) if sym in ADJ_OVR else datetime.now(KST))
     return pk * (1 - d), datetime.fromtimestamp(tp, KST) + timedelta(days=mo * 30.4)
 # 고르기 목록: 그동안 대화에서 언급한 종목. 기본은 숨김, 하 화면 '+ 종목 고르기'에서 켬(웹·앱 동기화)
 # 이 종목들은 가볍게: 주봉 1번만 받고 확대 차트(240·일·주·월)·진짜 최고가는 생략
@@ -648,7 +662,7 @@ def minsky_html() -> str:
             gpa = f' data-ap="{ap:.4f}" data-gp="{gp:.4f}"{chr(32) + "data-az=1" if az else ""}' if ap else ""
             gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape(ADJ_WHY[bsym or sym]) + '"' if (bsym or sym) in ADJ_WHY else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}</svg>{chart}</div>')
             if ex:
@@ -904,7 +918,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수(-100% = 기준일 이후 바닥, 올라올수록 0에 가까움) · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주가 조정치까지 갈 때 복리로 배수만큼: SOXL=필라델피아 3배, 2배 레버는 2배)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금까지 최저를 바닥으로. 단계는 고점 이후 최저로 골라 반등해도 안 튐. 최저에서 50% 넘게 반등했으면 그 최저(과거 날짜)를 좌절로<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 보고서의 역대 코스피 하락장 7건(중간 -54%) 데이터만 참고, "추가 하락 제한" 의견은 할인 → -52%(PBR 약 0.82배), 하락이 역대 최고속이라 기간은 08년처럼 12개월</p></details>
+<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주가 조정치까지 갈 때 복리로 배수만큼: SOXL=필라델피아 3배, 2배 레버는 2배)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금까지 최저를 바닥으로. 단계는 고점 이후 최저로 골라 반등해도 안 튐. 최저에서 50% 넘게 반등하고 13주 넘게 버텼으면 그 최저(과거 날짜)를 좌절로. 종목별로 따로 추정한 것은 이름을 누르면 근거가 뜸<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 보고서의 역대 코스피 하락장 7건(중간 -54%) 데이터만 참고, "추가 하락 제한" 의견은 할인 → -52%(PBR 약 0.82배), 하락이 역대 최고속이라 기간은 08년처럼 12개월</p></details>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
@@ -1106,7 +1120,7 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   if(e.target.closest('.mk-rp-x')){{const c=e.target.closest('.mk[data-k]');c.querySelector('.mk-rp')?.remove();hideHa(c.dataset.k,!!c.dataset.x);return;}}
   if(e.target.closest('.mk-rp'))return;const el=e.target.closest('.mk[data-k]');if(!el)return;
   if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
-  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
+  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.why?'\\n근거: '+nm.dataset.why:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
   const d=document.createElement('div');d.className='hz';
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');
