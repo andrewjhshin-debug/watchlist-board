@@ -1327,7 +1327,7 @@ if(hapop){{
 }}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
-  document.querySelectorAll('.avgpop').forEach(d=>d.remove());const hp=document.querySelector('.hpick');if(hp){{hp._close();return;}}const hz=document.querySelector('.hz');if(hz){{hz.remove();return;}}}});
+  const hp=document.querySelector('.hpick');if(hp){{hp._close();return;}}const hz=document.querySelector('.hz');if(hz){{hz.remove();return;}}document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});  // 큰 창 닫는 뒤로가기는 큰 % 를 안 지움
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
 const AVG_CATALOG={avg_catalog};
@@ -1585,7 +1585,7 @@ function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.c
 document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
   if(k==='set'){{openAvgSettings();return;}}
   if(k==='ha'){{if(hapop&&hapop.hidden)document.getElementById('ha').click();else if(hapop)refreshHa();paintTab();return;}}  // 하 화면에서 하 탭 한 번 더 = 새로고침
-  const hz=document.querySelector('.hz');if(hz){{hz.remove();history.back();}}
+  if(document.querySelector('.hz'))history.back();  // 큰 창은 popstate 가 닫음
   if(hapop)hapop.hidden=true;
   setB(k==='bar');}};
 addEventListener('popstate',paintTab);
