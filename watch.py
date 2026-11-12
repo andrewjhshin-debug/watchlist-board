@@ -19,6 +19,7 @@ import os
 import sys
 import time
 import urllib.request
+import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -437,24 +438,80 @@ LEV = {"NVDL": "NVDA", "122630.KS": "^KS11", "LRCU": "LRCX", "AMDL": "AMD", "AMA
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
 ADJ3 = [(.85, 11), (.90, 14), (.95, 30)]
 # 사용자가 준 애널·분석으로 종목별 덮어쓰기: 심볼 → (하락폭, 고점부터 개월)
-ADJ_OVR = {"^KS11": (.52, 12), "005930.KS": (.55, 14), "MU": (.58, 14), "AMAT": (.60, 14), "APP": (.66, 16),
-           "011070.KS": (.90, 16), "267260.KS": (.80, 16), "034020.KS": (.80, 16), "042660.KS": (.80, 16)}
-# 종목별 근거(이름을 누르면 뜸). 바꿀 때는 근거부터 적는다
-ADJ_WHY = {
-    "^KS11": "역대 코스피 하락장 7건 중간 -54%, 08년형 12개월",
-    "005930.KS": "5개월 만에 이미 -47%. 코스피 남은 하락을 같은 비율로 대입하면 -55%, 2000년 자체 하락 -62%",
-    "MU": "자체 하락장 5번 -50~-70%(중간 -61%), 필라델피아 -50% 대입 시 -56%",
-    "AMAT": "4개월 만에 이미 -47%. 필라델피아 -50% 대입 시 -65%, 동종 램리서치 -66%",
-    "APP": "10개월에 -68% 찍고 3주 반등. 22년 자체 하락은 14개월·중간 급반등 여러 번 → 16개월째 그 최저 재시험",
-    "011070.KS": "깊이는 그대로, 날짜만: 코스피 하락장 13~21개월, 개별주도 지수와 같이 바닥 → 16개월",
-    "267260.KS": "깊이는 그대로, 날짜만: 코스피 하락장 13~21개월, 개별주도 지수와 같이 바닥 → 16개월",
-    "034020.KS": "깊이는 그대로, 날짜만: 코스피 하락장 13~21개월, 개별주도 지수와 같이 바닥 → 16개월",
-    "042660.KS": "깊이는 그대로, 날짜만: 코스피 하락장 13~21개월, 개별주도 지수와 같이 바닥 → 16개월",
-}  # 키움 Post BlueWave 의 역대 하락장 표(중간 -54%)만 차용, 낙관은 할인. 하락 속도 역대 최고 → 기간은 08년형 12개월
+ADJ_OVR = {"^KS11": (.52, 12)}  # 수동 덮어쓰기(애널 자료 등). 키움 Post BlueWave 의 역대 하락장 표(중간 -54%)만 차용, 기간은 08년형 12개월
+ADJ_WHY = {"^KS11": "수동: 역대 코스피 하락장 7건 중간 -54%, 08년형 12개월"}
+# ── 조정치 엔진 v2 (조정치_엔진.md 참고) ──────────────────────────────────────────
+# 과거 급락 1,315건(413종목·지수, 월봉 전체 이력: 36개월 신고가 뒤 -25% 넘게 빠진 사례)에서
+# 지금과 가장 닮은 40건을 골라 그 최종 깊이·기간의 중앙값을 쓴다(k-최근접 유사 사례).
+# 닮음 기준 5가지: 고점 전 2년 상승폭, 변동성, 지금까지 하락폭, 최저 찍은 뒤 지난 비율, 최저 대비 반등폭.
+# 종목 단위 교차검증(5개월 시점): 깊이 오차 중앙값 11.0%p(옛 단계표 15.3), 기간 오차 6.5개월(옛 10).
+EPI = json.loads((Path(__file__).parent / "episodes.json").read_text())  # [2년 상승(로그), 변동성, 최종 깊이(로그), 바닥까지 개월, 월별 최저/고점×1000, 월별 종가/고점×1000]
+ADJ_W, ADJ_K, ADJ_PASS = (.5, .5, 3, 1, 3), 40, .7
+ADJ_INFO = {}  # 종목별 근거(이름 누르면 뜸)
+_EPI_C = {}
+
+
+def _since(path, m):  # 최저를 찍은 지 몇 달 됐나
+    k = 0
+    while m - 2 - k >= 0 and path[m - 2 - k] == path[m - 1]:
+        k += 1
+    return k
+
+
+def _epi(m):
+    if m not in _EPI_C:
+        X = [[e[0], e[1], math.log(e[4][m - 1] / 1000), _since(e[4], m) / m, math.log(e[5][m - 1] / e[4][m - 1])] for e in EPI]
+        mu = [sum(c) / len(c) for c in zip(*X)]
+        sd = [(sum((v - u) ** 2 for v in c) / len(c)) ** .5 or 1 for c, u in zip(zip(*X), mu)]
+        _EPI_C[m] = (X, mu, sd)
+    return _EPI_C[m]
+
+
+def adj_engine(tc, sym=""):
+    """(가격, 날짜) — 유사 사례 엔진. 자료가 모자라면 None."""
+    ip = max(range(len(tc)), key=lambda k: tc[k][1])
+    if ip < 35:
+        return None
+    tp, pk = tc[ip]
+    tl, lo = min(tc[ip:], key=lambda q: q[1])
+    MO = 2629800  # 한 달(초)
+    n = max(1, round((tc[-1][0] - tp) / MO))  # 고점 후 몇 달
+    m, il = min(36, n), round((tl - tp) / MO)
+    r = [math.log(b[1] / a[1]) for a, b in zip(tc[max(0, ip - 156):ip], tc[max(0, ip - 156) + 1:ip + 1])]
+    mu_r = sum(r) / len(r)
+    x = [math.log(pk / tc[max(0, ip - 104)][1]), (sum((v - mu_r) ** 2 for v in r) / len(r) * 52) ** .5, math.log(lo / pk), min(1, (tc[-1][0] - tl) / MO / n), math.log(tc[-1][1] / lo)]
+    X, mu, sd = _epi(m)
+    z = [(v - u) / q for v, u, q in zip(x, mu, sd)]
+    nn = sorted(range(len(EPI)), key=lambda j: sum(w * ((X[j][k] - mu[k]) / sd[k] - z[k]) ** 2 for k, w in enumerate(ADJ_W)))[:ADJ_K]
+    ds, ts = sorted(EPI[j][2] for j in nn), sorted(EPI[j][3] for j in nn)
+    med = lambda a: (a[len(a) // 2] + a[(len(a) - 1) // 2]) / 2
+    pin = sum(1 for t in ts if t <= n) / len(ts)  # 닮은 사례 중 이 시점에 이미 바닥을 친 비율
+    now = datetime.now(KST)
+    D = min(med(ds), x[2])
+    price, T = pk * math.exp(D), max(med(ts), il)
+    date = datetime.fromtimestamp(tp, KST) + timedelta(days=T * 30.4)
+    if pin >= ADJ_PASS or price >= lo * .98:  # 이미 바닥(확률 70%↑) 또는 더 깊어질 근거 없음 → 찍은 최저가 좌절
+        price = lo
+        date = datetime.fromtimestamp(tl, KST) if pin >= ADJ_PASS else max(date, now + timedelta(days=61))
+    elif date < now + timedelta(days=30):  # 더 깊어진다고 보는데 중앙 기간은 이미 지남 → 두 달 뒤로
+        date = now + timedelta(days=61)
+    pc = lambda v: f"{(math.exp(v) - 1) * 100:+.0f}%"
+    ADJ_INFO[sym] = (f"닮은 과거 {ADJ_K}건: 깊이 중앙 {pc(med(ds))} (20~80%: {pc(ds[ADJ_K // 5])}~{pc(ds[-ADJ_K // 5])}), 바닥까지 중앙 {med(ts):.0f}개월, 이미 바닥일 확률 {pin * 100:.0f}%"
+                     f" · 입력: 2년 상승 {pc(x[0])}, 변동성 {x[1] * 100:.0f}%, 고점 후 {n}개월 {pc(x[2])}, 최저 대비 {pc(x[4])}")
+    return price, date
+
+def vol52(c):  # 최근 52주 주간 수익률의 연환산 변동성
+    r = [math.log(b / a) for a, b in zip(c[-53:], c[-52:])]
+    mu = sum(r) / len(r)
+    return (sum((v - mu) ** 2 for v in r) / len(r) * 52) ** .5
 
 
 def adj_target(tc, lev3=False, sym=""):
     """(가격, 날짜) — 고점에서 과거 하락장 폭·기간만큼."""
+    if sym not in ADJ_OVR and not lev3:
+        e = adj_engine(tc, sym)
+        if e:
+            return e
     ip = max(range(len(tc)), key=lambda i: tc[i][1])
     tp, pk = tc[ip]
     tl, lo = min(tc[ip:], key=lambda x: x[1])  # 고점 이후 최저 — 단계는 이걸로 골라 반등해도 조정치가 튀지 않게
@@ -619,20 +676,25 @@ def minsky_html() -> str:
                     btc = [(t, v) for t, v in zip(bq["timestamp"], bq["indicators"]["quote"][0]["close"]) if v]
                     bp, bd = adj_target(btc, False, bsym)
                     if bp:
-                        adjb[bsym] = (bp / btc[-1][1], bd)
+                        adjb[bsym] = (bp / btc[-1][1], bd, vol52([v for _, v in btc]))
                 if bsym in adjb:  # 레버: 본주가 조정치까지 갈 때 배수만큼 빠진 값
-                    br, ad = adjb[bsym]
-                    ap = c[-1] * br ** mult  # 매일 배수 레버라 하락은 복리로(본주 -30% → 3배 약 -66%)
+                    br, ad, bsig = adjb[bsym]
+                    ap = c[-1] * br ** mult * math.exp(-.5 * mult * (mult - 1) * bsig ** 2 * max(0, (ad - datetime.now(KST)).days / 365))  # 배수 복리 − 변동성 손실 ½L(L−1)σ²T
                     if ad < datetime.now(KST):  # 본주 좌절이 이미 지남 → 그 무렵 레버 실제 최저
                         ap = min(v for t, v in tc if abs(t - ad.timestamp()) < 15 * 86400) if any(abs(t - ad.timestamp()) < 15 * 86400 for t, _ in tc) else ap
                 else:
                     ap, ad = adj_target(tc, False, sym)
                     if ap:
-                        adjb[sym] = (ap / c[-1], ad)
+                        adjb[sym] = (ap / c[-1], ad, vol52(c))
                 zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap else ""
                 if zp:
                     # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
-                    row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}"]
+                    last = alog.get(sym, [None])[-1]
+                    if last and len(last) > 3 and last[3] == "v2" and abs(ap / last[1] - 1) < .08:
+                        ld = datetime(2000 + int(last[2][:2]), int(last[2][3:]), 15, tzinfo=KST)
+                        if abs((ad - ld).days) <= 62:
+                            ap, ad = last[1], (ad if f"{ad:%y.%m}" == last[2] else ld)
+                    row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}", "v2"]
                     if not alog.get(sym) or alog[sym][-1][1:] != row[1:]:
                         alog.setdefault(sym, []).append(row)
                     if sym == "SOXL":
@@ -652,7 +714,7 @@ def minsky_html() -> str:
             if stage == "정상화" and alog.get(sym):  # 바닥 지남 → 첫 기록과 실제 바닥 비교
                 ip = max(range(len(tc)), key=lambda i: tc[i][1])
                 ib = min(range(ip, len(tc)), key=lambda i: tc[i][1])
-                d0, p0, m0 = alog[sym][0]
+                d0, p0, m0 = alog[sym][0][:3]
                 sc = f" data-sc=\"{d0[2:7]} 조정치 {sp(p0)}({m0}) &#10;실제 {sp(tc[ib][1])}({datetime.fromtimestamp(tc[ib][0], KST):%y.%m}) {(p0 / tc[ib][1] - 1) * 100:+.0f}%\""
             px = max((i / 1000 for i in range(1001)), key=mk)  # 곡선 꼭지점(새 논리)에 실제 고점 가격
             zp += f'<text class="mk-zp" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 5:.1f}">{sp(max((0 if ex else true_high(sym)) or 0, max(seg)))}</text>'
@@ -662,7 +724,7 @@ def minsky_html() -> str:
             gpa = f' data-ap="{ap:.4f}" data-gp="{gp:.4f}"{chr(32) + "data-az=1" if az else ""}' if ap else ""
             gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape(ADJ_WHY[bsym or sym]) + '"' if (bsym or sym) in ADJ_WHY else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
                          f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}</svg>{chart}</div>')
             if ex:
@@ -918,7 +980,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수(-100% = 기준일 이후 바닥, 올라올수록 0에 가까움) · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 반도체 하락장(닷컴·금융위기·2018·2022)을 고점에 대입한 값.<br>가격: 고점에서 -50% → 이미 지났으면 -66% → -80% → -90% (레버리지는 본주가 조정치까지 갈 때 복리로 배수만큼: SOXL=필라델피아 3배, 2배 레버는 2배)<br>날짜: 고점부터 14개월 (-66%면 16개월, -80%면 30개월)<br>이미 -90%보다 더 빠졌으면 지금까지 최저를 바닥으로. 단계는 고점 이후 최저로 골라 반등해도 안 튐. 최저에서 50% 넘게 반등하고 13주 넘게 버텼으면 그 최저(과거 날짜)를 좌절로. 종목별로 따로 추정한 것은 이름을 누르면 근거가 뜸<br>모델 칸 '좌절(연.월)'은 SOXL 기준<br>코스피: 키움 보고서의 역대 코스피 하락장 7건(중간 -54%) 데이터만 참고, "추가 하락 제한" 의견은 할인 → -52%(PBR 약 0.82배), 하락이 역대 최고속이라 기간은 08년처럼 12개월</p></details>
+<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 급락 1,315건(413종목·지수) 가운데 지금과 가장 닮은 40건의 최종 하락폭·기간 중앙값.<br>닮음 기준: 고점 전 2년 상승폭, 변동성, 지금까지 하락폭, 최저 뒤 지난 기간, 최저 대비 반등폭.<br>닮은 사례의 70% 이상이 이 시점에 이미 바닥이었으면 찍은 최저를 좌절(과거 날짜)로.<br>레버리지: 본주 추정에 배수 복리, 변동성 손실(½·배수·(배수-1)·변동성²·기간) 차감. SOXL=필라델피아 3배.<br>지난 값과 8%·2개월 안쪽 차이면 숫자를 안 바꿈(흔들림 방지).<br>검증(5개월 시점): 하락폭 오차 중앙값 11%p, 기간 오차 6.5개월. 종목 이름을 누르면 종목별 근거가 뜸.<br>코스피만 수동: 역대 하락장 7건 중간 -54% 참고 → -52%, 12개월.<br>모델 칸 '좌절(연.월)'은 SOXL 기준</p></details>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
