@@ -1109,7 +1109,7 @@ function pullT(){{
       // 새로 저장하는 값은 전부 여기(_키)로 웹·앱 공유. ls()만 쓰면 그 기기에만 남음
       let haChg=false;
       if(Array.isArray(m._hlha)&&JSON.stringify(m._hlha)!==ls('hlha')){{ls('hlha',JSON.stringify(m._hlha));haChg=true;}}
-      if(m._hzoom&&typeof m._hzoom==='object'&&JSON.stringify(m._hzoom)!==ls('hzoom')){{ls('hzoom',JSON.stringify(m._hzoom));haChg=true;}}
+      if(typeof m._hsx==='boolean')ls('hsx',m._hsx?'1':'0');if(m._hzoom&&typeof m._hzoom==='object'&&JSON.stringify(m._hzoom)!==ls('hzoom')){{ls('hzoom',JSON.stringify(m._hzoom));haChg=true;}}
       for(const [mk,lk] of [['_haOn','ha-on'],['_haOff','ha-off']])if(Array.isArray(m[mk])&&JSON.stringify(m[mk])!==ls(lk)){{ls(lk,JSON.stringify(m[mk]));haChg=true;}}
       if(haChg)paintHaHL();
       if(generation===avgGeneration&&!ls(avgPendingKey(code))){{
@@ -1196,7 +1196,7 @@ const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-sort')){{haSort();return;}}if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
   if(e.target.closest('.mk:not([data-k])')){{const m=e.target.closest('.mk'),d=document.createElement('div');d.className='hz hz-m';
     d.innerHTML='<div class="hz-h"><b>하이먼 민스키 모델</b><span>✕</span></div>'+(m.querySelector('.mk-s')?.outerHTML||'')+m.querySelector('svg').outerHTML+(m.querySelector('.mk-sx')?'<button class="hz-sx" type="button">SOXL</button>':'');
-    const sb=d.querySelector('.hz-sx');if(sb)sb.onclick=e=>{{e.stopPropagation();const on=d.classList.toggle('sx');sb.classList.toggle('on',on);sb.setAttribute('aria-pressed',on);const lp=hapop.querySelector('.mk[data-s="SOXL"] .mk-np')?.textContent,lt=d.querySelector('.mk-sx text');if(lp&&lt)lt.textContent=lp;}};
+    const sb=d.querySelector('.hz-sx'),sx=on=>{{d.classList.toggle('sx',on);sb.classList.toggle('on',on);sb.setAttribute('aria-pressed',on);const lp=hapop.querySelector('.mk[data-s="SOXL"] .mk-np')?.textContent,lt=d.querySelector('.mk-sx text');if(lp&&lt)lt.textContent=lp;}};if(sb){{sx(ls('hsx')==='1');sb.onclick=e=>{{e.stopPropagation();const on=!d.classList.contains('sx');sx(on);ls('hsx',on?'1':'0');if(ls('sync'))updateShared(x=>{{x._hsx=on;}});}};}}
     d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');ls('hm','1');return;}}
   
   if(e.target.closest('.mk-x')){{const c=e.target.closest('.mk[data-k]');hideHa(c.dataset.k,!!c.dataset.x);return;}}
