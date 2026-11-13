@@ -1616,7 +1616,7 @@ function tap(el,ev){{
   if(el.classList.contains('zoom')){{history.back();return;}}
   if(document.body.classList.contains('baronly')&&!downOnName){{openChart(el);return;}}  // 바 모드: 종목명만 두 번 톡톡 = 테두리
   if(tapT&&tapEl===el){{clearTimeout(tapT);tapT=null;toggleHL(el);return;}}
-  clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;openChart(el);}},300);
+  clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;openChart(el);}},200);
 }}
 // 막대 기준일(설정에서 고름): 그날 다음 날부터의 최고가 = 막대 100%. 동기화 코드로 공유
 const SINCE0=(d=>{{d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}})(new Date("{CFG.get('gauge_since', '2026-07-31')}T00:00:00Z"));
@@ -1662,7 +1662,7 @@ barBoard.addEventListener('click',e=>{{if(boP?.active||Date.now()<boSkip){{e.pre
 barBoard.addEventListener('contextmenu',e=>{{if(e.target.closest('.tile'))e.preventDefault();}});
 paintHL();
 repaint();pullT();setInterval(()=>{{if(document.visibilityState==='visible')pullT();}},15000);  // 웹·앱의 목표가와 평균 종목을 함께 가져옴
-pollLive();pollUpbit();setInterval(pollLive,30000);setInterval(pollUpbit,15000);
+pollLive();pollUpbit();setInterval(pollLive,15000);setInterval(pollUpbit,15000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');showRefreshToast('새로고침했습니다');}}}}catch(e){{}}
 setInterval(()=>refreshBoard(false),{CFG["refresh_min"] * 60000});
 const loadedAt=Date.now();
