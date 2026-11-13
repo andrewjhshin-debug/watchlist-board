@@ -965,7 +965,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .hz-p{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:28px;margin:4px 0 2px}}.hz small{{color:var(--sub);font-size:12px}}
 .hz .chart{{flex:1;min-height:0;aspect-ratio:auto;margin-top:10px}}.mk-ov{{fill:none;stroke:#3fae3f;stroke-width:5;stroke-linejoin:round;stroke-linecap:round;opacity:.8;vector-effect:non-scaling-stroke}}
 .hz-t{{display:flex;justify-content:flex-end;gap:2px;margin-top:8px}}.hz-t button{{font:inherit;font-size:13px;color:var(--sub);background:var(--tile);border:1px solid var(--edge);border-radius:8px;padding:5px 12px;cursor:pointer}}.hz-t button.on{{background:#1c2540;color:var(--txt)}}
-.hz-c{{flex:1;min-height:0;display:flex;flex-direction:column}}.hz-c .chart{{flex:1}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
+.hz-c{{flex:1;min-height:0;display:flex;flex-direction:column}}.hz-h1 .hz-c svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-c .chart{{flex:1}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
 .hapop{{grid-template-rows:auto}}.mk-bar{{grid-column:1/-1;justify-self:end;display:flex;gap:2px;background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:3px}}
 .toast[data-refresh]{{z-index:40}}.mk-bar button{{font:inherit;font-size:13px;color:var(--sub);background:transparent;border:0;border-radius:7px;padding:5px 12px;cursor:pointer}}.mk-bar .mk-rl{{color:var(--txt)}}
 .hapop[data-hv="일"] .mk-bar [data-hv="일"],.hapop[data-hv="주"] .mk-bar [data-hv="주"],.hapop[data-hv="월"] .mk-bar [data-hv="월"]{{background:#1c2540;color:var(--txt)}}
@@ -1194,7 +1194,7 @@ let haCharts=null,haChartsJob=null;  // 하 화면 열 때 미리 받아 둠 →
 function loadHaCharts(fresh){{if(haCharts&&!fresh)return Promise.resolve(haCharts);
   if(!haChartsJob)haChartsJob=(async()=>{{try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}haChartsJob=null;return haCharts||{{}};}})();
   return haChartsJob;}}
-const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
+const HZ_DESC={{'하':'하이먼 곡선(주봉으로 맞춤) · 노란 점 = 지금 · 좌절 자리 = 조정치','240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-sort')){{haSort();return;}}if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
   if(e.target.closest('.mk:not([data-k])')){{const m=e.target.closest('.mk'),d=document.createElement('div');d.className='hz hz-m';
     d.innerHTML='<div class="hz-h"><b>하이먼 민스키 모델</b><span>✕</span></div>'+(m.querySelector('.mk-s')?.outerHTML||'')+m.querySelector('svg').outerHTML+(m.querySelector('.mk-sx')?'<button class="hz-sx" type="button">SOXL</button>':'');
@@ -1211,12 +1211,13 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');
   const vs=(await loadHaCharts())[el.dataset.k]||{{}};if(!d.isConnected)return;
   d.querySelector('.hz-p').textContent=vs.last||'';
-  const keys=['240','일','주','월'].filter(k=>vs[k]);
-  const show=k=>{{ls('hz-v',k);d.querySelector('.hz-c').innerHTML=vs[k]||'차트 없음';d.querySelector('.hz-s').textContent=HZ_DESC[k]+' · 초록선 = 주봉으로 맞춘 민스키 곡선';
+  const hsv=el.querySelector('svg')?.cloneNode(true);if(hsv)hsv.removeAttribute('style');  // 칸의 하이먼 곡선을 크게. 주봉 캔들은 하이먼 곡선과 같은 주봉이라 뺌
+  const keys=['하','240','일','월'].filter(k=>k==='하'?hsv:vs[k]);
+  const show=k=>{{ls('hz-v',k);const c=d.querySelector('.hz-c');if(k==='하'){{c.innerHTML='';c.appendChild(hsv);}}else c.innerHTML=vs[k]||'차트 없음';d.classList.toggle('hz-h1',k==='하');d.querySelector('.hz-s').textContent=HZ_DESC[k]+(k==='하'?'':' · 초록선 = 주봉으로 맞춘 민스키 곡선');
     d.querySelectorAll('.hz-t button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));}};
-  d.querySelector('.hz-t').innerHTML=keys.map(k=>'<button data-v="'+k+'">'+k+'</button>').join('');
+  d.querySelector('.hz-t').innerHTML=keys.map(k=>'<button data-v="'+k+'">'+(k==='하'?'하이먼':k)+'</button>').join('');
   d.querySelector('.hz-t').onclick=ev=>{{ev.stopPropagation();const b=ev.target.closest('button');if(b)show(b.dataset.v);}};
-  show(keys.includes(ls('hz-v'))?ls('hz-v'):(keys.includes('주')?'주':keys[0]));}});
+  show(keys.includes(ls('hz-v'))?ls('hz-v'):keys[0]);}});
 // 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
 let haP=null,haSkip=0;
 function haZoomMap(){{try{{return JSON.parse(ls('hzoom')||'{{}}');}}catch(e){{return {{}};}}}}
