@@ -1194,7 +1194,7 @@ let haCharts=null,haChartsJob=null;  // 하 화면 열 때 미리 받아 둠 →
 function loadHaCharts(fresh){{if(haCharts&&!fresh)return Promise.resolve(haCharts);
   if(!haChartsJob)haChartsJob=(async()=>{{try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}haChartsJob=null;return haCharts||{{}};}})();
   return haChartsJob;}}
-const HZ_DESC={{'하':'하이먼 곡선(주봉으로 맞춤) · 노란 점 = 지금 · 좌절 자리 = 조정치','240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
+const HZ_DESC={{'하':'','240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-sort')){{haSort();return;}}if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
   if(e.target.closest('.mk:not([data-k])')){{const m=e.target.closest('.mk'),d=document.createElement('div');d.className='hz hz-m';
     d.innerHTML='<div class="hz-h"><b>하이먼 민스키 모델</b><span>✕</span></div>'+(m.querySelector('.mk-s')?.outerHTML||'')+m.querySelector('svg').outerHTML+(m.querySelector('.mk-sx')?'<button class="hz-sx" type="button">SOXL</button>':'');
