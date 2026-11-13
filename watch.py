@@ -1239,10 +1239,10 @@ async function openHz(el){{  // 종목 크게 보기. 아래 바 그대로, 바�
   const hsv=el.querySelector('svg')?.cloneNode(true);if(hsv)hsv.removeAttribute('style');  // 칸의 하이먼 곡선을 크게
   const keys=['하','240','일','주','월'].filter(k=>k==='하'?hsv:vs[k]);
   const show=k=>{{ls('hz-v',k);const c=d.querySelector('.hz-c');if(k==='하'){{c.innerHTML='';c.appendChild(hsv);}}else c.innerHTML=vs[k]||'차트 없음';d.classList.toggle('hz-h1',k==='하');d.querySelector('.hz-s').textContent=HZ_DESC[k]+(k==='하'?'':' · 초록선 = 주봉으로 맞춘 민스키 곡선');
-    d.querySelectorAll('.hz-t button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));}};
+    d.querySelectorAll('.hz-t button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));if(k==='하')hzLive();}};
   d.querySelector('.hz-t').innerHTML=keys.map(k=>'<button data-v="'+k+'">'+(k==='하'?'하이먼':k)+'</button>').join('');
   d.querySelector('.hz-t').onclick=ev=>{{ev.stopPropagation();const b=ev.target.closest('button');if(b)show(b.dataset.v);}};
-  show(keys.includes(ls('hz-v'))?ls('hz-v'):keys[0]);}}
+  show(keys.includes(ls('hz-v'))?ls('hz-v'):keys[0]);hzLive();}}
 // 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
 let haP=null,haSkip=0;
 function haZoomMap(){{try{{return JSON.parse(ls('hzoom')||'{{}}');}}catch(e){{return {{}};}}}}
@@ -1432,7 +1432,11 @@ function placeNps(cs){{const m=[];for(const c of cs){{const t=c.querySelector('.
   for(const [t,cx,w,vb] of m){{const right=cx+8+w<=vb-1,a=right?'start':'end',x=String(right?cx+8:cx-8);if(t.getAttribute('text-anchor')!==a)t.setAttribute('text-anchor',a);if(t.getAttribute('x')!==x)t.setAttribute('x',x);}}}}  // 그다음 전부 씀
 function haShown(){{return hapop&&(!hapop.hidden||hapop.classList.contains('warm'))?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
 function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0){{const s=haFmt(v[0],c.dataset.c||'');if(t.textContent!==s)t.textContent=s;}}
-  const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}}});placeNps(haShown());}}
+  const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}}});placeNps(haShown());hzLive();}}
+function hzLive(){{const d=document.querySelector('.hz-b');if(!d||!haLastQ)return;  // 종목 크게 보기 위 가격·곡선 노란 가격도 실시간
+  const c=[...hapop.querySelectorAll('.mk[data-k]')].find(c=>c.dataset.k===d.dataset.k),v=c&&haLastQ[c.dataset.s];if(!v||!(v[0]>0))return;
+  const p=d.querySelector('.hz-p'),s=v[0]>=100?Math.round(v[0]).toLocaleString():v[0].toFixed(2);if(p&&p.textContent!==s)p.textContent=s;
+  const t=d.querySelector('.hz-c .mk-np'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n){{t.textContent=n;placeNps([d.querySelector('.hz-c')]);}}}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
