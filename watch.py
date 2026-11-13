@@ -1187,11 +1187,12 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');}}
 document.getElementById('ttl').onclick=showPct;
 const hapop=document.getElementById('hapop');
-document.getElementById('ha').onclick=()=>{{if(!hapop)return;const hm=ls('hm')==='1';hapop.hidden=false;paintTab();if(hm)hapop.querySelector('.mk:not([data-k])')?.click();requestAnimationFrame(()=>hapop.querySelectorAll('.mk[data-k]').forEach(placeNp));}};  // 모델 크게 보던 중이었으면 그대로
+document.getElementById('ha').onclick=()=>{{if(!hapop)return;const hm=ls('hm')==='1';hapop.hidden=false;paintTab();if(hm)hapop.querySelector('.mk:not([data-k])')?.click();requestAnimationFrame(()=>placeNps(haShown()));loadHaCharts();}};  // 모델 크게 보던 중이었으면 그대로
 // 하 화면: 칸을 톡 누르면 주봉 차트 크게(뒤로가기·화면 누르면 닫힘), 꾹 누르면 이동
-let haCharts=null;
-async function loadHaCharts(fresh){{if(haCharts&&!fresh)return haCharts;
-  try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}return haCharts||{{}};}}
+let haCharts=null,haChartsJob=null;  // 하 화면 열 때 미리 받아 둠 → 칸을 누르면 바로 뜸. 받는 중이면 같은 요청을 같이 기다림
+function loadHaCharts(fresh){{if(haCharts&&!fresh)return Promise.resolve(haCharts);
+  if(!haChartsJob)haChartsJob=(async()=>{{try{{const r=await fetch('ha.json?t='+Date.now(),{{cache:'no-store'}});if(r.ok)haCharts=await r.json();}}catch(e){{}}haChartsJob=null;return haCharts||{{}};}})();
+  return haChartsJob;}}
 const HZ_DESC={{'240':'240분봉 3주','일':'일봉 6개월','주':'주봉 2년','월':'월봉 10년'}};
 if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;if(e.target.closest('.mk-sort')){{haSort();return;}}if(e.target.closest('.mk-add,.mk-fab')){{openHaPick();return;}}
   if(e.target.closest('.mk:not([data-k])')){{const m=e.target.closest('.mk'),d=document.createElement('div');d.className='hz hz-m';
@@ -1227,7 +1228,7 @@ var haLastQ=null;  // var: 아래 순서 적용(applyHa→paintHaHL)이 먼저 �
 function haList(k){{try{{return JSON.parse(ls(k)||'[]');}}catch(e){{return [];}}}}
 function paintHaHL(){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const zm=haZoomMap(),on=haList('ha-on'),off=haList('ha-off');
   hapop?.querySelectorAll('.mk[data-k]').forEach(c=>{{if(!c.querySelector('.mk-x')){{const x=document.createElement('button');x.type='button';x.className='mk-x';x.setAttribute('aria-label',c.dataset.k+' 빼기');x.textContent='×';c.appendChild(x);}}
-    c.classList.toggle('mk-off',c.dataset.x?!on.includes(c.dataset.k):off.includes(c.dataset.k));c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);else if(c.classList.contains('mk-zoomed'))setHaZoom(c,1,0,0);}});if(haLastQ)paintHaLive(haLastQ);hapop?.querySelectorAll('.mk[data-k]:not(.mk-off)').forEach(placeNp);}}
+    c.classList.toggle('mk-off',c.dataset.x?!on.includes(c.dataset.k):off.includes(c.dataset.k));c.classList.toggle('mk-hl',h.includes(c.dataset.k));const v=zm[c.dataset.k];if(v)setHaZoom(c,...v);else if(c.classList.contains('mk-zoomed'))setHaZoom(c,1,0,0);}});if(haLastQ)paintHaLive(haLastQ);else placeNps(haShown());}}
 var haSortM=0,haBase=null;
 function haPut(ks){{const cs=[...hapop.querySelectorAll('.mk[data-k]')];hapop.append(...ks.map(k=>cs.find(c=>c.dataset.k===k)).filter(Boolean));const ad=hapop.querySelector('.mk-add');if(ad)hapop.append(ad);}}
 function haSort(m){{if(!hapop)return;const cs=[...hapop.querySelectorAll('.mk[data-k]')],was=haSortM;haSortM=m==null?(was+1)%3:m;
@@ -1399,10 +1400,12 @@ function haFmt(v,c){{return v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixe
 if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setProperty('--har',Math.floor((h-10-4*8-6)/4)+'px');}};
   new ResizeObserver(fit).observe(hapop);addEventListener('resize',fit);}}
 // 노란 점 현재가: 오른쪽에 자리 없으면 점 왼쪽으로(칸 밖으로 안 넘어가게). 숫자 길이가 바뀔 때마다 다시
-function placeNp(c){{const t=c.querySelector('.mk-np'),d=c.querySelector('.mk-d');if(!t||!d)return;const cx=+d.getAttribute('cx'),vb=c.querySelector('svg').viewBox.baseVal.width||200;
-  let w=0;try{{w=t.getComputedTextLength();}}catch(e){{}}if(!w)return;const right=cx+8+w<=vb-1;t.setAttribute('text-anchor',right?'start':'end');t.setAttribute('x',right?cx+8:cx-8);}}
-function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0)t.textContent=haFmt(v[0],c.dataset.c||'');placeNp(c);
-  const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;g.textContent=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';}}}});}}
+function placeNps(cs){{const m=[];for(const c of cs){{const t=c.querySelector('.mk-np'),d=c.querySelector('.mk-d');if(!t||!d)continue;let w=0;try{{w=t.getComputedTextLength();}}catch(e){{}}if(!w)continue;
+    m.push([t,+d.getAttribute('cx'),w,c.querySelector('svg').viewBox.baseVal.width||200]);}}  // 먼저 전부 재고
+  for(const [t,cx,w,vb] of m){{const right=cx+8+w<=vb-1,a=right?'start':'end',x=String(right?cx+8:cx-8);if(t.getAttribute('text-anchor')!==a)t.setAttribute('text-anchor',a);if(t.getAttribute('x')!==x)t.setAttribute('x',x);}}}}  // 그다음 전부 씀
+function haShown(){{return hapop&&!hapop.hidden?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
+function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0){{const s=haFmt(v[0],c.dataset.c||'');if(t.textContent!==s)t.textContent=s;}}
+  const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}}});placeNps(haShown());}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
@@ -1668,8 +1671,8 @@ let hiddenAt=0;
 async function resume(){{
   if(Date.now()-Math.max(hiddenAt,loadedAt)<60000){{pullT();return;}}
   document.documentElement.style.visibility='hidden';
-  const show=()=>{{document.documentElement.style.visibility='';}};const t=setTimeout(show,3000);
-  try{{await refreshBoard(false);}}finally{{clearTimeout(t);show();}}
+  const show=()=>{{document.documentElement.style.visibility='';}};const t=setTimeout(show,1500);
+  try{{refreshCharts();await Promise.allSettled([pollLive(true),pollUpbit(),pullT()]);}}finally{{clearTimeout(t);show();}}
 }}
 document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='hidden')hiddenAt=Date.now();else resume();}});
 addEventListener('pageshow',e=>{{if(e.persisted){{hiddenAt=0;resume();}}}});
