@@ -695,7 +695,7 @@ def minsky_html() -> str:
             line = "M" + " L".join(f"{Xc(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg))
             stage = next(t for x, t in STAGES if te < x)
             if sym == "SOXL":
-                sx = ('<g class="mk-sx"><path d="M' + " L".join(f"{X(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg)) + '" class="mk-p"/>'
+                sx = (f'<g class="mk-sx" data-py="{lo:.6g},{Y(f(lo)):.2f},{hi:.6g},{Y(f(hi)):.2f}"><path d="M' + " L".join(f"{X(ts + i / (n - 1) * (te - ts)):.1f},{Y(f(v)):.1f}" for i, v in enumerate(seg)) + '" class="mk-p"/>'
                       f'<circle cx="{X(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="4" class="mk-d"/><text class="mk-np" x="{X(te) - 20:.1f}" y="{Y(f(seg[-1])) + 32:.1f}" text-anchor="end">${seg[-1]:.2f}</text></g>')
             if hv == "주" and r0 >= .80 and sym not in LEV and not ex:  # 80% 미만·고르기 목록은 모델 칸 불 안 켬
                 now_stages.add(stage)
@@ -768,7 +768,7 @@ def minsky_html() -> str:
             gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
-                         f'<svg viewBox="0 0 {W} {H}">{bc}<path d="{line}" class="mk-p"/>'
+                         f'<svg viewBox="0 0 {W} {H}" data-py="{lo:.6g},{Y(f(lo)):.2f},{hi:.6g},{Y(f(hi)):.2f}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}</svg>{chart}</div>')
             if ex:
                 xcache[name] = [time.time(), cells[-1], *fits.get(sym, (0, 0))]
@@ -1432,11 +1432,16 @@ function placeNps(cs){{const m=[];for(const c of cs){{const t=c.querySelector('.
   for(const [t,cx,w,vb] of m){{const right=cx+8+w<=vb-1,a=right?'start':'end',x=String(right?cx+8:cx-8);if(t.getAttribute('text-anchor')!==a)t.setAttribute('text-anchor',a);if(t.getAttribute('x')!==x)t.setAttribute('x',x);}}}}  // 그다음 전부 씀
 function haShown(){{return hapop&&(!hapop.hidden||hapop.classList.contains('warm'))?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
 function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0){{const s=haFmt(v[0],c.dataset.c||'');if(t.textContent!==s)t.textContent=s;}}
-  const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}}});placeNps(haShown());hzLive();}}
+  const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}if(v&&v[0]>0){{haDot(c.querySelector('svg'),v[0]);if(c.dataset.s==='SOXL')document.querySelectorAll('.mk-sx').forEach(x=>{{haDot(x,v[0]);const t=x.querySelector('text'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n)t.textContent=n;}});}}}});placeNps(haShown());hzLive();}}
+function haDot(sv,v){{const p=(sv?.dataset.py||'').split(',').map(Number),d=sv?.querySelector('.mk-d');if(p.length<4||!d)return;  // 곡선 위 노란 점을 지금 가격 높이로
+  const y=(p[1]+(v-p[0])/((p[2]-p[0])||1)*(p[3]-p[1])).toFixed(1),dy=y-d.getAttribute('cy');if(!dy)return;d.setAttribute('cy',y);
+  const t=sv.querySelector('.mk-np');if(t)t.setAttribute('y',(+t.getAttribute('y')+dy).toFixed(1));
+  const a=sv.querySelector('.mk-p'),s=a?.getAttribute('d');if(s)a.setAttribute('d',s.slice(0,s.lastIndexOf(',')+1)+y);}}
 function hzLive(){{const d=document.querySelector('.hz-b');if(!d||!haLastQ)return;  // 종목 크게 보기 위 가격·곡선 노란 가격도 실시간
   const c=[...hapop.querySelectorAll('.mk[data-k]')].find(c=>c.dataset.k===d.dataset.k),v=c&&haLastQ[c.dataset.s];if(!v||!(v[0]>0))return;
   const p=d.querySelector('.hz-p'),s=v[0]>=100?Math.round(v[0]).toLocaleString():v[0].toFixed(2);if(p&&p.textContent!==s)p.textContent=s;
-  const t=d.querySelector('.hz-c .mk-np'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n){{t.textContent=n;placeNps([d.querySelector('.hz-c')]);}}}}
+  const t=d.querySelector('.hz-c .mk-np'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n)t.textContent=n;
+  const sv=d.querySelector('.hz-c svg[data-py]');if(sv){{haDot(sv,v[0]);placeNps([d.querySelector('.hz-c')]);}}}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
   const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
