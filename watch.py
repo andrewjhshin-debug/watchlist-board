@@ -706,8 +706,7 @@ def minsky_html() -> str:
                     ap, ad = adj_target(tc, False, sym)
                     if ap:
                         adjb[sym] = (ap / c[-1], ad, vol52(c))
-                zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap else ""
-                if zp:
+                if ap:  # 흔들림 방지를 먼저 적용 → 칸 숫자·모델 좌절 날짜·확대 차트가 같은 값
                     # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
                     last = alog.get(sym, [None])[-1]
                     if last and len(last) > 3 and last[3] == "v2" and abs(ap / last[1] - 1) < .08:
@@ -719,6 +718,7 @@ def minsky_html() -> str:
                         alog.setdefault(sym, []).append(row)
                     if sym == "SOXL":
                         zd = ad
+                zp = f'<text class="mk-zp" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap else ""
             vs = {}
             for v in (() if ex else VIEWS):
                 try:
