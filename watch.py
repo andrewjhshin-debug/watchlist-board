@@ -467,8 +467,16 @@ def _epi(m):
     return _EPI_C[m]
 
 
+def adj_n7():  # 미국 장 마감(토 07시)까지를 그 주로 침
+    return datetime.now(KST) - timedelta(hours=7)
+
+
 def adj_engine(tc, sym=""):
     """(가격, 날짜) — 유사 사례 엔진. 자료가 모자라면 None."""
+    n7 = adj_n7()
+    if n7.weekday() < 5:  # 주중엔 끝난 주까지만 봄 → 장중 가격 따라 숫자가 출렁이지 않음
+        w0 = (n7 - timedelta(days=n7.weekday())).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+        tc = [q for q in tc if q[0] < w0] or tc
     ip = max(range(len(tc)), key=lambda k: tc[k][1])
     if ip < 35:
         return None
@@ -628,6 +636,7 @@ def minsky_html() -> str:
     adjb = {}  # 본주 조정치(지금 대비 비율, 날짜) → 레버리지는 이걸 2배로
     alog_p = ROOT / "adj_log.json"
     alog = json.loads(alog_p.read_text(encoding="utf-8")) if alog_p.exists() else {}
+    wk = "%d-W%02d" % adj_n7().isocalendar()[:2]
     for (hv, iv, rg, per), (sym, name, grp) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in [(a, b, "기본") for a, b in HA] + EXTRA):
         ex = grp != "기본"
         if ex and name in xcache and len(xcache[name]) > 3 and time.time() - xcache[name][0] < 3600:  # 고르기 목록은 1시간에 한 번만 다시 계산
@@ -710,9 +719,10 @@ def minsky_html() -> str:
                 if zp:
                     # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
                     last = alog.get(sym, [None])[-1]
-                    if last and len(last) > 3 and last[3] == "v2" and abs(ap / last[1] - 1) < .08:
+                    if last and len(last) > 3 and last[3] == "v2":
                         ld = datetime(2000 + int(last[2][:2]), int(last[2][3:]), 15, tzinfo=KST)
-                        if abs((ad - ld).days) <= 62:
+                        # 주 1회만 바뀜: 이번 주에 이미 계산했으면 그대로. 새 주 첫 계산도 가격 8%·날짜 2개월 안쪽이면 그대로
+                        if alog.get("_wk", wk) == wk or (abs(ap / last[1] - 1) < .08 and abs((ad - ld).days) <= 62):
                             ap, ad = last[1], (ad if f"{ad:%y.%m}" == last[2] else ld)
                     row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}", "v2"]
                     if not alog.get(sym) or alog[sym][-1][1:] != row[1:]:
@@ -761,6 +771,7 @@ def minsky_html() -> str:
     seq = "→".join((f'<u class="g">{short.get(t, t)}</u>' if t in GOOD else f'<u>{short.get(t, t)}</u>') if t in now_stages else short.get(t, t) for _, t in STAGES)
     cells.insert(0, f'<div class="mk"><b>하이먼 민스키 모델</b><small class="mk-s">{seq}</small><svg viewBox="0 0 {W} {H}">{base}<g class="mk-t">{labels}</g>{sx}</svg></div>')
     (ROOT / "ha.json").write_text(json.dumps(charts, ensure_ascii=False), encoding="utf-8")
+    alog["_wk"] = wk
     alog_p.write_text(json.dumps(alog, ensure_ascii=False), encoding="utf-8")
     xcache_p.write_text(json.dumps(xcache, ensure_ascii=False), encoding="utf-8")
     return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}<div class="mk-add">+ 종목 고르기</div><div class="mk-fabs"><button class="mk-fab mk-sort" type="button">내 순서</button><button class="mk-fab" type="button">＋ 종목</button></div></div>' if len(cells) > 1 else ""
@@ -789,7 +800,7 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
 .toast{{}}body.baronly .grid-wrap{{position:relative;padding-top:16px!important}}.since-tag{{display:none}}body.baronly .since-tag{{display:block;position:absolute;left:10px;top:0;z-index:2;font-size:12px;line-height:1;padding:2px 4px 3px;color:var(--sub);border-bottom:1px dashed var(--sub);cursor:pointer}}.since-tag input{{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;cursor:pointer}}#ha{{display:none}}body.baronly #ha{{display:block}}
-.hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
+.hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}.hapop.warm[hidden]{{display:grid;visibility:hidden;pointer-events:none}}
 .mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
 .mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-zoomed{{overflow:hidden}}.mk-zoomed svg{{overflow:hidden}}.mk-zd{{fill:#fff;stroke:#000;stroke-width:1.5}}.mk.mk-hl{{border:2px solid #ffb300!important}}.mk.mk-off{{display:none!important}}.mk-add{{grid-column:1/-1;text-align:center;padding:14px;border:1px dashed var(--edge);border-radius:12px;color:var(--sub);cursor:pointer}}
@@ -1403,7 +1414,7 @@ if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setPr
 function placeNps(cs){{const m=[];for(const c of cs){{const t=c.querySelector('.mk-np'),d=c.querySelector('.mk-d');if(!t||!d)continue;let w=0;try{{w=t.getComputedTextLength();}}catch(e){{}}if(!w)continue;
     m.push([t,+d.getAttribute('cx'),w,c.querySelector('svg').viewBox.baseVal.width||200]);}}  // 먼저 전부 재고
   for(const [t,cx,w,vb] of m){{const right=cx+8+w<=vb-1,a=right?'start':'end',x=String(right?cx+8:cx-8);if(t.getAttribute('text-anchor')!==a)t.setAttribute('text-anchor',a);if(t.getAttribute('x')!==x)t.setAttribute('x',x);}}}}  // 그다음 전부 씀
-function haShown(){{return hapop&&!hapop.hidden?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
+function haShown(){{return hapop&&(!hapop.hidden||hapop.classList.contains('warm'))?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
 function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0){{const s=haFmt(v[0],c.dataset.c||'');if(t.textContent!==s)t.textContent=s;}}
   const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}}});placeNps(haShown());}}
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
@@ -1594,7 +1605,9 @@ document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button'
 addEventListener('popstate',paintTab);
 const lastScreen=ls('screen');barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 // 마지막에 보던 화면(보드·바·하)으로 다시 켜짐
-if(lastScreen==='ha'&&hapop)document.getElementById('ha').click();  // 모델 크게 보던 중이면 그것도
+if(lastScreen==='ha'&&hapop)document.getElementById('ha').click();
+// 하 화면을 한가할 때 안 보이게 미리 배치하고 종목 차트도 받아 둠 → 처음 열 때도 바로 뜸
+if(hapop)(window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>{{hapop.classList.add('warm');placeNps(haShown());loadHaCharts();}},{{timeout:4000}});  // 모델 크게 보던 중이면 그것도
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
 // 테두리는 보드(hl)와 바(hlb)가 따로
