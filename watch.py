@@ -1211,8 +1211,8 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');
   const vs=(await loadHaCharts())[el.dataset.k]||{{}};if(!d.isConnected)return;
   d.querySelector('.hz-p').textContent=vs.last||'';
-  const hsv=el.querySelector('svg')?.cloneNode(true);if(hsv)hsv.removeAttribute('style');  // 칸의 하이먼 곡선을 크게. 주봉 캔들은 하이먼 곡선과 같은 주봉이라 뺌
-  const keys=['하','240','일','월'].filter(k=>k==='하'?hsv:vs[k]);
+  const hsv=el.querySelector('svg')?.cloneNode(true);if(hsv)hsv.removeAttribute('style');  // 칸의 하이먼 곡선을 크게
+  const keys=['하','240','일','주','월'].filter(k=>k==='하'?hsv:vs[k]);
   const show=k=>{{ls('hz-v',k);const c=d.querySelector('.hz-c');if(k==='하'){{c.innerHTML='';c.appendChild(hsv);}}else c.innerHTML=vs[k]||'차트 없음';d.classList.toggle('hz-h1',k==='하');d.querySelector('.hz-s').textContent=HZ_DESC[k]+(k==='하'?'':' · 초록선 = 주봉으로 맞춘 민스키 곡선');
     d.querySelectorAll('.hz-t button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));}};
   d.querySelector('.hz-t').innerHTML=keys.map(k=>'<button data-v="'+k+'">'+(k==='하'?'하이먼':k)+'</button>').join('');
