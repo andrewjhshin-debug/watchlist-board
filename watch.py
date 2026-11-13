@@ -518,11 +518,33 @@ def chip_te(te, tc, sym):
     return max(te, .96) if ad < datetime.now(KST) else min(te, .94)
 
 
+# 반도체 종목: 바닥 시기는 업황(필라델피아 반도체 지수)과 같이 감 → 자기 날짜와 지수 날짜의 중간. 가격은 그대로
+SEMI = {"000660.KS", "005930.KS", "MU", "AXTI", "LRCX", "AMD", "AMAT", "ASML", "058470.KQ", "ARM", "INTC", "MRVL",
+        "NVDA", "TSM", "042700.KS", "240810.KQ", "009150.KS", "007660.KS", "011070.KS"}
+_SOX = []
+
+
+def sox_date():
+    if not _SOX:
+        try:
+            q = get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0]
+            e = adj_engine([(t, v) for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]) if v], "^SOX")
+            _SOX.append(e[1] if e else None)
+        except Exception:
+            _SOX.append(None)
+    return _SOX[0]
+
+
 def adj_target(tc, lev3=False, sym=""):
     """(가격, 날짜) — 고점에서 과거 하락장 폭·기간만큼."""
     if sym not in ADJ_OVR and not lev3:
         e = adj_engine(tc, sym)
         if e:
+            sd, now = sox_date() if sym in SEMI else None, datetime.now(KST)
+            if sd and e[1] > now and sd > now:  # 둘 다 아직 앞일 때만(이미 바닥 판정은 그대로)
+                d = e[1] + (sd - e[1]) / 2
+                ADJ_INFO[sym] = ADJ_INFO.get(sym, "") + f" · 반도체: 자기 {e[1]:%y.%m}와 지수 {sd:%y.%m}의 중간"
+                return e[0], d
             return e
     ip = max(range(len(tc)), key=lambda i: tc[i][1])
     tp, pk = tc[ip]
@@ -709,11 +731,12 @@ def minsky_html() -> str:
                 if ap:  # 흔들림 방지를 먼저 적용 → 칸 숫자·모델 좌절 날짜·확대 차트가 같은 값
                     # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
                     last = alog.get(sym, [None])[-1]
-                    if last and len(last) > 3 and last[3] == "v2" and abs(ap / last[1] - 1) < .08:
+                    tag = "v3" if sym in SEMI or LEV.get(sym) in SEMI else "v2"  # v3 = 반도체 지수 날짜 반영(11-14). 바뀐 규칙은 흔들림 방지 한 번 건너뜀
+                    if last and len(last) > 3 and last[3] == tag and abs(ap / last[1] - 1) < .08:
                         ld = datetime(2000 + int(last[2][:2]), int(last[2][3:]), 15, tzinfo=KST)
                         if abs((ad - ld).days) <= 62:
                             ap, ad = last[1], (ad if f"{ad:%y.%m}" == last[2] else ld)
-                    row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}", "v2"]
+                    row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}", tag]
                     if not alog.get(sym) or alog[sym][-1][1:] != row[1:]:
                         alog.setdefault(sym, []).append(row)
                     if sym == "SOXL":
@@ -1001,7 +1024,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수(-100% = 기준일 이후 바닥, 올라올수록 0에 가까움) · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 급락 1,315건(413종목·지수) 가운데 지금과 가장 닮은 40건의 최종 하락폭·기간 중앙값.<br>닮음 기준: 고점 전 2년 상승폭, 변동성, 지금까지 하락폭, 최저 뒤 지난 기간, 최저 대비 반등폭.<br>닮은 사례의 70% 이상이 이 시점에 이미 바닥이었으면 찍은 최저를 좌절(과거 날짜)로.<br>레버리지: 본주 추정에 배수 복리, 변동성 손실(½·배수·(배수-1)·변동성²·기간) 차감. SOXL=필라델피아 3배.<br>지난 값과 8%·2개월 안쪽 차이면 숫자를 안 바꿈(흔들림 방지).<br>검증(5개월 시점): 하락폭 오차 중앙값 11%p, 기간 오차 6.5개월. 종목 이름을 누르면 종목별 근거가 뜸.<br>코스피만 수동: 역대 하락장 7건 중간 -54% 참고 → -52%, 12개월.<br>모델 칸 '좌절(연.월)'은 SOXL 기준</p></details>
+<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 급락 1,315건(413종목·지수) 가운데 지금과 가장 닮은 40건의 최종 하락폭·기간 중앙값.<br>닮음 기준: 고점 전 2년 상승폭, 변동성, 지금까지 하락폭, 최저 뒤 지난 기간, 최저 대비 반등폭.<br>닮은 사례의 70% 이상이 이 시점에 이미 바닥이었으면 찍은 최저를 좌절(과거 날짜)로.<br>반도체 종목은 날짜만 자기 추정과 필라델피아 반도체 지수 추정의 중간(업황 따라 바닥 시기가 같이 감).<br>레버리지: 본주 추정에 배수 복리, 변동성 손실(½·배수·(배수-1)·변동성²·기간) 차감. SOXL=필라델피아 3배.<br>지난 값과 8%·2개월 안쪽 차이면 숫자를 안 바꿈(흔들림 방지).<br>검증(5개월 시점): 하락폭 오차 중앙값 11%p, 기간 오차 6.5개월. 종목 이름을 누르면 종목별 근거가 뜸.<br>코스피만 수동: 역대 하락장 7건 중간 -54% 참고 → -52%, 12개월.<br>모델 칸 '좌절(연.월)'은 SOXL 기준</p></details>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
