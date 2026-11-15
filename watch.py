@@ -1427,7 +1427,7 @@ addEventListener('storage',e=>{{if(e.key===AVG_KEY){{avgGeneration++;avgSymbols=
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-stamp');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(force=false){{if(!force&&document.visibilityState==='hidden')return false;for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
-  if(r.ok){{lastSlot=sl;const j=await r.json();if(j.b&&j.b!==BUILD)staleReload(j.b);for(const x in j.q)if(!x.startsWith('upbit:'))apply(x,j.q[x][0],j.q[x][1]);paintHaLive(j.q);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
+  if(r.ok){{lastSlot=sl;const j=await r.json();if(j.b&&j.b!==BUILD)staleReload(j.b);for(const x in j.q)if(!x.startsWith('upbit:')||Date.now()-upAt>60000)apply(x,j.q[x][0],j.q[x][1]);paintHaLive(j.q);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
 function haFmt(v,c){{return v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixed(1)+'만':v>=100?c+Math.round(v).toLocaleString():c+v.toFixed(2);}}
 // 하 칸 높이: 실제로 보이는 하 화면 높이를 재서 4줄(8칸)이 딱 한 화면에 들어가게 (dvh 가 기기마다 달라서)
 if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setProperty('--har',Math.floor((h-10-4*8-6)/4)+'px');}};
@@ -1452,9 +1452,10 @@ function hzLive(){{const d=document.querySelector('.hz-b');if(!d||!haLastQ)retur
   const p=d.querySelector('.hz-p'),s=v[0]>=100?Math.round(v[0]).toLocaleString():v[0].toFixed(2);if(p&&p.textContent!==s)p.textContent=s;
   const t=d.querySelector('.hz-c .mk-np'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n)t.textContent=n;
   const sv=d.querySelector('.hz-c svg[data-py]');if(sv){{haDot(sv,v[0]);placeNps([d.querySelector('.hz-c')]);}}}}
+var upAt=0;  // 업비트 직접 조회가 1분 넘게 실패하면 서버 실시간 값으로 대신
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
-  const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);return rows.length>0;}}catch(e){{return false;}}}}
+  const rows=await r.json();for(const x of rows)apply('upbit:'+x.market,x.trade_price,x.prev_closing_price);if(rows.length)upAt=Date.now();return rows.length>0;}}catch(e){{return false;}}}}
 let refreshJob=null,refreshAnnounce=false,refreshToastTimer=null;
 function showRefreshToast(message){{
   if(message==='새로고침했습니다'&&document.body.classList.contains('baronly')&&(!hapop||hapop.hidden))return;  // 바 모드는 알림 대신 큰 % 가 뜸
