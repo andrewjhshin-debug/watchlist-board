@@ -987,7 +987,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .mk-pull{{grid-column:1/-1;height:0;overflow:hidden;transition:height .15s;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sub);white-space:nowrap}}
 .hz{{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:16px 14px;cursor:zoom-out}}
 .hz-h{{display:flex;justify-content:space-between;align-items:baseline;gap:8px}}.hz-h b{{font-weight:normal;font-size:20px;white-space:nowrap;overflow:hidden}}.hz-h b i{{font-style:normal;color:#00ff3c}}.hz-h b u{{text-decoration:none;color:#ffb300;font-size:13px;background:#3a2500;padding:0 6px;border-radius:9px}}
-.hz-dd{{margin:2px 0 4px}}.hz-dd div{{display:flex;flex-wrap:wrap;gap:4px}}.hz-dd i{{width:16px;height:16px;border-radius:4px;background:#7a8098}}.hz-dd small{{display:block;margin-top:4px;color:#7a8098;font-size:12px}}.hz-p{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:28px;margin:4px 0 2px}}.hz small{{color:var(--sub);font-size:12px}}
+.hz-dd{{margin:8px 0 4px;flex:0 0 auto}}.hz-dd div{{display:flex;flex-wrap:wrap;gap:4px}}.hz-dd i{{width:16px;height:16px;border-radius:4px;background:#e8ecff}}.hz-dd small{{display:block;margin-top:4px;color:#7a8098;font-size:12px}}.hz-p{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:28px;margin:4px 0 2px}}.hz small{{color:var(--sub);font-size:12px}}
 .hz .chart{{flex:1;min-height:0;aspect-ratio:auto;margin-top:10px}}.mk-ov{{fill:none;stroke:#3fae3f;stroke-width:5;stroke-linejoin:round;stroke-linecap:round;opacity:.8;vector-effect:non-scaling-stroke}}
 .hz-t{{display:flex;justify-content:flex-end;gap:2px;margin-top:8px}}.hz-t button{{font:inherit;font-size:13px;color:var(--sub);background:var(--tile);border:1px solid var(--edge);border-radius:8px;padding:5px 12px;cursor:pointer}}.hz-t button.on{{background:#1c2540;color:var(--txt)}}
 .hz-c{{flex:1;min-height:0;display:flex;flex-direction:column}}.hz-h1 .hz-c svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-c .chart{{flex:1}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
@@ -1234,7 +1234,7 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   openHz(el);}});
 async function openHz(el){{  // 종목 크게 보기. 아래 바 그대로, 바·차트 갔다 와도 다시 열림(ls hm = 'k:종목')
   const d=document.createElement('div');d.className='hz hz-b';d.dataset.k=el.dataset.k;
-  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div>'+hzDots(el)+'<small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
+  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>'+hzDots(el);
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');ls('hm','k:'+el.dataset.k);
   const vs=(await loadHaCharts())[el.dataset.k]||{{}};if(!d.isConnected)return;
   d.querySelector('.hz-p').textContent=vs.last||'';
