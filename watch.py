@@ -20,6 +20,7 @@ import sys
 import time
 import urllib.request
 import math
+import statistics
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -644,6 +645,7 @@ def minsky_html() -> str:
     young = {}
     charts = {}
     fits = {}
+    spans = {}  # 종목별 곡선 구간(ts, te, 주 수) → 레버를 본주 시간축에 얹을 때
     zd, sx = None, ""  # sx: 모델 크게 보기에서 겹쳐 볼 SOXL 선(모델 좌표)
     xcache_p = ROOT / "ha_extra_cache.json"
     xcache = json.loads(xcache_p.read_text(encoding="utf-8")) if xcache_p.exists() else {}
@@ -670,13 +672,24 @@ def minsky_html() -> str:
                         bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(LEV[sym])}?interval=1wk&range=5y")["chart"]["result"][0]
                         btc0 = [(t, v) for t, v in zip(bq["timestamp"], bq["indicators"]["quote"][0]["close"]) if v]
                         bcl = [v for _, v in btc0]
-                        br0, _, _, bte = minsky_fit(bcl)
+                        br0, bn, bts, bte = minsky_fit(bcl)
                         bte = chip_te(bte, btc0, LEV[sym])
                         fits[LEV[sym]] = (br0, bte)
+                        spans[LEV[sym]] = (bts or 0.0, bte, bn)
                     except Exception:
                         continue
                 r0, te0 = fits[LEV[sym]]
-                r, n, ts, te = minsky_fit(c, te_fix=te0)
+                if LEV[sym] in spans:  # 본주 시간축에 얹기: 본주 곡선의 마지막 len(c)주 구간에 레버 가격을 그림
+                    bts, bte, bn = spans[LEV[sym]]
+                    step = (bte - bts) / max(1, bn - 1)
+                    n, te = min(len(c), bn), te0
+                    ts = max(0.0, te - (n - 1) * step)
+                    try:
+                        r = statistics.correlation(c[-n:], [mkf(min(1, ts + i * (te - ts) / max(1, n - 1))) for i in range(n)])
+                    except statistics.StatisticsError:
+                        r = 0
+                else:
+                    r, n, ts, te = minsky_fit(c, te_fix=te0)
             else:
                 r, n, ts, te = minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
                 if ts is not None:
@@ -686,6 +699,7 @@ def minsky_html() -> str:
             if r0 <= .70:  # 70% 이하는 하이먼 모양 아님 → 안 넣음(레버는 본주 기준)
                 continue
             fits[sym] = (r0, te)
+            spans[sym] = (ts or 0.0, te, n)
             seg = c[-n:]
             Xc, bc = frame(min(ts, .66)) if ts else (X, base)
             lo_t = min(mk(ts + i / 100 * (te - ts)) for i in range(101))
@@ -771,7 +785,7 @@ def minsky_html() -> str:
             np = sp(v)
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
                          f'<svg viewBox="0 0 {W} {H}" data-py="{lo:.6g},{Y(f(lo)):.2f},{hi:.6g},{Y(f(hi)):.2f}">{bc}<path d="{line}" class="mk-p"/>'
-                         f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}<g class="mk-t hz-lb">{"".join(f'<text x="{Xc(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in ((.47, "1차 현금화", 0, 18), (.70, "열정", -16, 0), (.79, "현실 부정", 18, -6), (.84, "공포", 16, 2)) if 14 < Xc(x) < W - 14)}</g></svg>{chart}</div>')
+                         f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}<g class="mk-t hz-lb">{"".join(f'<text x="{Xc(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in ((.47, "1차 현금화", 0, 18), (.70, "열정", -16, 0), (.79, "현실 부정", 18, -6), (.84, "공포", 16, 2)) if 14 < Xc(x) < W - 14 and abs(Xc(x) + dx - Xc(te)) > 22)}</g></svg>{chart}</div>')
             if ex:
                 xcache[name] = [time.time(), cells[-1], *fits.get(sym, (0, 0))]
         except Exception as e:
@@ -1238,7 +1252,7 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   openHz(el);}});
 async function openHz(el){{  // 종목 크게 보기. 아래 바 그대로, 바·차트 갔다 와도 다시 열림(ls hm = 'k:종목')
   const d=document.createElement('div');d.className='hz hz-b';d.dataset.k=el.dataset.k;
-  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>'+hzDots(el);
+  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>'+hzDots(el);
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');ls('hm','k:'+el.dataset.k);
   const vs=(await loadHaCharts())[el.dataset.k]||{{}};if(!d.isConnected)return;
   d.querySelector('.hz-p').textContent=vs.last||'';
