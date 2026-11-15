@@ -765,6 +765,8 @@ def minsky_html() -> str:
             az = bool(ap) and ad < datetime.now(KST)  # 좌절이 이미 지남
             gp = ((v / ap - 1) if az else (ap / v - 1)) if ap else 0
             gpa = f' data-ap="{ap:.4f}" data-gp="{gp:.4f}"{chr(32) + "data-az=1" if az else ""}' if ap else ""
+            if ap and not az and tc:  # 디데이 칸: 고점 달 → 좌절 달
+                gpa += f' data-pk="{datetime.fromtimestamp(max(tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m}"'
             gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
@@ -985,7 +987,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .mk-pull{{grid-column:1/-1;height:0;overflow:hidden;transition:height .15s;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sub);white-space:nowrap}}
 .hz{{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:16px 14px;cursor:zoom-out}}
 .hz-h{{display:flex;justify-content:space-between;align-items:baseline;gap:8px}}.hz-h b{{font-weight:normal;font-size:20px;white-space:nowrap;overflow:hidden}}.hz-h b i{{font-style:normal;color:#00ff3c}}.hz-h b u{{text-decoration:none;color:#ffb300;font-size:13px;background:#3a2500;padding:0 6px;border-radius:9px}}
-.hz-p{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:28px;margin:4px 0 2px}}.hz small{{color:var(--sub);font-size:12px}}
+.hz-dd{{margin:2px 0 4px}}.hz-dd div{{display:flex;flex-wrap:wrap;gap:4px}}.hz-dd i{{width:16px;height:16px;border-radius:4px;background:#7a8098}}.hz-dd small{{display:block;margin-top:4px;color:#7a8098;font-size:12px}}.hz-p{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:28px;margin:4px 0 2px}}.hz small{{color:var(--sub);font-size:12px}}
 .hz .chart{{flex:1;min-height:0;aspect-ratio:auto;margin-top:10px}}.mk-ov{{fill:none;stroke:#3fae3f;stroke-width:5;stroke-linejoin:round;stroke-linecap:round;opacity:.8;vector-effect:non-scaling-stroke}}
 .hz-t{{display:flex;justify-content:flex-end;gap:2px;margin-top:8px}}.hz-t button{{font:inherit;font-size:13px;color:var(--sub);background:var(--tile);border:1px solid var(--edge);border-radius:8px;padding:5px 12px;cursor:pointer}}.hz-t button.on{{background:#1c2540;color:var(--txt)}}
 .hz-c{{flex:1;min-height:0;display:flex;flex-direction:column}}.hz-h1 .hz-c svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-c .chart{{flex:1}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
@@ -1232,7 +1234,7 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   openHz(el);}});
 async function openHz(el){{  // 종목 크게 보기. 아래 바 그대로, 바·차트 갔다 와도 다시 열림(ls hm = 'k:종목')
   const d=document.createElement('div');d.className='hz hz-b';d.dataset.k=el.dataset.k;
-  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
+  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div><div class="hz-p"></div>'+hzDots(el)+'<small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>';
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');ls('hm','k:'+el.dataset.k);
   const vs=(await loadHaCharts())[el.dataset.k]||{{}};if(!d.isConnected)return;
   d.querySelector('.hz-p').textContent=vs.last||'';
@@ -1433,6 +1435,8 @@ function placeNps(cs){{const m=[];for(const c of cs){{const t=c.querySelector('.
 function haShown(){{return hapop&&(!hapop.hidden||hapop.classList.contains('warm'))?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
 function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0){{const s=haFmt(v[0],c.dataset.c||'');if(t.textContent!==s)t.textContent=s;}}
   const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}if(v&&v[0]>0){{haDot(c.querySelector('svg'),v[0]);if(c.dataset.s==='SOXL')document.querySelectorAll('.mk-sx').forEach(x=>{{haDot(x,v[0]);const t=x.querySelector('text'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n)t.textContent=n;}});}}}});placeNps(haShown());hzLive();}}
+function hzDots(el){{const pk=el.dataset.pk,ad=el.dataset.ad;if(!pk||!ad)return'';const m=s=>+s.slice(0,4)*12+ +s.slice(5,7),now=new Date(),n=m(ad)-m(pk),g=Math.min(n,now.getFullYear()*12+now.getMonth()+1-m(pk));if(n<1)return'';
+  return'<div class="hz-dd"><div>'+'<i></i>'.repeat(n-Math.max(0,g))+'</div><small>고점 '+pk.slice(2).replace('-','.')+' → 좌절 '+ad.slice(2).replace('-','.')+' · '+(n-g)+'달 남음</small></div>';}}
 function haDot(sv,v){{const p=(sv?.dataset.py||'').split(',').map(Number),d=sv?.querySelector('.mk-d');if(p.length<4||!d)return;  // 곡선 위 노란 점을 지금 가격 높이로
   const y=(p[1]+(v-p[0])/((p[2]-p[0])||1)*(p[3]-p[1])).toFixed(1),dy=y-d.getAttribute('cy');if(!dy)return;d.setAttribute('cy',y);
   const t=sv.querySelector('.mk-np');if(t)t.setAttribute('y',(+t.getAttribute('y')+dy).toFixed(1));
