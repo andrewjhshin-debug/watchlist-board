@@ -1200,7 +1200,7 @@ function paintBarLeading(el){{
   const b=document.getElementById('bar-leading');if(!b)return;
   const value=el.querySelector('.price')?.textContent.trim()||'',note=el.querySelector('.name small')?.textContent.trim()||'';
   b.hidden=!value;
-  document.getElementById('bar-leading-value').textContent=value;
+  const lv=document.getElementById('bar-leading-value'),d=+el.dataset.p-(+el.dataset.pv);lv.textContent=value;lv.style.color=!(d===d)||!d?'':d>0?'#00ff3c':'#ff2a3c';  // 전월보다 오르면 초록, 내리면 빨강
   document.getElementById('bar-leading-meta').textContent=note?'('+note+')':'';
 }}
 function apply(sym,price,prev){{
