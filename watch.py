@@ -1009,7 +1009,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 .hz-dd{{margin:8px 0 4px;flex:0 0 auto;text-align:right}}.hz-dd .dd-d{{display:inline-block;font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:400;font-size:26px;line-height:1;color:#e8ecff;border:2px solid #e8ecff;border-radius:10px;padding:5px 12px}}.dd-g{{margin:8px 0 0 auto}}.dd-l{{display:flex;justify-content:space-between;font-size:12px;color:#7a8098;margin-bottom:3px}}.dd-c{{display:flex;gap:4px}}.dd-c i{{flex:1 1 0;min-width:0;aspect-ratio:1;border-radius:4px}}.dd-c i.dd-x{{border:1.5px solid #3a4262;box-sizing:border-box}}.hz-dd:not(.on) .dd-g,.hz-dd:not(.on) .dd-w{{visibility:hidden}}.dd-t{{cursor:pointer}}.dd-t::after{{content:' ▴';font-size:14px;color:#7a8098}}.hz-dd.on .dd-t::after{{content:' ▾'}}.hz-p{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:28px;margin:4px 0 2px}}.hz small{{color:var(--sub);font-size:12px}}
 .hz .chart{{flex:1;min-height:0;aspect-ratio:auto;margin-top:10px}}.mk-ov{{fill:none;stroke:#3fae3f;stroke-width:5;stroke-linejoin:round;stroke-linecap:round;opacity:.8;vector-effect:non-scaling-stroke}}
 .hz-t{{display:flex;justify-content:flex-end;gap:2px;margin-top:8px}}.hz-t button{{font:inherit;font-size:13px;color:var(--sub);background:var(--tile);border:1px solid var(--edge);border-radius:8px;padding:5px 12px;cursor:pointer}}.hz-t button.on{{background:#1c2540;color:var(--txt)}}
-.hz-c{{flex:1;min-height:0;display:flex;flex-direction:column}}.hz-h1 .hz-c svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-c .chart{{flex:1}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
+.hz-c{{flex:1;min-height:0;display:flex;flex-direction:column}}.hz-h1 .hz-c{{overflow:hidden}}.hz-h1 .hz-c svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-c .chart{{flex:1}}.hz .ax{{font-size:12px}}.hz .peak{{display:none}}
 .hapop{{grid-template-rows:auto}}.mk-bar{{grid-column:1/-1;justify-self:end;display:flex;gap:2px;background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:3px}}
 .toast[data-refresh]{{z-index:40}}.mk-bar button{{font:inherit;font-size:13px;color:var(--sub);background:transparent;border:0;border-radius:7px;padding:5px 12px;cursor:pointer}}.mk-bar .mk-rl{{color:var(--txt)}}
 .hapop[data-hv="일"] .mk-bar [data-hv="일"],.hapop[data-hv="주"] .mk-bar [data-hv="주"],.hapop[data-hv="월"] .mk-bar [data-hv="월"]{{background:#1c2540;color:var(--txt)}}
@@ -1294,7 +1294,7 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t"></div><div class="hz-c"></div>'+hzDots(el);
   const tabs=d.querySelector('.hz-t'),chart=d.querySelector('.hz-c'),price=d.querySelector('.hz-p');
   const curve=el.querySelector('svg')?.cloneNode(true);
-  if(curve)curve.removeAttribute('style');
+  if(curve){{curve.removeAttribute('style');delete curve.dataset.z;delete curve.dataset.fx;delete curve.dataset.fy;}}
   const preferred=ls('hz-v');
   let views=haCharts?.[el.dataset.k]||{{}},chosen='';
   const mounted=new Map();
@@ -1426,23 +1426,24 @@ if(hapop){{
   // 두 손가락: 벌리면 그 칸 그림 확대, 같이 끌면 이동(손 뗀 뒤 유지, 한 번 톡 = 원래대로)
   let pz=null;const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
   const mid=(t,o)=>[(t[0].clientX+t[1].clientX)/2-o[0],(t[0].clientY+t[1].clientY)/2-o[1]];
-  hapop.addEventListener('touchstart',e=>{{if(e.touches.length!==2)return;const el=e.target.closest('.mk[data-k]'),svg=el?.querySelector('svg');if(!svg)return;
+  const hzPick=e=>e.target.closest?.('.mk[data-k],.hz-b.hz-h1');  // 하 칸 + 크게 보기 하이먼
+  document.addEventListener('touchstart',e=>{{if(e.touches.length!==2)return;const el=hzPick(e),svg=el?.querySelector('svg');if(!svg)return;
     if(haP){{clearTimeout(haP.timer);haP=null;}}
     const z=+(svg.dataset.z||1),sr=svg.getBoundingClientRect(),w=sr.width/z,h=sr.height/z,tx=+(svg.dataset.fx||0)*w,ty=+(svg.dataset.fy||0)*h,o=[sr.left-tx,sr.top-ty],m=mid(e.touches,o);
     pz={{el,svg,o,w,h,d0:dist(e.touches),z0:z,p:[(m[0]-tx)/z,(m[1]-ty)/z]}};}},{{capture:true,passive:true}});
-  hapop.addEventListener('touchmove',e=>{{if(!pz||e.touches.length!==2)return;e.preventDefault();
+  document.addEventListener('touchmove',e=>{{if(!pz||e.touches.length!==2)return;e.preventDefault();
     const z=Math.max(1,Math.min(5,pz.z0*dist(e.touches)/pz.d0)),m=mid(e.touches,pz.o),tx=m[0]-pz.p[0]*z,ty=m[1]-pz.p[1]*z,sv=pz.svg;
     setHaZoom(pz.el,Math.max(1.02,z),tx/pz.w,ty/pz.h);}},{{capture:true,passive:false}});
-  hapop.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{saveHaZoom(pz.el);pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
+  document.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{if(!pz.el.classList.contains('hz'))saveHaZoom(pz.el);pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
   // 노트북 터치패드 두 손가락 벌리기(=Ctrl+휠)·Ctrl+마우스휠: 커서 자리 중심으로 확대/축소
-  let wzT=null;hapop.addEventListener('wheel',e=>{{const el=e.target.closest('.mk[data-k]'),svg=el?.querySelector('svg');if(!svg)return;
+  let wzT=null;const wSave=el=>{{if(!el.classList.contains('hz'))saveHaZoom(el);}};document.addEventListener('wheel',e=>{{const el=hzPick(e),svg=el?.querySelector('svg');if(!svg)return;
     if(!e.ctrlKey){{if(!el.classList.contains('mk-zoomed'))return;e.preventDefault();  // 확대된 칸 위에서 두 손가락 쓸기 = 그림 이동
       const z=+svg.dataset.z,r=svg.getBoundingClientRect(),w=r.width/z,h=r.height/z;setHaZoom(el,z,+svg.dataset.fx-e.deltaX/w,+svg.dataset.fy-e.deltaY/h);
-      clearTimeout(wzT);wzT=setTimeout(()=>saveHaZoom(el),400);return;}}
+      clearTimeout(wzT);wzT=setTimeout(()=>wSave(el),400);return;}}
     e.preventDefault();
     const z0=+(svg.dataset.z||1),sr=svg.getBoundingClientRect(),w=sr.width/z0,h=sr.height/z0,tx=+(svg.dataset.fx||0)*w,ty=+(svg.dataset.fy||0)*h,
       mx=e.clientX-(sr.left-tx),my=e.clientY-(sr.top-ty),px=(mx-tx)/z0,py=(my-ty)/z0,z=Math.max(1,Math.min(5,z0*Math.exp(-e.deltaY*.01)));
-    setHaZoom(el,z,(mx-px*z)/w,(my-py*z)/h);clearTimeout(wzT);wzT=setTimeout(()=>saveHaZoom(el),400);}},{{passive:false}});
+    setHaZoom(el,z,(mx-px*z)/w,(my-py*z)/h);clearTimeout(wzT);wzT=setTimeout(()=>wSave(el),400);}},{{passive:false}});
 }}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{const charts=document.querySelectorAll('.tile.zoom');charts.forEach(e=>e.classList.remove('zoom'));
