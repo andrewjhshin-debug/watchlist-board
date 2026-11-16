@@ -900,7 +900,7 @@ body.baronly .grid-wrap{{grid-template-columns:minmax(0,1fr)!important;grid-temp
 .bar-footer{{display:none}}
 body.baronly .bar-footer{{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;min-height:clamp(60px,10dvh,96px)}}
 
-.bar-footer .baravg{{min-width:0}}.bar-leading[hidden]{{display:none}}
+.bar-footer .baravg{{min-width:0}}.tabbar button{{position:relative}}#tab-avg{{position:absolute;top:2px;left:calc(50% + 12px);font-style:normal;font-family:'GalmuriMono11','Galmuri11',monospace;font-size:12px;line-height:1}}.bar-leading[hidden]{{display:none}}
 .bar-leading{{position:absolute;right:clamp(6px,1.5vw,16px);top:max(32px,calc(50% - 42px));transform:translateY(-50%);width:clamp(56px,16vw,84px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;color:#fff;line-height:1.2;text-align:center}}
 .bar-leading-value{{font-family:'GalmuriMono11','Galmuri11',monospace;font-size:clamp(16px,4.4vw,22px);font-variant-numeric:tabular-nums;white-space:nowrap}}
 .bar-leading-meta{{font-size:clamp(9px,2.4vw,11px);color:#fff;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere}}
@@ -1037,7 +1037,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 
 <div class="note"><b id="live" style="font-weight:normal;color:var(--tgt)">{now} 기준</b> · <span id="vdesc"></span> · <i style="color:var(--tgt)">╍ 목표가</i> · <button id="fold">차트 접기</button> <button id="sync">동기화</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div>
 {err}{ha}<div class="grid-wrap"><label class="since-tag" title="막대 기준일 바꾸기"><span id="since-txt"></span><input type="date" id="since-pick" aria-label="막대 기준일"></label><i class="date-g"><b id="date-gb"></b></i><label class="since-tag mark-tag" title="날짜 메모"><span id="mark-txt"></span><input type="date" id="mark-pick" aria-label="날짜 메모"></label>{"".join(tile(d) for d in items)}</div><div class="bar-footer"><button id="baravg" class="baravg" type="button" aria-label="평균 새로고침" title="눌러서 새로고침" onclick="document.getElementById('reload').click()"></button><aside id="bar-leading" class="bar-leading" aria-label="선행지수" hidden onclick="event.stopPropagation();const t=document.querySelector('.tile[data-sym=&quot;ecos:901Y067/I16E&quot;]');if(t)openChart(t)" style="cursor:pointer"><div id="bar-leading-value" class="bar-leading-value"></div><div id="bar-leading-meta" class="bar-leading-meta"></div></aside></div>
-<nav class="tabbar" aria-label="화면"><button data-k="board"><span>▦</span>차트</button><button data-k="bar"><span>≡</span>바</button><button data-k="ha"><span>∿</span>하</button><button data-k="set"><span>⚙</span>설정</button></nav>
+<nav class="tabbar" aria-label="화면"><button data-k="board"><span>▦</span>차트</button><button data-k="bar"><span>≡</span>바<em id="tab-avg"></em></button><button data-k="ha"><span>∿</span>하</button><button data-k="set"><span>⚙</span>설정</button></nav>
 <dialog id="avg-settings" aria-labelledby="avg-settings-title">
 <form id="avg-settings-form">
 <div class="settings-heading"><h2 id="avg-settings-title">평균 종목</h2><button type="button" aria-label="설정 닫기" onclick="document.getElementById('avg-settings').close()">✕</button></div>
@@ -1407,7 +1407,7 @@ function showAvg(){{
   if(refreshAverageNamesVisible)paintRefreshAverageNames(members);
   const mean=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
   const text=mean===null?'—':Math.round(mean*100)+'%',color=mean===null?'var(--sub)':AC[Math.max(0,Math.min(9,Math.floor(mean*10)))];
-  for(const id of ['avg','baravg']){{const el=document.getElementById(id);if(el){{if(el.textContent!==text)el.textContent=text;el.style.color=color;}}}}
+  for(const id of ['avg','baravg','tab-avg']){{const el=document.getElementById(id);if(el){{if(el.textContent!==text)el.textContent=text;el.style.color=color;}}}}
   document.querySelectorAll('.avgpop b').forEach(b=>{{b.textContent=text;b.style.color=color;}});
 }}
 function avgSettingsSummary(){{
