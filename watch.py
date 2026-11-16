@@ -393,7 +393,8 @@ def tile(d: dict) -> str:
     views = ""
     for k, v in d["views"].items():
         v = v | {"target": d.get("target"), "currency": cur, "peak": d.get("peak")}
-        views += f'<div class="view" data-v="{k}"><div class="chart">{chart_svg(v)}</div></div>'
+        views += (f'<div class="view" data-v="{k}"><script type="text/x-watchlist-chart" class="chart-source">'
+                  f'<div class="chart">{chart_svg(v)}</div></script></div>')
     tgt = "".join(f'<div class="tgttxt" data-t="{t}">목표 {fmt_short(t, cur)} <b>{(price / t - 1) * 100:+.1f}%</b></div>' for t in tgts)
     # 거리 막대: 종목마다 자기 기준. gauge_since(2026-07-31) 이후 장중 최고가 = 100%, 목표가 = 0%.
     # 다가올수록 줄어듦. 이름과 막대는 같은 4단계 색: 75%↑ 빨강, 50%↑ 주황, 25%↑ 노랑, 그 아래 흰색(임박)
@@ -822,7 +823,7 @@ def render(items: list[dict], errors: list[str], ha: str = "") -> None:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>관심종목 보드</title>
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon.png"><link rel="apple-touch-icon" href="icon.png"><meta name="theme-color" content="#0d1424">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css" media="print" onload="this.media='all'">
 <style>
 :root{{--bg:#0d1424;--tile:#121b30;--edge:#26355a;--grid:#1d2a48;--txt:#e6ecff;--sub:#8a96b8;
 --up:#ff4d6d;--upf:#3a1424;--dn:#3d8bff;--dnf:#0f2650;--low:#ffd23f;--tgt:#3ef0b0;--cbg:#0a1020}}
@@ -833,7 +834,7 @@ body.day{{--bg:#eef2f9;--tile:#fff;--edge:#c5d0e6;--grid:#e6ecf6;--txt:#17213b;-
 header{{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--edge)}}
 h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11','Galmuri11',monospace}}#ttl{{cursor:pointer}}
 .toast{{}}body.baronly .grid-wrap{{position:relative;padding-top:16px!important}}.since-tag{{display:none}}body.baronly .since-tag{{display:block;position:absolute;left:10px;top:0;z-index:2;font-size:12px;line-height:1;padding:2px 4px 3px;color:var(--sub);border-bottom:1px dashed var(--sub);cursor:pointer}}body.baronly .mark-tag{{left:auto;right:10px}}.date-g{{display:none}}body.baronly .date-g{{display:block;position:absolute;left:62px;right:62px;top:6px;height:3px;border-radius:2px;background:var(--edge)}}.date-g b{{display:block;height:100%;border-radius:2px;background:var(--sub)}}.since-tag input{{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;cursor:pointer}}#ha{{display:none}}body.baronly #ha{{display:block}}
-.hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}.hapop.warm[hidden]{{display:grid;visibility:hidden;pointer-events:none}}
+.hapop{{position:fixed;inset:0;z-index:31;background:#000;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:calc((100dvh - 34px)/4);overflow-y:auto;gap:6px;padding:8px;cursor:pointer}}.hapop[hidden]{{display:none}}
 .mk{{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}}.mk-drag{{border-color:#ffb300!important;opacity:.85}}.mk{{display:flex;flex-direction:column;min-height:0;border:2px solid #1e2a48;padding:4px}}.mk b{{font-weight:normal;font-size:min(14px,3.5vw);color:#e8ecff;white-space:nowrap;overflow:hidden}}.mk i{{font-style:normal;color:#00ff3c}}.mk small{{font-size:11px;color:#8a96c0;white-space:nowrap}}.mk small.mk-s u{{font-size:inherit}}.mk small.mk-s{{white-space:normal;font-size:10px;line-height:1.3;word-break:keep-all}}.mk u{{text-decoration:none;color:#ffb300;font-size:13px}}
 .mk svg{{flex:1;min-height:0;width:100%;height:100%}}.mk-c{{fill:none;stroke:#3fae3f;stroke-width:7;stroke-linejoin:round;stroke-linecap:round}}.mk-m{{stroke:#8a96c0;stroke-width:1.5;stroke-dasharray:3 3}}
 .mk-p{{fill:none;stroke:#ff2a3c;stroke-width:3;stroke-linejoin:round}}.mk-d{{fill:#ffb300;stroke:#000;stroke-width:1.5}}.mk-t{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-t .g{{fill:#00ff3c}}.mk-zoomed{{overflow:hidden}}.mk-zoomed svg{{overflow:hidden}}.mk-zd{{fill:#fff;stroke:#000;stroke-width:1.5}}.mk.mk-hl{{border:2px solid #ffb300!important}}.mk.mk-off{{display:none!important}}.mk-add{{grid-column:1/-1;text-align:center;padding:14px;border:1px dashed var(--edge);border-radius:12px;color:var(--sub);cursor:pointer}}
@@ -1050,9 +1051,15 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 
 <script>
 const D={json.dumps({k: v[4] for k, v in VIEWS.items()}, ensure_ascii=False)};
-function setV(v){{if(!D[v])return;document.body.dataset.v=v;document.getElementById('vdesc').textContent=D[v];document.querySelectorAll('.tabs button[data-v]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));try{{localStorage.v=v}}catch(e){{}}}}
+function setV(v){{
+  if(!D[v])return;
+  document.body.dataset.v=v;
+  document.getElementById('vdesc').textContent=D[v];
+  document.querySelectorAll('.tabs button[data-v]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));
+  ls('v',v);
+  showVisibleCharts();
+}}
 let saved;try{{saved=localStorage.v}}catch(e){{}}
-setV(D[saved]?saved:'일');
 document.querySelectorAll('.tabs button[data-v]').forEach(b=>b.onclick=e=>{{e.stopPropagation();setV(b.dataset.v);}});
 try{{localStorage.removeItem('day')}}catch(e){{}}  // 데이 모드 없앰
 const RAW='https://raw.githubusercontent.com/{CFG.get("repo", "andrewjhshin-debug/watchlist-board")}/live/m/';
@@ -1066,7 +1073,10 @@ function renderT(el){{
   const t=getT(el),c=el.dataset.cur,key=JSON.stringify(t);if(el._targetsPainted&&el.dataset.tgts===key)return;el._targetsPainted=true;el._quoteState=null;el.dataset.tgts=key;
   el.querySelector('.tgts').innerHTML=t.length?t.map(x=>'<div class="tgttxt" data-t="'+x+'">목표 '+fs(x,c)+' <b></b></div>').join(''):'<div class="tgttxt">목표 설정 ✎</div>';
   el.querySelector('.gauge').hidden=!t.length;
-  el.querySelectorAll('svg[data-vmin]').forEach(s=>{{s.querySelectorAll('.tgt').forEach(l=>l.remove());
+  paintTargetLines(el,t);
+}}
+function paintTargetLines(container,t){{
+  container.querySelectorAll('svg[data-vmin]').forEach(s=>{{s.querySelectorAll('.tgt').forEach(l=>l.remove());
     const lo=+s.dataset.vmin,hi=+s.dataset.vmax,vb=s.viewBox.baseVal;
     t.forEach(x=>{{const y=Math.max(1,Math.min(vb.height-1,vb.height-{CELL / 2}-Math.round((x-lo)/((hi-lo)||1)*{ROWS - 1})*{CELL}));
       const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('class','tgt');
@@ -1079,6 +1089,23 @@ const ls=(k,v)=>{{try{{if(v===undefined)return localStorage[k];localStorage[k]=v
 const tileList=[...document.querySelectorAll('.tile[data-sym]')],tileBySym=new Map(tileList.map(el=>[el.dataset.sym,el]));
 const tiles=()=>tileList;
 function registerTile(el){{tileList.push(el);tileBySym.set(el.dataset.sym,el);}}
+function tileView(el,v){{return el.querySelector('.view[data-v="'+v+'"]');}}
+function mountChart(el,v){{
+  const view=tileView(el,v);
+  if(!view||view.querySelector('.chart'))return;
+  const source=view.querySelector('.chart-source');
+  if(!source)return;
+  view.insertAdjacentHTML('beforeend',source.textContent);
+  paintTargetLines(view,getT(el));
+}}
+function showVisibleCharts(){{
+  const v=document.body.dataset.v;
+  if(!v)return;
+  const zoom=document.querySelector('.tile.zoom');
+  if(zoom){{mountChart(zoom,v);return;}}
+  if(document.body.classList.contains('baronly')||document.body.classList.contains('nochart')||(hapop&&!hapop.hidden))return;
+  for(const el of tiles())if(!el.hasAttribute('data-bar-only'))mountChart(el,v);
+}}
 function repaint(){{tiles().forEach(el=>{{renderT(el);apply(el.dataset.sym,+el.dataset.p,+el.dataset.pv);}});}}
 // 목표가·강조 표시·평균 종목·바 순서를 같은 동기화 코드의 문서에서 공유한다.
 let targetPullJob=null,targetPullCode=null,targetPullGeneration=0,avgWriteJob=null,avgWriteCode=null,avgSyncState='',avgSettingsDirty=false,avgGeneration=0;
@@ -1231,7 +1258,19 @@ function showPct(){{const a=document.getElementById('avg');if(!a.textContent)ret
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');}}
 document.getElementById('ttl').onclick=showPct;
 const hapop=document.getElementById('hapop');
-document.getElementById('ha').onclick=()=>{{if(!hapop)return;const hm=ls('hm')||'';hapop.hidden=false;paintTab();if(hm==='1')hapop.querySelector('.mk:not([data-k])')?.click();else if(hm.startsWith('k:')){{const c=[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')].find(c=>c.dataset.k===hm.slice(2));if(c)openHz(c);}}requestAnimationFrame(()=>placeNps(haShown()));loadHaCharts();}};  // 모델 크게 보던 중이었으면 그대로
+document.getElementById('ha').onclick=()=>{{
+  if(!hapop)return;
+  const hm=ls('hm')||'';
+  hapop.hidden=false;
+  paintTab();
+  if(hm==='1')hapop.querySelector('.mk:not([data-k])')?.click();
+  else if(hm.startsWith('k:')){{
+    const cell=[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')].find(c=>c.dataset.k===hm.slice(2));
+    if(cell)openHz(cell);
+  }}
+  requestAnimationFrame(()=>{{if(haLastQ)paintHaLive(haLastQ);else placeNps(haShown());}});
+  loadHaCharts();
+}};
 // 하 화면: 칸을 톡 누르면 주봉 차트 크게(뒤로가기·화면 누르면 닫힘), 꾹 누르면 이동
 let haCharts=null,haChartsJob=null;  // 하 화면 열 때 미리 받아 둠 → 칸을 누르면 바로 뜸. 받는 중이면 같은 요청을 같이 기다림
 function loadHaCharts(fresh){{if(haCharts&&!fresh)return Promise.resolve(haCharts);
@@ -1250,19 +1289,51 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
   const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.why?'\\n근거: '+nm.dataset.why:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
   openHz(el);}});
-async function openHz(el){{  // 종목 크게 보기. 아래 바 그대로, 바·차트 갔다 와도 다시 열림(ls hm = 'k:종목')
+function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차트는 도착하면 연결
   const d=document.createElement('div');d.className='hz hz-b';d.dataset.k=el.dataset.k;
-  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t" onclick="event.stopPropagation()"></div><div class="hz-c">불러오는 중</div>'+hzDots(el);
+  d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t"></div><div class="hz-c"></div>'+hzDots(el);
+  const tabs=d.querySelector('.hz-t'),chart=d.querySelector('.hz-c'),price=d.querySelector('.hz-p');
+  const curve=el.querySelector('svg')?.cloneNode(true);
+  if(curve)curve.removeAttribute('style');
+  const preferred=ls('hz-v');
+  let views=haCharts?.[el.dataset.k]||{{}},chosen='';
+  const mounted=new Map();
+  if(curve)mounted.set('하',curve);
+  const keys=()=>['하','240','일','주','월'].filter(k=>k==='하'?curve:views[k]);
+  function show(k){{
+    if(!mounted.has(k)){{
+      const template=document.createElement('template');
+      template.innerHTML=views[k]||'';
+      mounted.set(k,template.content.firstElementChild);
+    }}
+    const view=mounted.get(k);
+    if(view)chart.replaceChildren(view);
+    else chart.textContent='차트 없음';
+    chosen=k;
+    d.classList.toggle('hz-h1',k==='하');
+    d.querySelector('.hz-s').textContent=HZ_DESC[k]+(k==='하'?'':' · 초록선 = 주봉으로 맞춘 민스키 곡선');
+    tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));
+    hzLive();
+  }}
+  function paintTabs(){{tabs.innerHTML=keys().map(k=>'<button type="button" data-v="'+k+'">'+(k==='하'?'하이먼':k)+'</button>').join('');}}
+  tabs.onclick=e=>{{
+    e.stopPropagation();
+    const button=e.target.closest('button');
+    if(button){{ls('hz-v',button.dataset.v);show(button.dataset.v);}}
+  }};
   d.onclick=()=>history.back();document.body.appendChild(d);history.pushState({{pop:1}},'');ls('hm','k:'+el.dataset.k);
-  const vs=(await loadHaCharts())[el.dataset.k]||{{}};if(!d.isConnected)return;
-  d.querySelector('.hz-p').textContent=vs.last||'';
-  const hsv=el.querySelector('svg')?.cloneNode(true);if(hsv)hsv.removeAttribute('style');  // 칸의 하이먼 곡선을 크게
-  const keys=['하','240','일','주','월'].filter(k=>k==='하'?hsv:vs[k]);
-  const show=k=>{{ls('hz-v',k);const c=d.querySelector('.hz-c');if(k==='하'){{c.innerHTML='';c.appendChild(hsv);}}else c.innerHTML=vs[k]||'차트 없음';d.classList.toggle('hz-h1',k==='하');d.querySelector('.hz-s').textContent=HZ_DESC[k]+(k==='하'?'':' · 초록선 = 주봉으로 맞춘 민스키 곡선');
-    d.querySelectorAll('.hz-t button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));if(k==='하')hzLive();}};
-  d.querySelector('.hz-t').innerHTML=keys.map(k=>'<button data-v="'+k+'">'+(k==='하'?'하이먼':k)+'</button>').join('');
-  d.querySelector('.hz-t').onclick=ev=>{{ev.stopPropagation();const b=ev.target.closest('button');if(b)show(b.dataset.v);}};
-  show(keys.includes(ls('hz-v'))?ls('hz-v'):keys[0]);hzLive();}}
+  price.textContent=views.last||tileBySym.get(el.dataset.s)?.querySelector('.price').textContent||el.querySelector('.mk-np')?.textContent||'';
+  paintTabs();
+  if(keys().length)show(keys().includes(preferred)?preferred:keys()[0]);
+  if(!haCharts)loadHaCharts().then(charts=>{{
+    if(!d.isConnected)return;
+    views=charts[el.dataset.k]||{{}};
+    if(views.last)price.textContent=views.last;
+    paintTabs();
+    const wanted=ls('hz-v')||preferred||chosen;
+    if(keys().length)show(keys().includes(wanted)?wanted:keys()[0]);
+  }});
+}}
 // 하: 칸을 꾹 눌러 끌면 순서 바뀜(모델 칸은 늘 맨 앞). 동기화 문서 _haOrder 로 기기끼리 공유
 let haP=null,haSkip=0;
 function haZoomMap(){{try{{return JSON.parse(ls('hzoom')||'{{}}');}}catch(e){{return {{}};}}}}
@@ -1374,7 +1445,8 @@ if(hapop){{
     setHaZoom(el,z,(mx-px*z)/w,(my-py*z)/h);clearTimeout(wzT);wzT=setTimeout(()=>saveHaZoom(el),400);}},{{passive:false}});
 }}
 document.getElementById('pct').onclick=showPct;
-addEventListener('popstate',()=>{{document.querySelectorAll('.tile.zoom').forEach(e=>e.classList.remove('zoom'));
+addEventListener('popstate',()=>{{const charts=document.querySelectorAll('.tile.zoom');charts.forEach(e=>e.classList.remove('zoom'));
+  if(charts.length)showVisibleCharts();
   const hp=document.querySelector('.hpick');if(hp){{hp._close();return;}}const hz=document.querySelector('.hz');if(hz){{hz.remove();return;}}document.querySelectorAll('.avgpop').forEach(d=>d.remove());}});  // 큰 창 닫는 뒤로가기는 큰 % 를 안 지움
 // 목표 평균 색 10단계(10% 단위): 0~40% 초록 4단계(낮을수록 진함) → 노랑 → 주황 → 빨강
 const AC=['#00ff3c','#3dff5a','#7dff6e','#b4ff7a','#e6f04a','#ffd23f','#ffaa33','#ff8a3c','#ff6a50','#ff4d6d'];
@@ -1441,7 +1513,7 @@ addEventListener('storage',e=>{{if(e.key===AVG_KEY){{avgGeneration++;avgSymbols=
 const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실시간 '+t;const b=document.getElementById('bar-stamp');if(b)b.textContent='실시간 '+t.slice(0,5)+' 갱신';}};
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(force=false){{if(!force&&document.visibilityState==='hidden')return false;for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
-  if(r.ok){{lastSlot=sl;const j=await r.json();if(j.b&&j.b!==BUILD)staleReload(j.b);for(const x in j.q)if(!x.startsWith('upbit:')||Date.now()-upAt>60000)apply(x,j.q[x][0],j.q[x][1]);paintHaLive(j.q);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
+  if(r.ok){{lastSlot=sl;const j=await r.json();checkBoardVersion(j.b);for(const x in j.q)if(!x.startsWith('upbit:')||Date.now()-upAt>60000)apply(x,j.q[x][0],j.q[x][1]);paintHaLive(j.q);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
 function haFmt(v,c){{return v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixed(1)+'만':v>=100?c+Math.round(v).toLocaleString():c+v.toFixed(2);}}
 // 하 칸 높이: 실제로 보이는 하 화면 높이를 재서 4줄(8칸)이 딱 한 화면에 들어가게 (dvh 가 기기마다 달라서)
 if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setProperty('--har',Math.floor((h-10-4*8-6)/4)+'px');}};
@@ -1450,8 +1522,8 @@ if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setPr
 function placeNps(cs){{const m=[];for(const c of cs){{const t=c.querySelector('.mk-np'),d=c.querySelector('.mk-d');if(!t||!d)continue;let w=0;try{{w=t.getComputedTextLength();}}catch(e){{}}if(!w)continue;
     m.push([t,+d.getAttribute('cx'),w,c.querySelector('svg').viewBox.baseVal.width||200]);}}  // 먼저 전부 재고
   for(const [t,cx,w,vb] of m){{const right=cx+8+w<=vb-1,a=right?'start':'end',x=String(right?cx+8:cx-8);if(t.getAttribute('text-anchor')!==a)t.setAttribute('text-anchor',a);if(t.getAttribute('x')!==x)t.setAttribute('x',x);}}}}  // 그다음 전부 씀
-function haShown(){{return hapop&&(!hapop.hidden||hapop.classList.contains('warm'))?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
-function paintHaLive(q){{haLastQ=q;hapop?.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0){{const s=haFmt(v[0],c.dataset.c||'');if(t.textContent!==s)t.textContent=s;}}
+function haShown(){{return hapop&&!hapop.hidden?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
+function paintHaLive(q){{haLastQ=q;if(!hapop||hapop.hidden)return;hapop.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0){{const s=haFmt(v[0],c.dataset.c||'');if(t.textContent!==s)t.textContent=s;}}
   const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}if(v&&v[0]>0){{haDot(c.querySelector('svg'),v[0]);if(c.dataset.s==='SOXL')document.querySelectorAll('.mk-sx').forEach(x=>{{haDot(x,v[0]);const t=x.querySelector('text'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n)t.textContent=n;}});}}}});placeNps(haShown());hzLive();}}
 function hzSeq(el){{const m=hapop.querySelector('.mk:not([data-k]) .mk-s'),st=+el.dataset.st;if(!m||!(st>=0))return'';return'<small class="mk-s">'+m.textContent.split('→').map((t,i)=>i===st?'<u>'+t+'</u>':t).join('→')+'</small>';}}
 function hddT(b){{const d=b.closest('.hz-dd'),on=!d.classList.contains('on');d.classList.toggle('on',on);ls('hdd',on?'1':'0');if(ls('sync'))updateShared(x=>{{x._hdd=on;}});}}
@@ -1479,19 +1551,42 @@ function showRefreshToast(message){{
   refreshToastTimer=setTimeout(()=>toast.remove(),1800);
 }}
 const BUILD=document.querySelector('meta[name=build]').content;
-// 옛 코드 화면이면 통째로 새로 받음. 배포 직후 엇갈려 계속 새로고침하지 않게 5분에 한 번만
-// 주소에 매번 다른 꼬리표를 붙여 GitHub 서버의 10분 캐시(옛 화면)를 건너뛴다. 1분에 한 번까지만
-function staleReload(b){{let t=0;try{{t=+sessionStorage.staleAt||0;}}catch(e){{}}if(Date.now()-t<60000)return false;
-  try{{sessionStorage.staleAt=Date.now();}}catch(e){{}}location.replace(location.pathname+'?b='+(b||'')+'&t='+Date.now());return true;}}
+let availableBuild='',updateTimer=0,lastInputAt=Date.now(),lastBuildCheck=0,chartsJob=null;
+for(const type of ['pointerdown','keydown','input'])addEventListener(type,()=>{{lastInputAt=Date.now();}},{{passive:true,capture:true}});
+function checkBoardVersion(build){{
+  if(!build||build===BUILD||availableBuild||Date.now()-lastBuildCheck<60000)return;
+  lastBuildCheck=Date.now();
+  refreshCharts();
+}}
+function scheduleBoardUpdate(){{
+  if(!availableBuild||updateTimer||document.hidden)return;
+  updateTimer=setTimeout(()=>{{
+    updateTimer=0;
+    if(document.hidden)return;
+    if(Date.now()-lastInputAt<2000||barPress||boP||haP||document.querySelector('.tile.zoom,.hz,.hpick,.avgpop,dialog[open]')){{
+      scheduleBoardUpdate();
+      return;
+    }}
+    const url=new URL(location.href);
+    url.searchParams.set('b',availableBuild);
+    url.searchParams.set('t',Date.now());
+    location.replace(url.href);
+  }},2000);
+}}
 if(/[?&]b=/.test(location.search))history.replaceState(history.state,'',location.pathname);
-async function refreshCharts(){{
+function refreshCharts(){{
+  if(!chartsJob)chartsJob=loadBoardCharts().finally(()=>{{chartsJob=null;}});
+  return chartsJob;
+}}
+async function loadBoardCharts(){{
   try{{
     const url=new URL(location.href);url.searchParams.set('_refresh',Date.now());
     const response=await fetch(url,{{cache:'no-store'}});if(!response.ok)return false;
     const next=new DOMParser().parseFromString(await response.text(),'text/html');
-    const nb=next.querySelector('meta[name=build]');if(nb&&nb.content!==BUILD&&staleReload(nb.content))return true;
     const incoming=[...next.querySelectorAll('.tile[data-sym]')];
     if(!next.querySelector('#baravg')||!incoming.length)return false;
+    const build=next.querySelector('meta[name=build]')?.content;
+    if(build&&build!==BUILD){{availableBuild=build;scheduleBoardUpdate();return true;}}
     const current=tileBySym;
     const board=document.querySelector('.grid-wrap');
     for(const fresh of incoming){{
@@ -1502,8 +1597,12 @@ async function refreshCharts(){{
         const name=el.querySelector('.name'),nextName=fresh.querySelector('.name');
         if(name&&nextName&&name.innerHTML!==nextName.innerHTML)name.replaceChildren(...nextName.childNodes);
         for(const view of [...fresh.querySelectorAll('.view')]){{
-          const old=el.querySelector('.view[data-v="'+view.dataset.v+'"]');
-          if(old){{if(old.innerHTML!==view.innerHTML){{old.replaceChildren(...view.childNodes);el._targetsPainted=false;}}}}
+          const old=tileView(el,view.dataset.v);
+          if(old){{
+            const source=view.querySelector('.chart-source'),previous=old.querySelector('.chart-source');
+            const changed=source&&previous?source.textContent!==previous.textContent:old.innerHTML!==view.innerHTML;
+            if(changed){{old.replaceChildren(...view.childNodes);el._targetsPainted=false;}}
+          }}
           else{{el.insertBefore(view,el.querySelector('.gauge'));el._targetsPainted=false;}}
         }}
         el.querySelectorAll('.zoom-tools button[data-v]').forEach(button=>button.disabled=!el.querySelector('.view[data-v="'+button.dataset.v+'"]'));
@@ -1511,7 +1610,7 @@ async function refreshCharts(){{
       }}
       renderT(el);apply(sym,+el.dataset.p,+el.dataset.pv);
     }}
-    paintHL();if(!barPress)applyBarOrder();applySince();return true;
+    paintHL();if(!barPress)applyBarOrder();applySince();showVisibleCharts();return true;
   }}catch(e){{return false;}}
 }}
 function refreshBoard(announce=true){{
@@ -1537,7 +1636,9 @@ const barOrderPendingKey=code=>'bar-order-pending:'+code;
 let barOrderGeneration=0,barOrderWriteJob=null,barOrderWriteCode=null;
 function adoptSharedBarOrder(value){{
   if(barPress||!Array.isArray(value)||!value.every(sym=>typeof sym==='string'))return false;
-  const order=[...new Set(value)];ls(BAR_ORDER_KEY,JSON.stringify(order));applyBarOrder(order);return true;
+  const order=[...new Set(value)],saved=JSON.stringify(order);
+  if(saved!==ls(BAR_ORDER_KEY)){{ls(BAR_ORDER_KEY,saved);applyBarOrder(order);}}
+  return true;
 }}
 function saveBarOrder(order){{
   const saved=JSON.stringify([...new Set(order)]);barOrderGeneration++;ls(BAR_ORDER_KEY,saved);
@@ -1567,10 +1668,13 @@ function applyBarOrder(order=readBarOrder()){{
   const all=tiles(),rank=[...new Set([...order,...BAR_DEFAULT_ORDER,...all.map(el=>el.dataset.sym)])];
   const on=document.body.classList.contains('baronly');
   all.forEach(el=>{{
-    const n=rank.indexOf(el.dataset.sym);el.dataset.barOrder=n;el.style.setProperty('--bar-order',n);
-    const visible=on&&!el.classList.contains('zoom')&&getComputedStyle(el).display!=='none';
-    if(visible){{el.tabIndex=0;el.setAttribute('title','꾹 누른 뒤 위아래로 끌어 순서 변경 · Alt+↑↓');}}
-    else{{el.removeAttribute('tabindex');el.removeAttribute('title');}}
+    const n=String(rank.indexOf(el.dataset.sym));
+    if(el.dataset.barOrder!==n){{el.dataset.barOrder=n;el.style.setProperty('--bar-order',n);}}
+  }});
+  const visible=new Set(on?all.filter(el=>!el.classList.contains('zoom')&&getComputedStyle(el).display!=='none'):[]);
+  all.forEach(el=>{{
+    if(visible.has(el)){{el.tabIndex=0;el.setAttribute('title','꾹 누른 뒤 위아래로 끌어 순서 변경 · Alt+↑↓');}}
+    else if(el.hasAttribute('tabindex')){{el.removeAttribute('tabindex');el.removeAttribute('title');}}
   }});
 }}
 function barRows(){{return [...barBoard.querySelectorAll('.tile[data-sym]:not(.zoom)')].filter(el=>getComputedStyle(el).display!=='none').sort((a,b)=>+a.dataset.barOrder-+b.dataset.barOrder);}}
@@ -1607,7 +1711,7 @@ barBoard.addEventListener('pointerdown',e=>{{
     p.rows=barRows();p.before=p.rows.map(row=>row.dataset.sym);p.order=p.before.slice();
     p.centers=p.rows.map(row=>{{const r=row.getBoundingClientRect();return r.top+r.height/2;}});
     p.offset=p.y-el.getBoundingClientRect().top;p.active=true;
-    clearTimeout(tapT);tapT=null;el.classList.add('bar-dragging');document.body.classList.add('bar-sorting');
+    el.classList.add('bar-dragging');document.body.classList.add('bar-sorting');
   }},450);
 }});
 barBoard.addEventListener('pointermove',e=>{{
@@ -1638,13 +1742,13 @@ applyBarOrder();
 
 // 차트 접기: 휴대폰은 처음엔 접힌 상태(12종목이 한 화면에), 선택은 기억
 const fold=document.getElementById('fold');
-function setF(on){{document.body.classList.toggle('nochart',on);fold.textContent=on?'차트 펴기':'차트 접기';ls('fold',on?'1':'0');}}
+function setF(on){{document.body.classList.toggle('nochart',on);fold.textContent=on?'차트 펴기':'차트 접기';ls('fold',on?'1':'0');showVisibleCharts();}}
 fold.onclick=()=>setF(!document.body.classList.contains('nochart'));
 setF(innerWidth<601&&ls('fold')!=='0');
 function fitBarViewport(){{const h=Math.floor(window.visualViewport?.height||innerHeight);if(h>0)document.body.style.setProperty('--bar-viewport',h+'px');}}
 addEventListener('resize',fitBarViewport);window.visualViewport?.addEventListener('resize',fitBarViewport);
 const barB=document.getElementById('bar');
-function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();paintTab();if(typeof paintHL==='function')paintHL();}}
+function setB(on){{clearRefreshAverageNames();finishBarPress(false);fitBarViewport();document.body.classList.toggle('baronly',on);barB.style.color=on?'var(--low)':'';barB.style.borderColor=on?'var(--low)':'';ls('bar',on?'1':'0');applyBarOrder();paintTab();if(typeof paintHL==='function')paintHL();showVisibleCharts();}}
 function paintTab(){{const k=hapop&&!hapop.hidden?'ha':document.body.classList.contains('baronly')?'bar':'board';ls('screen',k);if(k==='ha'){{const z=document.querySelector('.hz');ls('hm',!z?'':z.classList.contains('hz-m')?'1':'k:'+z.dataset.k);}}document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}}
 document.querySelector('.tabbar').onclick=e=>{{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
   if(k==='set'){{openAvgSettings();return;}}
@@ -1656,8 +1760,6 @@ addEventListener('popstate',paintTab);
 const lastScreen=ls('screen');barB.onclick=()=>setB(!document.body.classList.contains('baronly'));setB(ls('bar')==='1');
 // 마지막에 보던 화면(보드·바·하)으로 다시 켜짐
 if(lastScreen==='ha'&&hapop)document.getElementById('ha').click();  // 모델 크게 보던 중이면 그것도
-// 하 화면을 한가할 때 안 보이게 미리 배치하고 종목 차트도 받아 둠 → 처음 열 때도 바로 뜸
-if(hapop)(window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>{{hapop.classList.add('warm');placeNps(haShown());loadHaCharts();}},{{timeout:4000}});
 document.getElementById('sync').onclick=()=>askSync(true);syncLabel();
 // 노란 테두리: 카드를 두 번 톡톡(더블탭·더블클릭)하면 켜고 끔, 한 번이면 차트 크게. 폰끼리 동기화
 // 테두리는 보드(hl)와 바(hlb)가 따로
@@ -1666,20 +1768,28 @@ function getHL(k=hlKey()){{try{{return JSON.parse(ls(k)||'[]');}}catch(e){{retur
 function paintHL(){{const h=getHL();tiles().forEach(el=>el.classList.toggle('hl',h.includes(el.dataset.sym)));}}
 function toggleHL(el){{const h=getHL(),s=el.dataset.sym,i=h.indexOf(s);i<0?h.push(s):h.splice(i,1);ls(hlKey(),JSON.stringify(h));paintHL();pushT();
   if(navigator.vibrate)navigator.vibrate(30);}}
-// 차트 모드: 두 번 톡톡 = 테두리만(펼치지 않음), 한 번 = 잠깐 기다렸다 펼침. 바 모드는 바로 펼침.
-let tapT=null,tapEl=null,tapAt=0;
+// 첫 탭에 차트를 열고, 같은 자리를 빠르게 두 번 누르면 강조 표시하고 보드로 돌아간다.
+let lastChartTap=null;
 function openChart(el){{
-  if(!el.querySelector('.view[data-v="'+document.body.dataset.v+'"]')){{
-    const fallback=el.querySelector('.view[data-v="일"]')||el.querySelector('.view');if(fallback)setV(fallback.dataset.v);
+  el.classList.add('zoom');
+  if(!tileView(el,document.body.dataset.v)){{
+    const fallback=tileView(el,'일')||el.querySelector('.view');if(fallback)setV(fallback.dataset.v);
   }}
-  el.classList.add('zoom');history.pushState({{pop:1}},'');
+  mountChart(el,document.body.dataset.v);
+  history.pushState({{pop:1}},'');
 }}
 let downOnName=false;document.addEventListener('pointerdown',e=>{{downOnName=!!e.target.closest?.('.name');}},true);  // 막대 끌기가 포인터를 잡아서 click 대상이 칸으로 바뀜
 function tap(el,ev){{
-  if(el.classList.contains('zoom')){{history.back();return;}}
-  if(document.body.classList.contains('baronly')&&!downOnName){{openChart(el);return;}}  // 바 모드: 종목명만 두 번 톡톡 = 테두리
-  if(tapT&&tapEl===el){{clearTimeout(tapT);tapT=null;toggleHL(el);return;}}
-  clearTimeout(tapT);tapEl=el;tapT=setTimeout(()=>{{tapT=null;openChart(el);}},200);
+  const now=Date.now();
+  if(el.classList.contains('zoom')){{
+    const first=lastChartTap;
+    lastChartTap=null;
+    if(first?.el===el&&ev?.detail&&now-first.at<=240&&!ev.target.closest('.x')&&Math.hypot(ev.clientX-first.x,ev.clientY-first.y)<30)toggleHL(el);
+    history.back();
+    return;
+  }}
+  lastChartTap=ev?.detail&&(!document.body.classList.contains('baronly')||downOnName)?{{el,at:now,x:ev.clientX,y:ev.clientY}}:null;
+  openChart(el);
 }}
 // 막대 기준일(설정에서 고름): 그날 다음 날부터의 최고가 = 막대 100%. 동기화 코드로 공유
 const SINCE0=(d=>{{d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}})(new Date("{CFG.get('gauge_since', '2026-07-31')}T00:00:00Z"));
@@ -1707,7 +1817,7 @@ barBoard.addEventListener('pointerdown',e=>{{
   const el=e.target.closest('.name')&&e.target.closest('.tile[data-sym]');if(!el)return;  // 종목명을 꾹 눌러야 이동
   if(!el.style.getPropertyValue('--bo'))applyBo(tiles().map(t=>t.dataset.sym));
   const p={{el,id:e.pointerId,x:e.clientX,y:e.clientY,active:false}};boP=p;
-  p.timer=setTimeout(()=>{{if(boP!==p)return;p.active=true;clearTimeout(tapT);tapT=null;
+  p.timer=setTimeout(()=>{{if(boP!==p)return;p.active=true;
     const r=el.getBoundingClientRect(),g=el.cloneNode(true);g.removeAttribute('onclick');delete g.dataset.sym;g.classList.add('bo-ghost');
     Object.assign(g.style,{{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',transform:'scale(1.06)'}});document.body.appendChild(g);p.g=g;
     el.classList.add('bo-drag');try{{el.setPointerCapture(p.id);}}catch(e){{}}if(navigator.vibrate)navigator.vibrate(20);}},450);
@@ -1726,23 +1836,24 @@ for(const t of ['pointerup','pointercancel'])barBoard.addEventListener(t,boEnd);
 document.addEventListener('touchmove',e=>{{if(boP?.active)e.preventDefault();}},{{passive:false}});
 barBoard.addEventListener('click',e=>{{if(boP?.active||Date.now()<boSkip){{e.preventDefault();e.stopImmediatePropagation();}}}},true);
 barBoard.addEventListener('contextmenu',e=>{{if(e.target.closest('.tile'))e.preventDefault();}});
+setV(D[saved]?saved:'일');
 paintHL();
 repaint();pullT();setInterval(()=>{{if(document.visibilityState==='visible')pullT();}},15000);  // 웹·앱의 목표가와 평균 종목을 함께 가져옴
 pollLive();pollUpbit();setInterval(pollLive,15000);setInterval(pollUpbit,15000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');showRefreshToast('새로고침했습니다');}}}}catch(e){{}}
 setInterval(()=>refreshBoard(false),{CFG["refresh_min"] * 60000});
 const loadedAt=Date.now();
-// 앱을 다시 켰을 때 옛 화면이 보이지 않게: 1분 넘게 쉬었으면 새 화면을 받아 맞출 때까지 가려 둔다(최대 3초)
+// 다시 열면 화면을 그대로 보여 주고 시세와 차트는 뒤에서 갱신한다.
 let hiddenAt=0;
-async function resume(){{
-  if(Date.now()-Math.max(hiddenAt,loadedAt)<60000){{pullT();return;}}
-  document.documentElement.style.visibility='hidden';
-  const show=()=>{{document.documentElement.style.visibility='';}};const t=setTimeout(show,1500);
-  try{{refreshCharts();await Promise.allSettled([pollLive(true),pollUpbit(),pullT()]);}}finally{{clearTimeout(t);show();}}
+function resume(){{
+  scheduleBoardUpdate();
+  if(Date.now()-(hiddenAt||loadedAt)>=60000)refreshBoard(false);
+  else pullT();
+  hiddenAt=0;
 }}
 document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='hidden')hiddenAt=Date.now();else resume();}});
 addEventListener('pageshow',e=>{{if(e.persisted){{hiddenAt=0;resume();}}}});
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{{updateViaCache:'none'}});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{{updateViaCache:'none'}}).catch(()=>{{}});
 </script></body></html>'''
     (ROOT / "index.html").write_text(page, encoding="utf-8")
 
