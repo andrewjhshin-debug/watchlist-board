@@ -1361,6 +1361,19 @@ function haSort(m){{if(!hapop)return;const cs=[...hapop.querySelectorAll('.mk[da
 function applyHa(order){{haSortM=0;{{const b=hapop?.querySelector('.mk-sort');if(b)b.textContent='내 순서';}}paintHaHL();if(!hapop||!Array.isArray(order))return;ls('ha-order',JSON.stringify(order));
   const cells=[...hapop.querySelectorAll('.mk[data-k]')],rk=el=>{{const i=order.indexOf(el.dataset.k);return i<0?999+cells.indexOf(el):i;}};
   hapop.append(...cells.sort((a,b)=>rk(a)-rk(b)));const ad=hapop.querySelector('.mk-add');if(ad)hapop.append(ad);}}
+function haSearch(value){{
+  const initials='ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+  const query=value.trim().normalize('NFC').toLowerCase();
+  const pattern=Array.from(query,char=>{{
+    const jamo=char.codePointAt(0)-0x1100;
+    const index=jamo>=0&&jamo<19?jamo:initials.indexOf(char);
+    if(index<0)return char.replace(/[.*+?^${{}}()|[\\]\\\\]/g,'\\\\$&');
+    const start=0xac00+index*588;
+    return '['+String.fromCharCode(start)+'-'+String.fromCharCode(start+587)+']';
+  }}).join('');
+  const expression=new RegExp(pattern);
+  return label=>expression.test(label.normalize('NFC').toLowerCase());
+}}
 function openHaPick(){{haSort(0);const on=new Set(haList('ha-on')),off=new Set(haList('ha-off')),box=document.createElement('div');box.className='hpick';
   const cs=[...hapop.querySelectorAll('.mk[data-k]')],gs=[...new Set(cs.map(c=>c.dataset.g))],sel={{}};
   cs.forEach(c=>sel[c.dataset.k]=c.dataset.x?on.has(c.dataset.k):!off.has(c.dataset.k));
@@ -1368,7 +1381,7 @@ function openHaPick(){{haSort(0);const on=new Set(haList('ha-on')),off=new Set(h
   const L=box.querySelector('.hpick-l'),qi=box.querySelector('.hpick-q');
   const row=c=>{{const k=c.dataset.k,st=c.querySelector('u')?.textContent||'',r=c.querySelector('.mk-n')?.dataset.r||'';
     return '<label><input type="checkbox" data-k="'+k+'"'+(sel[k]?' checked':'')+'><span>'+k+'</span><small>'+st+' · '+r+'%</small></label>';}};
-  const render=()=>{{const q=qi.value.trim().toLowerCase(),m=c=>!q||(c.dataset.k+' '+(c.querySelector('u')?.textContent||'')).toLowerCase().includes(q),top=L.scrollTop;
+  const render=()=>{{const matches=haSearch(qi.value),m=c=>matches(c.dataset.k+' '+(c.dataset.s||'')+' '+(c.querySelector('u')?.textContent||'')),top=L.scrollTop;
     const onC=cs.filter(c=>sel[c.dataset.k]&&m(c));  // 켠 것은 위에 하 화면 순서대로, 끈 것은 아래에 묶음별로
     L.innerHTML=(onC.length?'<h4>켜짐 '+onC.length+'</h4>'+onC.map(row).join(''):'')+gs.map(g=>{{const off=cs.filter(c=>c.dataset.g===g&&!sel[c.dataset.k]&&m(c));return off.length?'<h4>'+g+'</h4>'+off.map(row).join(''):'';}}).join('');L.scrollTop=top;}};
   const onSeq=[];L.onchange=e=>{{const i=e.target.closest('input[data-k]');if(!i)return;sel[i.dataset.k]=i.checked;if(i.checked)onSeq.push(i.dataset.k);render();}};qi.oninput=render;render();
