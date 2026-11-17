@@ -569,7 +569,7 @@ EXTRA = [(s, n, g) for g, lst in [
     ("기타 언급", "RGTI 리게티,SMR 뉴스케일,ACHR 아처,Z 질로우,COIN 코인베이스,SOUN 사운드하운드,ROOT 루트,247540.KQ 에코프로비엠,DKNG 드래프트킹스,005070.KS 코스모신소재,035900.KQ JYP,TTD 트레이드데스크,LI 리오토,NVDA 엔비디아,TSM TSMC,^IXIC 나스닥"),
 ] for s, n in (x.split(" ", 1) for x in lst.split(","))]
 GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
-HA = [("^KS11", "코스피"), ("122630.KS", "코스피2배"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("MU", "마이크론"), ("MUU", "MUU"),
+HA = [("^KS11", "코스피"), ("122630.KS", "코스피2배"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("SOXS", "SOXS"), ("MU", "마이크론"), ("MUU", "MUU"),
       ("AXTI", "AXTI"), ("AXTX", "AXTX"), ("^SOX", "필라델피아"),
       ("LRCX", "램리서치"), ("LRCU", "LRCU"), ("AMD", "AMD"), ("AMDL", "AMDL"), ("AMAT", "AMAT"), ("AMAU", "AMAU"), ("ASML", "ASML"), ("ASMG", "ASMG"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
