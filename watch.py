@@ -699,7 +699,7 @@ def minsky_html() -> str:
                     sox = tc if sym != "SOXL" else [(t, v) for t, v in zip(*(lambda r_: (r_["timestamp"], r_["indicators"]["quote"][0]["close"]))(get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0])) if v]
                     te = chip_te(te, sox, sym)  # 칩은 엔진(좌절 지났나)에 맞춤 → 레버는 이 te 를 그대로 따라감
                 r0 = r
-            if r0 <= .70:  # 70% 이하는 하이먼 모양 아님 → 안 넣음(레버는 본주 기준)
+            if r0 <= .70 and sym != "SOXS":  # 직접 추가 요청한 SOXS는 일치율과 관계없이 표시
                 continue
             fits[sym] = (r0, te)
             spans[sym] = (ts or 0.0, te, n)
