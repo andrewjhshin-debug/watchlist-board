@@ -1291,6 +1291,15 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
   const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.why?'\\n근거: '+nm.dataset.why:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
   openHz(el);}});
+function fitDesktopHaChart(svg){{
+  if(!svg)return;
+  const original=svg.dataset.zoomViewBox||svg.getAttribute('viewBox');
+  if(!original)return;
+  svg.dataset.zoomViewBox=original;
+  const [x,y,width,height]=original.split(/[ ,]+/).map(Number);
+  svg.setAttribute('viewBox',innerWidth>600?[x-12,y-16,width+24,height+44].join(' '):original);
+}}
+addEventListener('resize',()=>document.querySelectorAll('.hz-b.hz-h1 .hz-c>svg').forEach(fitDesktopHaChart));
 function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차트는 도착하면 연결
   const d=document.createElement('div');d.className='hz hz-b';d.dataset.k=el.dataset.k;
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t"></div><div class="hz-c"></div>'+hzDots(el);
@@ -1309,6 +1318,7 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
       mounted.set(k,template.content.firstElementChild);
     }}
     const view=mounted.get(k);
+    if(k==='하')fitDesktopHaChart(view);
     if(view)chart.replaceChildren(view);
     else chart.textContent='차트 없음';
     chosen=k;
