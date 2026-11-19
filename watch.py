@@ -578,7 +578,8 @@ HA = [("^KS11", "코스피"), ("122630.KS", "코스피2배"), ("000660.KS", "하
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
       ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("ARMG", "ARMG"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"),
       ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU"), ("NVDL", "NVDL")]
-HA += [('BTC-USD', '비트코인'), ('ANT', '앤트로픽')]  # 앤트로픽은 2026-11-20 상장 → 주봉 12개 쌓이면(약 3달 뒤) 일치율 70% 넘을 때 자동 표시
+HA += [('BTC-USD', '비트코인'), ('ANT', '앤트로픽')]
+ALWAYS_HA = {"SOXS", "ANT"}  # 일치율과 관계없이 늘 표시(직접 요청). 앤트로픽은 2026-11-20 상장 → 주봉 12개 전에는 곡선 시작에 현재가만
 HA += [('000720.KS', '현대건설'), ('AAOI', 'AAOI'), ('AAOX', 'AAOX'), ('LITE', 'LITE'), ('LITX', 'LITX'), ('COHR', 'COHR'), ('COHX', 'COHX')]
 
 
@@ -680,8 +681,11 @@ def minsky_html() -> str:
             c = [v for _, v in tc]
             if hv == "주":
                 young[sym] = len(c) < 52
-            if len(c) < 12:
+            ipo = len(c) < 12 and sym in ALWAYS_HA  # 상장 직후: 맞출 자료가 없음
+            if len(c) < 12 and not ipo:
                 continue
+            if ipo:
+                tc, c = [tc[-1]] * 2, [c[-1]] * 2
             if sym in LEV:  # 레버는 본주 단계·일치율 기준
                 if LEV[sym] not in fits:  # 본주가 하 목록 뒤쪽이거나 없으면 여기서 먼저 계산
                     try:
@@ -706,18 +710,20 @@ def minsky_html() -> str:
                         r = 0
                 else:
                     r, n, ts, te = minsky_fit(c, te_fix=te0)
+            elif ipo:  # 곡선 시작(이륙)에 현재가 점만. 주봉 12개 쌓이면 보통대로 맞춤
+                r, n, ts, te = 0.0, 2, .39, .39
             else:
                 r, n, ts, te = minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
                 if ts is not None:
                     sox = tc if sym != "SOXL" else [(t, v) for t, v in zip(*(lambda r_: (r_["timestamp"], r_["indicators"]["quote"][0]["close"]))(get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0])) if v]
                     te = chip_te(te, sox, sym)  # 칩은 엔진(좌절 지났나)에 맞춤 → 레버는 이 te 를 그대로 따라감
                 r0 = r
-            if r0 <= .70 and sym != "SOXS":  # 직접 추가 요청한 SOXS는 일치율과 관계없이 표시
+            if r0 <= .70 and sym not in ALWAYS_HA:
                 continue
             fits[sym] = (r0, te)
             spans[sym] = (ts or 0.0, te, n)
             seg = c[-n:]
-            Xc, bc = frame(min(ts, .66)) if ts else (X, base)
+            Xc, bc = frame(min(ts, .66)) if ts and not ipo else (X, base)
             lo_t = min(mk(ts + i / 100 * (te - ts)) for i in range(101))
             hi_t = max(mk(ts + i / 100 * (te - ts)) for i in range(101))
             lo, hi = min(seg), max(seg)
@@ -741,7 +747,8 @@ def minsky_html() -> str:
             chart = ""
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
-            if True:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게
+            ap, zp, bsym, mult = None, "", None, 0
+            if not ipo:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
                 bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
                 if bsym and bsym not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
                     bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(bsym)}?interval=1wk&range=5y")["chart"]["result"][0]
@@ -788,7 +795,7 @@ def minsky_html() -> str:
                 d0, p0, m0 = alog[sym][0][:3]
                 sc = f" data-sc=\"{d0[2:7]} 조정치 {sp(p0)}({m0}) &#10;실제 {sp(tc[ib][1])}({datetime.fromtimestamp(tc[ib][0], KST):%y.%m}) {(p0 / tc[ib][1] - 1) * 100:+.0f}%\""
             px = max((i / 1000 for i in range(1001)), key=mk)  # 곡선 꼭지점(새 논리)에 실제 고점 가격
-            zp += f'<text class="mk-zp mk-pk" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 9:.1f}">{sp(max((0 if ex else true_high(sym)) or 0, max(seg)))}</text>'
+            zp += "" if ipo else f'<text class="mk-zp mk-pk" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 9:.1f}">{sp(max((0 if ex else true_high(sym)) or 0, max(seg)))}</text>'
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
             az = bool(ap) and ad < datetime.now(KST)  # 좌절이 이미 지남
             gp = ((v / ap - 1) if az else (ap / v - 1)) if ap else 0
