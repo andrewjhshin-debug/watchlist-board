@@ -241,8 +241,25 @@ def quote(sym: str) -> tuple[float, float]:
     return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
 
 
+def upbit_weeks(sym: str) -> tuple[dict, float]:
+    """업비트 주봉 5년치를 야후 응답 모양으로(하 화면이 그대로 씀) + 그 기간 장중 최고가."""
+    rows, to = [], ""
+    for _ in range(2):  # 한 번에 200주까지
+        r = get_json(f"https://api.upbit.com/v1/candles/weeks?market={sym[6:]}&count=200{to}")
+        if not r:
+            break
+        rows += r
+        to = "&to=" + r[-1]["candle_date_time_utc"].replace("T", "%20")
+    rows = sorted({x["candle_date_time_utc"]: x for x in rows}.values(), key=lambda x: x["candle_date_time_utc"])[-261:]
+    ts = [int(datetime.strptime(x["candle_date_time_utc"], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()) for x in rows]
+    return ({"timestamp": ts, "indicators": {"quote": [{"close": [x["trade_price"] for x in rows]}]}, "meta": {"currency": "KRW"}},
+            max(x["high_price"] for x in rows))
+
+
 def true_high(sym: str) -> float | None:
     """진짜 최고가: 일봉 장중 고가(5년) + 프리·애프터장 포함 60분봉(2년). 거래량 0 시간외 봉은 시가·종가만(잘못 찍힌 꼬리 방지)."""
+    if sym.startswith("upbit:"):
+        return upbit_weeks(sym)[1]
     hs = []
     try:
         d = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range=5y&interval=1d")["chart"]["result"][0]
@@ -578,7 +595,7 @@ HA = [("^KS11", "코스피"), ("122630.KS", "코스피2배"), ("000660.KS", "하
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
       ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("ARMG", "ARMG"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"),
       ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU"), ("NVDL", "NVDL")]
-HA += [('BTC-USD', '비트코인'), ('ANT', '앤트로픽')]
+HA += [('upbit:KRW-BTC', '비트코인'), ('ANT', '앤트로픽')]
 ALWAYS_HA = {"SOXS", "ANT"}  # 일치율과 관계없이 늘 표시(직접 요청). 앤트로픽은 2026-11-20 상장 → 주봉 12개 전에는 곡선 시작에 현재가만
 HA += [('000720.KS', '현대건설'), ('AAOI', 'AAOI'), ('AAOX', 'AAOX'), ('LITE', 'LITE'), ('LITX', 'LITX'), ('COHR', 'COHR'), ('COHX', 'COHX')]
 
@@ -676,7 +693,7 @@ def minsky_html() -> str:
             fits[sym] = tuple(xcache[name][2:4])  # 레버가 본주 단계 따라가게
             continue
         try:
-            q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval={iv}&range={rg}")["chart"]["result"][0]
+            q = upbit_weeks(sym)[0] if sym.startswith("upbit:") else get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval={iv}&range={rg}")["chart"]["result"][0]  # 비트코인은 바와 같은 업비트 원화
             tc = [(t, v) for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]) if v]
             c = [v for _, v in tc]
             if hv == "주":
@@ -746,7 +763,7 @@ def minsky_html() -> str:
                 return g(mk(min(te, max(ts, ts + (t - t0) / ((t1 - t0) or 1) * (te - ts)))))
             chart = ""
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
-            sp = lambda v, cur=cur: f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
+            sp = lambda v, cur=cur: f"{v / 1e8:.2f}억" if v >= 1e8 else f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
             ap, zp, bsym, mult = None, "", None, 0
             if not ipo:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
                 bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
@@ -1560,7 +1577,7 @@ const stamp=t=>{{const n=document.getElementById('live');if(n)n.textContent='실
 let lastSlot='{datetime.now(KST):%Y%m%d%H%M}';
 async function pollLive(force=false){{if(!force&&document.visibilityState==='hidden')return false;for(let k=force?0:1;k<=6;k++){{const sl=slot(k);if(sl<lastSlot)return false;try{{const r=await fetch(RAW+sl+'.json'+(force?'?t='+Date.now():''),{{cache:'no-store'}});
   if(r.ok){{lastSlot=sl;const j=await r.json();checkBoardVersion(j.b);for(const x in j.q)if(!x.startsWith('upbit:')||Date.now()-upAt>60000)apply(x,j.q[x][0],j.q[x][1]);paintHaLive(j.q);stamp(j.t);return true;}}}}catch(e){{}}}}return false;}}
-function haFmt(v,c){{return v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixed(1)+'만':v>=100?c+Math.round(v).toLocaleString():c+v.toFixed(2);}}
+function haFmt(v,c){{return v>=1e8?(v/1e8).toFixed(2)+'억':v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixed(1)+'만':v>=100?c+Math.round(v).toLocaleString():c+v.toFixed(2);}}
 // 하 칸 높이: 실제로 보이는 하 화면 높이를 재서 4줄(8칸)이 딱 한 화면에 들어가게 (dvh 가 기기마다 달라서)
 if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setProperty('--har',Math.floor((h-10-4*8-6)/4)+'px');}};
   new ResizeObserver(fit).observe(hapop);addEventListener('resize',fit);}}
