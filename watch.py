@@ -1035,6 +1035,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .name{{font-size:min(14px,1.75dvh)!i
 body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .tile:not(.zoom) .tgttxt{{font-size:min(12px,1.45dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .gauge{{margin-top:3px;height:6px;flex:0 0 auto}}}}
 .since-row{{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:8px 14px;border:1px solid var(--edge);border-radius:12px;background:var(--tile);font-size:14px}}
 .since-row input{{font:inherit;font-size:13px;color:var(--txt);background:var(--cbg);border:1px solid var(--edge);border-radius:8px;padding:4px 6px;color-scheme:dark}}
+.hz-h1 .hz-c .mk-np{{display:none}}.hz-current-price{{flex:0 0 auto;align-self:flex-start;padding:5px 8px;color:#ffb300;font-size:18px;line-height:1.4;font-family:GalmuriMono11,Galmuri11,monospace}}
 </style></head><body>
 <header><h1 id="ttl" title="눌러서 목표 평균 크게 보기"><svg viewBox="0 0 16 16" style="width:1em;height:1em;display:inline-block;vertical-align:-.12em"><rect width="16" height="16" rx="2" fill="#3a0d14"/><polyline points="2,13 6,8 9,10 14,3" fill="none" stroke="#ff2a3c" stroke-width="2.2"/></svg> <span class="ttl-s">관심종목</span> <span id="avg" title="목표가까지 남은 거리 평균(막대 평균)"></span></h1><div id="bar-live" class="bar-live"><span id="bar-stamp">실시간 {now[-5:]} 갱신</span></div><div class="tabs">{"".join(f'<button data-v="{k}">{k}</button>' for k in VIEWS)}<button id="reload" onclick="refreshBoard();if(document.body.classList.contains('baronly'))showPct()" aria-label="새로고침">⟳</button><button id="pct" aria-label="목표 평균 크게">%</button><button id="bar" aria-label="막대만 보기">바</button><button id="ha" aria-label="하이먼 민스키 모델 겹쳐 보기">하</button><button type="button" class="settings-trigger" aria-label="평균 종목 설정" title="평균 종목 설정" onclick="openAvgSettings()">⚙</button></div></header>
 
@@ -1316,7 +1317,7 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
     d.querySelector('.hz-s').textContent=HZ_DESC[k]+(k==='하'?'':' · 초록선 = 주봉으로 맞춘 민스키 곡선');
     tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));
     hzLive();
-    if(k==='하')requestAnimationFrame(()=>{{if(d.isConnected)placeNps([chart]);}});
+    if(k==='하'){{paintZoomPrice(d);requestAnimationFrame(()=>{{if(d.isConnected)paintZoomPrice(d);}});}}
   }}
   function paintTabs(){{tabs.innerHTML=keys().map(k=>'<button type="button" data-v="'+k+'">'+(k==='하'?'하이먼':k)+'</button>').join('');}}
   tabs.onclick=e=>{{
@@ -1537,6 +1538,18 @@ function haFmt(v,c){{return v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixe
 if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setProperty('--har',Math.floor((h-10-4*8-6)/4)+'px');}};
   new ResizeObserver(fit).observe(hapop);addEventListener('resize',fit);}}
 // 노란 점 현재가: 오른쪽에 자리 없으면 점 왼쪽으로(칸 밖으로 안 넘어가게). 숫자 길이가 바뀔 때마다 다시
+function paintZoomPrice(zoom){{
+  if(!zoom.classList.contains('hz-h1'))return;
+  const chart=zoom.querySelector('.hz-c'),label=chart?.querySelector('.mk-np');
+  if(!label)return;
+  let row=chart.querySelector('.hz-current-price');
+  if(!row){{
+    row=document.createElement('div');
+    row.className='hz-current-price';
+    chart.prepend(row);
+  }}
+  row.textContent=label.textContent;
+}}
 function placeZoomPrice(container,text,dot){{
   const zoom=container.closest('.hz-b.hz-h1');
   if(!zoom)return;
@@ -1577,7 +1590,7 @@ function hzLive(){{const d=document.querySelector('.hz-b');if(!d||!haLastQ)retur
   const c=[...hapop.querySelectorAll('.mk[data-k]')].find(c=>c.dataset.k===d.dataset.k),v=c&&haLastQ[c.dataset.s];if(!v||!(v[0]>0))return;
   const p=d.querySelector('.hz-p'),s=v[0]>=100?Math.round(v[0]).toLocaleString():v[0].toFixed(2);if(p&&p.textContent!==s)p.textContent=s;
   const t=d.querySelector('.hz-c .mk-np'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n)t.textContent=n;
-  const sv=d.querySelector('.hz-c svg[data-py]');if(sv){{haDot(sv,v[0]);placeNps([d.querySelector('.hz-c')]);}}}}
+  const sv=d.querySelector('.hz-c svg[data-py]');if(sv){{haDot(sv,v[0]);paintZoomPrice(d);}}}}
 var upAt=0;  // 업비트 직접 조회가 1분 넘게 실패하면 서버 실시간 값으로 대신
 const UP=[...document.querySelectorAll('.tile[data-sym^="upbit:"]')].map(e=>e.dataset.sym.slice(6));
 async function pollUpbit(){{if(document.visibilityState==='hidden'||!UP.length)return false;try{{const r=await fetch('https://api.upbit.com/v1/ticker?markets='+UP.join(','),{{cache:'no-store'}});if(!r.ok)return false;
