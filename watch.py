@@ -1316,6 +1316,7 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
     d.querySelector('.hz-s').textContent=HZ_DESC[k]+(k==='하'?'':' · 초록선 = 주봉으로 맞춘 민스키 곡선');
     tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));
     hzLive();
+    if(k==='하')requestAnimationFrame(()=>{{if(d.isConnected)placeNps([chart]);}});
   }}
   function paintTabs(){{tabs.innerHTML=keys().map(k=>'<button type="button" data-v="'+k+'">'+(k==='하'?'하이먼':k)+'</button>').join('');}}
   tabs.onclick=e=>{{
@@ -1536,9 +1537,31 @@ function haFmt(v,c){{return v>=1e6?Math.round(v/1e4)+'만':v>=1e4?(v/1e4).toFixe
 if(hapop){{const fit=()=>{{const h=hapop.clientHeight;if(h>200)hapop.style.setProperty('--har',Math.floor((h-10-4*8-6)/4)+'px');}};
   new ResizeObserver(fit).observe(hapop);addEventListener('resize',fit);}}
 // 노란 점 현재가: 오른쪽에 자리 없으면 점 왼쪽으로(칸 밖으로 안 넘어가게). 숫자 길이가 바뀔 때마다 다시
+function placeZoomPrice(container,text,dot){{
+  const zoom=container.closest('.hz-b.hz-h1');
+  if(!zoom)return;
+  const svg=container.querySelector('svg'),box=text.getBBox();
+  if(!box.width||!box.height)return;
+  const width=svg.viewBox.baseVal.width,height=svg.viewBox.baseVal.height;
+  const cx=+dot.getAttribute('cx'),cy=+dot.getAttribute('cy');
+  const baseline=box.y-(+text.getAttribute('y'));
+  const obstacles=[...svg.querySelectorAll('text')].filter(label=>label!==text&&getComputedStyle(label).display!=='none').map(label=>label.getBBox()).filter(rect=>rect.width&&rect.height);
+  for(const offset of [0,-16,16,-32,32,-48,48]){{
+    for(const right of [cx+8+box.width<=width-3,cx+8+box.width>width-3]){{
+      const x=right?cx+8:cx-8,y=cy+4+offset;
+      const left=right?x:x-box.width,top=y+baseline;
+      if(left<3||left+box.width>width-3||top<3||top+box.height>height-3)continue;
+      if(obstacles.some(rect=>left<rect.x+rect.width+4&&left+box.width>rect.x-4&&top<rect.y+rect.height+3&&top+box.height>rect.y-3))continue;
+      text.setAttribute('text-anchor',right?'start':'end');
+      text.setAttribute('x',x);
+      text.setAttribute('y',y);
+      return;
+    }}
+  }}
+}}
 function placeNps(cs){{const m=[];for(const c of cs){{const t=c.querySelector('.mk-np'),d=c.querySelector('.mk-d');if(!t||!d)continue;let w=0;try{{w=t.getComputedTextLength();}}catch(e){{}}if(!w)continue;
     m.push([t,+d.getAttribute('cx'),w,c.querySelector('svg').viewBox.baseVal.width||200]);}}  // 먼저 전부 재고
-  for(const [t,cx,w,vb] of m){{const right=cx+8+w<=vb-1,a=right?'start':'end',x=String(right?cx+8:cx-8);if(t.getAttribute('text-anchor')!==a)t.setAttribute('text-anchor',a);if(t.getAttribute('x')!==x)t.setAttribute('x',x);}}}}  // 그다음 전부 씀
+  for(const [t,cx,w,vb] of m){{const right=cx+8+w<=vb-1,a=right?'start':'end',x=String(right?cx+8:cx-8);if(t.getAttribute('text-anchor')!==a)t.setAttribute('text-anchor',a);if(t.getAttribute('x')!==x)t.setAttribute('x',x);}}for(const c of cs){{const text=c.querySelector('.mk-np'),dot=c.querySelector('.mk-d');if(text&&dot)placeZoomPrice(c,text,dot);}}}}  // 가격과 단계 글자가 겹치면 빈 자리로 옮김
 function haShown(){{return hapop&&!hapop.hidden?[...hapop.querySelectorAll('.mk[data-k]:not(.mk-off)')]:[];}}
 function paintHaLive(q){{haLastQ=q;if(!hapop||hapop.hidden)return;hapop.querySelectorAll('.mk[data-s]').forEach(c=>{{const v=q[c.dataset.s];const t=c.querySelector('.mk-np');if(v&&t&&v[0]>0){{const s=haFmt(v[0],c.dataset.c||'');if(t.textContent!==s)t.textContent=s;}}
   const g=c.querySelector('.mk-gp'),ap=+c.dataset.ap;if(g&&ap&&v&&v[0]>0){{const z=c.dataset.az,r=z?v[0]/ap-1:ap/v[0]-1;c.dataset.gp=r;const s=' · '+(z?'좌절 대비 ':'좌절까지 ')+(r>=0?'+':'')+Math.round(r*100)+'%';if(g.textContent!==s)g.textContent=s;}}if(v&&v[0]>0){{haDot(c.querySelector('svg'),v[0]);if(c.dataset.s==='SOXL')document.querySelectorAll('.mk-sx').forEach(x=>{{haDot(x,v[0]);const t=x.querySelector('text'),n=c.querySelector('.mk-np')?.textContent;if(t&&n&&t.textContent!==n)t.textContent=n;}});}}}});placeNps(haShown());hzLive();}}
