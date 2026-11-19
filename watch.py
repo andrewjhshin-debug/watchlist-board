@@ -437,6 +437,9 @@ STAGES = [(.40, "자산 가격 이륙"), (.52, "1차 현금화"), (.66, "1차 �
 LEV = {"NVDL": "NVDA", "122630.KS": "^KS11", "LRCU": "LRCX", "AMDL": "AMD", "AMAU": "AMAT", "ASMG": "ASML", "ARMG": "ARM", "SMU": "SMR", "MUU": "MU", "MRNX": "MRNA", "PTIR": "PLTR", "INTW": "INTC", "MVLL": "MRVL", "APPX": "APP", "AXTX": "AXTI", "RKLX": "RKLB", "ASTX": "ASTS", "OKLL": "OKLO", "AAOX": "AAOI", "LITX": "LITE", "COHX": "COHR"}  # 레버리지는 본주 단계 그대로
 # 조정 참고치: 과거 반도체 하락장(닷컴·금융위기·2018·2022) 고점→바닥 폭과 걸린 달.
 # 지금 하락폭보다 5% 넘게 아래인 첫 단계를 씀. 3배 레버는 더 깊게. ponytail: 고정 표, 사례 늘면 갱신
+# 레버리지 ETF가 이론값(배수×본주 − 변동성 손실)보다 실제로 더 깎이는 몫(연, 로그). 2024~2026-11 일별 자료로 ETF마다 잰 값. 없는 종목은 15%
+LEV_DRAG = {"NVDL": .126, "122630.KS": .013, "LRCU": .095, "AMDL": .118, "AMAU": .144, "ASMG": .114, "ARMG": .143, "SMU": .236, "MUU": .14, "MRNX": .26, "PTIR": .098, "INTW": .119,
+            "MVLL": .176, "APPX": .111, "AXTX": .294, "RKLX": .254, "ASTX": .187, "OKLL": .29, "AAOX": .256, "LITX": .173, "COHX": .129, "SOXL": .133}
 ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
 ADJ3 = [(.85, 11), (.90, 14), (.95, 30)]
 # 사용자가 준 애널·분석으로 종목별 덮어쓰기: 심볼 → (하락폭, 고점부터 개월)
@@ -655,6 +658,15 @@ def minsky_html() -> str:
     adjb = {}  # 본주 조정치(지금 대비 비율, 날짜) → 레버리지는 이걸 2배로
     alog_p = ROOT / "adj_log.json"
     alog = json.loads(alog_p.read_text(encoding="utf-8")) if alog_p.exists() else {}
+
+    def steady(sym, ap, ad, tag):  # 흔들림 방지: 지난 기록과 8%·2개월 안쪽이면 지난 값 그대로
+        last = alog.get(sym, [None])[-1]
+        if last and len(last) > 3 and last[3] == tag and abs(ap / last[1] - 1) < .08:
+            ld = datetime(2000 + int(last[2][:2]), int(last[2][3:]), 15, tzinfo=KST)
+            if abs((ad - ld).days) <= 62:
+                return last[1], (ad if f"{ad:%y.%m}" == last[2] else ld)
+        return ap, ad
+    btag = lambda s_: "v3" if s_ in SEMI else "v2"
     for (hv, iv, rg, per), (sym, name, grp) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in [(a, b, "기본") for a, b in HA] + EXTRA):
         ex = grp != "기본"
         if ex and name in xcache and len(xcache[name]) > 3 and time.time() - xcache[name][0] < 3600:  # 고르기 목록은 1시간에 한 번만 다시 계산
@@ -735,24 +747,22 @@ def minsky_html() -> str:
                     btc = [(t, v) for t, v in zip(bq["timestamp"], bq["indicators"]["quote"][0]["close"]) if v]
                     bp, bd = adj_target(btc, False, bsym)
                     if bp:
+                        bp, bd = steady(bsym, bp, bd, btag(bsym))  # 화면에 고정된 본주 값과 같은 값으로
                         adjb[bsym] = (bp / btc[-1][1], bd, vol52([v for _, v in btc]))
                 if bsym in adjb:  # 레버: 본주가 조정치까지 갈 때 배수만큼 빠진 값
                     br, ad, bsig = adjb[bsym]
-                    ap = c[-1] * br ** mult * math.exp(-.5 * mult * (mult - 1) * bsig ** 2 * max(0, (ad - datetime.now(KST)).days / 365))  # 배수 복리 − 변동성 손실 ½L(L−1)σ²T
+                    yrs = max(0, (ad - datetime.now(KST)).days / 365)
+                    ap = c[-1] * br ** mult * math.exp(-(.5 * mult * (mult - 1) * bsig ** 2 + LEV_DRAG.get(sym, .15)) * yrs)  # 배수 복리 − 변동성 손실 ½L(L−1)σ²T − ETF 실제 비용
                     if ad < datetime.now(KST):  # 본주 좌절이 이미 지남 → 그 무렵 레버 실제 최저
                         ap = min(v for t, v in tc if abs(t - ad.timestamp()) < 15 * 86400) if any(abs(t - ad.timestamp()) < 15 * 86400 for t, _ in tc) else ap
                 else:
                     ap, ad = adj_target(tc, False, sym)
-                    if ap:
-                        adjb[sym] = (ap / c[-1], ad, vol52(c))
                 if ap:  # 흔들림 방지를 먼저 적용 → 칸 숫자·모델 좌절 날짜·확대 차트가 같은 값
                     # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
-                    last = alog.get(sym, [None])[-1]
-                    tag = "v3" if sym in SEMI or LEV.get(sym) in SEMI else "v2"  # v3 = 반도체 지수 날짜 반영(11-14). 바뀐 규칙은 흔들림 방지 한 번 건너뜀
-                    if last and len(last) > 3 and last[3] == tag and abs(ap / last[1] - 1) < .08:
-                        ld = datetime(2000 + int(last[2][:2]), int(last[2][3:]), 15, tzinfo=KST)
-                        if abs((ad - ld).days) <= 62:
-                            ap, ad = last[1], (ad if f"{ad:%y.%m}" == last[2] else ld)
+                    tag = "v4" if bsym else btag(sym)  # v3 = 반도체 지수 날짜 반영(11-14), v4 = 레버: 고정된 본주 값 + ETF 비용(11-19). 바뀐 규칙은 흔들림 방지 한 번 건너뜀
+                    ap, ad = steady(sym, ap, ad, tag)
+                    if not bsym:
+                        adjb[sym] = (ap / c[-1], ad, vol52(c))  # 레버리지는 화면에 고정된 이 값을 받아 씀(날것 값이면 달마다 뒤집힘)
                     row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}", tag]
                     if not alog.get(sym) or alog[sym][-1][1:] != row[1:]:
                         alog.setdefault(sym, []).append(row)
@@ -786,7 +796,7 @@ def minsky_html() -> str:
                 gpa += f' data-pk="{datetime.fromtimestamp(max(tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m}"'
             gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실·ETF 비용(연 {LEV_DRAG.get(sym, .15) * 100:.0f}%) 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
                          f'<svg viewBox="0 0 {W} {H}" data-py="{lo:.6g},{Y(f(lo)):.2f},{hi:.6g},{Y(f(hi)):.2f}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}<circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><circle cx="{Xc(px):.1f}" cy="{Y(mk(px)):.1f}" r="4.5" class="mk-zd mk-pd"/><g class="mk-t hz-lb">{"".join(f'<text x="{Xc(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in ((.47, "1차 현금화", 0, 18), (.70, "열정", -16, 0), (.79, "현실 부정", 18, -6), (.84, "공포", 16, 2)) if 14 < Xc(x) < W - 14 and abs(Xc(x) + dx - Xc(te)) > 22)}</g></svg>{chart}</div>')
             if ex:
@@ -1047,7 +1057,7 @@ body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .til
 <p class="settings-hint">선택한 종목의 막대 % 평균입니다.<br>목표 아래는 음수(-100% = 기준일 이후 바닥, 올라올수록 0에 가까움) · 목표가가 없으면 제외</p>
 <div id="avg-options"></div><p id="avg-selection-count" aria-live="polite"></p>
 <p id="avg-sync-status" class="settings-hint" aria-live="polite"></p>
-<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 급락 1,315건(413종목·지수) 가운데 지금과 가장 닮은 40건의 최종 하락폭·기간 중앙값.<br>닮음 기준: 고점 전 2년 상승폭, 변동성, 지금까지 하락폭, 최저 뒤 지난 기간, 최저 대비 반등폭.<br>닮은 사례의 70% 이상이 이 시점에 이미 바닥이었으면 찍은 최저를 좌절(과거 날짜)로.<br>반도체 종목은 날짜만 자기 추정과 필라델피아 반도체 지수 추정의 중간(업황 따라 바닥 시기가 같이 감).<br>레버리지: 본주 추정에 배수 복리, 변동성 손실(½·배수·(배수-1)·변동성²·기간) 차감. SOXL=필라델피아 3배.<br>지난 값과 8%·2개월 안쪽 차이면 숫자를 안 바꿈(흔들림 방지).<br>검증(5개월 시점): 하락폭 오차 중앙값 11%p, 기간 오차 6.5개월. 종목 이름을 누르면 종목별 근거가 뜸.<br>코스피만 수동: 역대 하락장 7건 중간 -54% 참고 → -52%, 12개월.<br>모델 칸 '좌절(연.월)'은 SOXL 기준</p></details>
+<details class="settings-more"><summary>하 화면 조정치 설명</summary><p class="settings-hint">하 화면 · 좌절 자리 숫자 = '조정' 참고치 가격(연.월)<br>예측 아님. 과거 급락 1,315건(413종목·지수) 가운데 지금과 가장 닮은 40건의 최종 하락폭·기간 중앙값.<br>닮음 기준: 고점 전 2년 상승폭, 변동성, 지금까지 하락폭, 최저 뒤 지난 기간, 최저 대비 반등폭.<br>닮은 사례의 70% 이상이 이 시점에 이미 바닥이었으면 찍은 최저를 좌절(과거 날짜)로.<br>반도체 종목은 날짜만 자기 추정과 필라델피아 반도체 지수 추정의 중간(업황 따라 바닥 시기가 같이 감).<br>레버리지: 화면에 고정된 본주 추정에 배수 복리, 변동성 손실(½·배수·(배수-1)·변동성²·기간)과 ETF마다 잰 실제 비용(연 1~29%) 차감. SOXL=필라델피아 3배.<br>지난 값과 8%·2개월 안쪽 차이면 숫자를 안 바꿈(흔들림 방지).<br>검증(5개월 시점): 하락폭 오차 중앙값 11%p, 기간 오차 6.5개월. 종목 이름을 누르면 종목별 근거가 뜸.<br>코스피만 수동: 역대 하락장 7건 중간 -54% 참고 → -52%, 12개월.<br>모델 칸 '좌절(연.월)'은 SOXL 기준</p></details>
 <div class="settings-actions"><button type="button" aria-label="웹 앱 연동 코드" onclick="askSync(true)">연동 코드</button><button type="submit">적용</button></div>
 </form></dialog>
 
