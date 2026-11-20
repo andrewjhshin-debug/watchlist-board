@@ -541,7 +541,7 @@ def chip_te(te, tc, sym):
 
 
 # 반도체 종목: 바닥 시기는 업황(필라델피아 반도체 지수)과 같이 감 → 자기 날짜와 지수 날짜의 중간. 가격은 그대로
-SEMI = {"000660.KS", "005930.KS", "MU", "AXTI", "LRCX", "AMD", "AMAT", "ASML", "058470.KQ", "ARM", "INTC", "MRVL",
+SEMI = {"000660.KS", "SKHY", "005930.KS", "MU", "AXTI", "LRCX", "AMD", "AMAT", "ASML", "058470.KQ", "ARM", "INTC", "MRVL",
         "NVDA", "TSM", "042700.KS", "240810.KQ", "009150.KS", "007660.KS", "011070.KS"}
 _SOX = []
 
@@ -595,8 +595,8 @@ HA = [("^KS11", "코스피"), ("122630.KS", "코스피2배"), ("000660.KS", "하
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
       ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("ARMG", "ARMG"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"),
       ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU"), ("NVDL", "NVDL")]
-HA += [('upbit:KRW-BTC', '비트코인'), ('ANT', '앤트로픽'), ('SPCX', '스페이스X'), ('SPAL', 'SPAL')]
-ALWAYS_HA = {"SOXS", "ANT", "SPCX", "SPAL"}  # 일치율과 관계없이 늘 표시(직접 요청). 앤트로픽은 2026-11-20 상장 → 주봉 12개 전에는 곡선 시작에 현재가만
+HA += [('upbit:KRW-BTC', '비트코인'), ('ANT', '앤트로픽'), ('SPCX', '스페이스X'), ('SPAL', 'SPAL'), ('SKHY', 'SKHY')]  # SKHY: SK하이닉스 나스닥 상장(2026-07)
+ALWAYS_HA = {"SOXS", "ANT", "SPCX", "SPAL", "SKHY"}  # 일치율과 관계없이 늘 표시(직접 요청). 앤트로픽은 2026-11-20 상장 → 주봉 12개 전에는 곡선 시작에 현재가만
 HA += [('000720.KS', '현대건설'), ('AAOI', 'AAOI'), ('AAOX', 'AAOX'), ('LITE', 'LITE'), ('LITX', 'LITX'), ('COHR', 'COHR'), ('COHX', 'COHX')]
 
 
