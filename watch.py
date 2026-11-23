@@ -765,7 +765,7 @@ def minsky_html() -> str:
             chart = ""
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e8:.2f}억" if v >= 1e8 else f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
-            ap, zp, bsym, mult = None, "", None, 0
+            ap, zp, bsym, mult, chg = None, "", None, 0, ""
             if not ipo:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
                 bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
                 if bsym and bsym not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
@@ -792,6 +792,9 @@ def minsky_html() -> str:
                     row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}", tag]
                     if not alog.get(sym) or alog[sym][-1][1:] != row[1:]:
                         alog.setdefault(sym, []).append(row)
+                    h = alog.get(sym, [])
+                    if len(h) > 1 and h[-1][1:3] == row[1:3]:  # 이름 누르면: 직전 조정치 → 지금
+                        chg = f"직전({h[-2][0][5:]}) {sp(h[-2][1])}({h[-2][2]}) → 지금({h[-1][0][5:]}) {sp(ap)}({ad:%y.%m})"
                     if sym == "SOXL":
                         zd = ad
                 zp = f'<text class="mk-zp mk-zz" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap else ""
@@ -822,7 +825,7 @@ def minsky_html() -> str:
                 gpa += f' data-pk="{datetime.fromtimestamp(max(tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m}"'
             gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실·ETF 비용(연 {LEV_DRAG.get(sym, .15) * 100:.0f}%) 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" {' data-chg="' + html.escape(chg) + '"' if chg else ''} data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실·ETF 비용(연 {LEV_DRAG.get(sym, .15) * 100:.0f}%) 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
                          f'<svg viewBox="0 0 {W} {H}" data-py="{lo:.6g},{Y(f(lo)):.2f},{hi:.6g},{Y(f(hi)):.2f}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}">{np}</text>{zp}<circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><circle cx="{Xc(px):.1f}" cy="{Y(mk(px)):.1f}" r="4.5" class="mk-zd mk-pd"/><g class="mk-t hz-lb">{"".join(f'<text x="{Xc(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in ((.47, "1차 현금화", 0, 18), (.70, "열정", -16, 0), (.79, "현실 부정", 18, -6), (.84, "공포", 16, 2)) if 14 < Xc(x) < W - 14 and abs(Xc(x) + dx - Xc(te)) > 22)}</g></svg>{chart}</div>')
             if ex:
@@ -1325,7 +1328,7 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   if(e.target.closest('.mk-rp-x')){{const c=e.target.closest('.mk[data-k]');c.querySelector('.mk-rp')?.remove();hideHa(c.dataset.k,!!c.dataset.x);return;}}
   if(e.target.closest('.mk-rp'))return;const el=e.target.closest('.mk[data-k]');if(!el)return;
   if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
-  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.why?'\\n근거: '+nm.dataset.why:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
+  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.why?'\\n근거: '+nm.dataset.why:'')+(nm.dataset.chg?'\\n조정치 '+nm.dataset.chg:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
   openHz(el);}});
 function fitDesktopHaChart(svg){{
   if(!svg)return;
