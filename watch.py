@@ -558,8 +558,13 @@ def sox_date():
 
 
 def closed_weeks(tc):
-    """손떨방: 아직 안 끝난 이번 주 봉은 빼고 추정(장중 시세로 빌드마다 출렁이지 않게). 봉 시작 + 5일이 지나야 끝난 주로 봄."""
-    return tc[:-1] if len(tc) > 1 and time.time() < tc[-1][0] + 5 * 86400 else tc
+    """손떨방: 아직 안 끝난 이번 주 봉은 빼고 추정(장중 시세로 빌드마다 출렁이지 않게). 봉 시작 + 5일이 지나야 끝난 주로 봄.
+    단 이번 주 움직임이 평소 주간 변동의 1.5배(최소 4%)를 넘는 급등락이면 바로 반영."""
+    if len(tc) < 3 or time.time() >= tc[-1][0] + 5 * 86400:
+        return tc
+    r = [math.log(b[1] / a[1]) for a, b in zip(tc[-54:-2], tc[-53:-1]) if a[1] > 0 and b[1] > 0]
+    sd = (sum(x * x for x in r) / len(r)) ** .5 if r else .05
+    return tc if abs(math.log(tc[-1][1] / tc[-2][1])) >= max(.04, 1.5 * sd) else tc[:-1]
 
 
 def adj_target(tc, lev3=False, sym=""):
