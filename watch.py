@@ -586,7 +586,7 @@ EXTRA = [(s, n, g) for g, lst in [
     ("공포", "009150.KS 삼성전기,042700.KS 한미반도체"),
     ("반등 중(모더나형)", "MRNA 모더나,MRNX MRNX,W 웨이페어,006400.KS 삼성SDI,ETSY 엣시,MP MP머티리얼즈,APA APA,PACB 팩바이오,SEDG 솔라엣지,OPEN 오픈도어,CHPT 차지포인트,AMC AMC,AFRM 어펌,TWLO 트윌리오,OKTA 옥타,ARKK 아크,PDD 핀둬둬,SE 씨,DOCU 도큐사인,XYZ 블록,EDU 신동방,TAL TAL,NVAX 노바백스,GME 게임스탑,MDB 몽고DB,128940.KS 한미약품"),
     ("이미 회복", "CVNA 카바나,PLTR 팔란티어,PTIR PTIR,IONQ 아이온큐,NET 클라우드플레어,MSTR 마이크로스트래티지,SHOP 쇼피파이,TSLA 테슬라,VKTX 바이킹,RIOT 라이엇,FCX 프리포트"),
-    ("기타 언급", "RGTI 리게티,SMR 뉴스케일,ACHR 아처,Z 질로우,COIN 코인베이스,SOUN 사운드하운드,ROOT 루트,247540.KQ 에코프로비엠,DKNG 드래프트킹스,005070.KS 코스모신소재,035900.KQ JYP,TTD 트레이드데스크,LI 리오토,NVDA 엔비디아,TSM TSMC,^IXIC 나스닥"),
+    ("기타 언급", "RGTI 리게티,SMR 뉴스케일,ACHR 아처,Z 질로우,COIN 코인베이스,SOUN 사운드하운드,ROOT 루트,247540.KQ 에코프로비엠,DKNG 드래프트킹스,005070.KS 코스모신소재,035900.KQ JYP,TTD 트레이드데스크,LI 리오토,TSM TSMC,^IXIC 나스닥"),
 ] for s, n in (x.split(" ", 1) for x in lst.split(","))]
 GOOD = ("자산 가격 이륙", "정상화")  # 이 단계에 온 종목은 초록으로(주황 대신)
 HA = [("^KS11", "코스피"), ("122630.KS", "코스피2배"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), ("SOXL", "SOXL"), ("SOXS", "SOXS"), ("MU", "마이크론"), ("MUU", "MUU"),
@@ -594,10 +594,10 @@ HA = [("^KS11", "코스피"), ("122630.KS", "코스피2배"), ("000660.KS", "하
       ("LRCX", "램리서치"), ("LRCU", "LRCU"), ("AMD", "AMD"), ("AMDL", "AMDL"), ("AMAT", "AMAT"), ("AMAU", "AMAU"), ("ASML", "ASML"), ("ASMG", "ASMG"), ("OKLO", "오클로"),
       ("005380.KS", "현대차"), ("011070.KS", "LG이노텍"),
       ("058470.KQ", "리노공업"), ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("ARM", "Arm"), ("ARMG", "ARMG"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"),
-      ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU"), ("NVDL", "NVDL")]
+      ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU"), ("NVDA", "엔비디아"), ("NVDL", "NVDL")]
 HA += [('upbit:KRW-BTC', '비트코인'), ('ANT', '앤트로픽'), ('SPCX', '스페이스X'), ('SPAL', 'SPAL'), ('SKHY', 'SKHY')]  # SKHY: SK하이닉스 나스닥 상장(2026-07)
 HA += [("NKE", "나이키")]
-ALWAYS_HA = {"NKE", "SOXS", "ANT", "SPCX", "SPAL", "SKHY"}  # 일치율과 관계없이 늘 표시(직접 요청). 앤트로픽은 2026-11-20 상장 → 주봉 12개 전에는 곡선 시작에 현재가만
+ALWAYS_HA = {"NKE", "SOXS", "ANT", "SPCX", "SPAL", "SKHY", "NVDA", "NVDL"}  # 일치율과 관계없이 늘 표시(직접 요청). 앤트로픽은 2026-11-20 상장 → 주봉 12개 전에는 곡선 시작에 현재가만
 HA += [('000720.KS', '현대건설'), ('AAOI', 'AAOI'), ('AAOX', 'AAOX'), ('LITE', 'LITE'), ('LITX', 'LITX'), ('COHR', 'COHR'), ('COHX', 'COHX')]
 
 
