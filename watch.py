@@ -557,17 +557,18 @@ def sox_date():
     return _SOX[0]
 
 
-def adj_smooth(shown, shown_m, hist, fast_ok=True):
+def adj_smooth(shown, shown_m, hist):
     """손떨방 계산. shown·shown_m = 지금 화면 가격·달(년*12+월-1), hist = [[시각, 가격, 달], ...] 최근 하루.
-    → (가격, 달, 급등락 길 썼나). 급등락 길은 하루 한 번만(fast_ok) — 30% 뛰었다 도로 빠지는 날 두 번 흔들리지 않게."""
-    med = lambda a: sorted(a)[len(a) // 2]
-    h3 = [r[1] for r in hist[-3:]]
-    if fast_ok and len(h3) == 3 and max(h3) / min(h3) < 1.15 and (min(h3) > shown * 1.1 or max(h3) < shown / 1.1):
-        return med(h3), med([r[2] for r in hist[-3:]]), True  # 급등락: 세 번 연속 같은 쪽, 세 값끼리도 비슷 → 바로
-    if len(hist) < 6:
-        return shown, shown_m, False  # 아직 재료가 모자람
-    p = med([r[1] for r in hist])
-    return (shown if abs(p / shown - 1) < .03 else p), med([r[2] for r in hist]), False
+    최선 추정 = 하루 계산값 중 가운데 절반의 평균(위아래 끝 25%씩 버림) → 범위 전체를 반영하되 튀는 값에 안 끌려감.
+    급등 뒤에는 새 값이 쌓일수록 자연히 따라감. 화면 값과 3% 안쪽이면 안 바꿈. → (가격, 달)"""
+    if len(hist) < 3:
+        return shown, shown_m
+    v = sorted(r[1] for r in hist)
+    q = len(v) // 4
+    mid = v[q:len(v) - q] or v
+    p = sum(mid) / len(mid)
+    m = sorted(r[2] for r in hist)[len(hist) // 2]
+    return (shown if abs(p / shown - 1) < .03 else p), m
 
 
 def adj_target(tc, lev3=False, sym=""):
@@ -697,17 +698,14 @@ def minsky_html() -> str:
     raw_seen = set()
 
     def steady(sym, ap, ad, tag):
-        """손떨방: 화면 값 = 최근 하루 계산값의 중간값(떨림·오락가락 걸러냄). 급등락은 최근 3번이 모두 같은 쪽으로 10% 넘게 벌어지면 바로 따라감(하루 한 번)."""
+        """손떨방: 화면 값 = 최근 하루 계산값 범위를 반영한 최선 추정(가운데 절반 평균, adj_smooth)."""
         if sym not in raw_seen:
             raw_seen.add(sym)
             raw[sym] = [r for r in raw.get(sym, []) if time.time() - r[0] < 86400][-200:] + [[int(time.time()), ap, ad.year * 12 + ad.month - 1]]
         last = alog.get(sym, [None])[-1]
         if not (last and len(last) > 3 and last[3] == tag and last[1] > 0):
             return ap, ad
-        fast = raw.setdefault("_fast", {})  # 종목별 마지막 급등락 반영 시각
-        p, m, used = adj_smooth(last[1], 2000 * 12 + int(last[2][:2]) * 12 + int(last[2][3:]) - 1, raw[sym], time.time() - fast.get(sym, 0) > 86400)
-        if used:
-            fast[sym] = int(time.time())
+        p, m = adj_smooth(last[1], 2000 * 12 + int(last[2][:2]) * 12 + int(last[2][3:]) - 1, raw[sym])
         return p, datetime(m // 12, m % 12 + 1, 15, tzinfo=KST)
     btag = lambda s_: "v3" if s_ in SEMI else "v2"
     for (hv, iv, rg, per), (sym, name, grp) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in [(a, b, "기본") for a, b in HA] + EXTRA):
@@ -821,10 +819,10 @@ def minsky_html() -> str:
                         dm = (ad.year - 2000 - int(f0[2][:2])) * 12 + ad.month - int(f0[2][3:])
                         chg = chr(10).join((f"첫 추정({f0[0][5:]}) {sp(f0[1])} ({f0[2]})", f"지금({h[-1][0][5:]}) {sp(ap)} ({ad:%y.%m})",
                                             f"첫 추정 대비 {(ap / f0[1] - 1) * 100:+.0f}%" + (f" · {abs(dm)}개월 {'늦춰짐' if dm > 0 else '당겨짐'}" if dm else "")))
-                    rr = [r[1] for r in raw.get(sym, [])]  # 변수 큰 날: 하루 동안 계산값이 15% 넘게 갈리면 범위를 같이 보여줌(숫자는 손떨방 값 그대로)
-                    if len(rr) >= 3 and min(rr) > 0 and max(rr) / min(rr) > 1.15:
-                        vol = True
-                        chg = (chg + chr(10) if chg else "") + f"오늘 계산 범위 {sp(min(rr))}~{sp(max(rr))} ({len(rr)}번) · 변수 큰 날이라 숫자는 하루 중간값으로 고정"
+                    rr = [r[1] for r in raw.get(sym, [])]  # 이름 누르면: 최근 하루 계산 범위 → 그걸 반영한 최선 추정(화면 숫자)
+                    if len(rr) >= 3 and min(rr) > 0 and max(rr) / min(rr) > 1.03:
+                        vol = max(rr) / min(rr) > 1.15  # 변수 큰 날은 좌절 숫자 뒤에 ±
+                        chg = (chg + chr(10) if chg else "") + f"최근 하루 계산 범위 {sp(min(rr))}~{sp(max(rr))} ({len(rr)}번) → 최선 추정 {sp(ap)} ({ad:%y.%m})"
                     if sym == "SOXL":
                         zd = ad
                 zp = f'<text class="mk-zp mk-zz" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>){"±" if vol else ""}</text>' if ap else ""
