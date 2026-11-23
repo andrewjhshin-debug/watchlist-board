@@ -788,7 +788,7 @@ def minsky_html() -> str:
             chart = ""
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e8:.2f}억" if v >= 1e8 else f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
-            ap, zp, bsym, mult, chg = None, "", None, 0, ""
+            ap, zp, bsym, mult, chg, vol = None, "", None, 0, "", False
             if not ipo:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
                 bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
                 if bsym and bsym not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
@@ -821,9 +821,13 @@ def minsky_html() -> str:
                         dm = (ad.year - 2000 - int(f0[2][:2])) * 12 + ad.month - int(f0[2][3:])
                         chg = chr(10).join((f"첫 추정({f0[0][5:]}) {sp(f0[1])} ({f0[2]})", f"지금({h[-1][0][5:]}) {sp(ap)} ({ad:%y.%m})",
                                             f"첫 추정 대비 {(ap / f0[1] - 1) * 100:+.0f}%" + (f" · {abs(dm)}개월 {'늦춰짐' if dm > 0 else '당겨짐'}" if dm else "")))
+                    rr = [r[1] for r in raw.get(sym, [])]  # 변수 큰 날: 하루 동안 계산값이 15% 넘게 갈리면 범위를 같이 보여줌(숫자는 손떨방 값 그대로)
+                    if len(rr) >= 3 and min(rr) > 0 and max(rr) / min(rr) > 1.15:
+                        vol = True
+                        chg = (chg + chr(10) if chg else "") + f"오늘 계산 범위 {sp(min(rr))}~{sp(max(rr))} ({len(rr)}번) · 변수 큰 날이라 숫자는 하루 중간값으로 고정"
                     if sym == "SOXL":
                         zd = ad
-                zp = f'<text class="mk-zp mk-zz" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>)</text>' if ap else ""
+                zp = f'<text class="mk-zp mk-zz" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>){"±" if vol else ""}</text>' if ap else ""
             vs = {}
             for v in (() if ex else VIEWS):
                 try:
