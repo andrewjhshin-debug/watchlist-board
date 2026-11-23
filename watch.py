@@ -550,26 +550,27 @@ def sox_date():
     if not _SOX:
         try:
             q = get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0]
-            e = adj_engine(closed_weeks([(t, v) for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]) if v]), "^SOX")
+            e = adj_engine([(t, v) for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]) if v], "^SOX")
             _SOX.append(e[1] if e else None)
         except Exception:
             _SOX.append(None)
     return _SOX[0]
 
 
-def closed_weeks(tc):
-    """손떨방: 아직 안 끝난 이번 주 봉은 빼고 추정(장중 시세로 빌드마다 출렁이지 않게). 봉 시작 + 5일이 지나야 끝난 주로 봄.
-    단 이번 주 움직임이 평소 주간 변동의 1.5배(최소 4%)를 넘는 급등락이면 바로 반영."""
-    if len(tc) < 3 or time.time() >= tc[-1][0] + 5 * 86400:
-        return tc
-    r = [math.log(b[1] / a[1]) for a, b in zip(tc[-54:-2], tc[-53:-1]) if a[1] > 0 and b[1] > 0]
-    sd = (sum(x * x for x in r) / len(r)) ** .5 if r else .05
-    return tc if abs(math.log(tc[-1][1] / tc[-2][1])) >= max(.04, 1.5 * sd) else tc[:-1]
+def adj_smooth(shown, shown_m, hist):
+    """손떨방 계산. shown·shown_m = 지금 화면 가격·달(년*12+월-1), hist = [[시각, 가격, 달], ...] 최근 하루. → (가격, 달)"""
+    med = lambda a: sorted(a)[len(a) // 2]
+    h3 = hist[-3:]
+    if len(h3) == 3 and (all(r[1] > shown * 1.1 for r in h3) or all(r[1] < shown / 1.1 for r in h3)):
+        return med([r[1] for r in h3]), med([r[2] for r in h3])  # 급등락: 세 번 연속 같은 쪽 → 바로
+    if len(hist) < 6:
+        return shown, shown_m  # 아직 재료가 모자람
+    p = med([r[1] for r in hist])
+    return (shown if abs(p / shown - 1) < .03 else p), med([r[2] for r in hist])
 
 
 def adj_target(tc, lev3=False, sym=""):
-    """(가격, 날짜) — 고점에서 과거 하락장 폭·기간만큼. 끝난 주봉만 씀(closed_weeks)."""
-    tc = closed_weeks(tc)
+    """(가격, 날짜) — 고점에서 과거 하락장 폭·기간만큼."""
     if sym not in ADJ_OVR and not lev3:
         e = adj_engine(tc, sym)
         if e:
@@ -690,13 +691,20 @@ def minsky_html() -> str:
     alog_p = ROOT / "adj_log.json"
     alog = json.loads(alog_p.read_text(encoding="utf-8")) if alog_p.exists() else {}
 
-    def steady(sym, ap, ad, tag):  # 흔들림 방지: 지난 기록과 8%·2개월 안쪽이면 지난 값 그대로
+    raw_p = ROOT / "adj_raw.json"  # 빌드마다 새로 계산한 값(하루치) → 손떨방 재료. 회차 사이엔 actions 캐시로 이어받음
+    raw = json.loads(raw_p.read_text(encoding="utf-8")) if raw_p.exists() else {}
+    raw_seen = set()
+
+    def steady(sym, ap, ad, tag):
+        """손떨방: 화면 값 = 최근 하루 계산값의 중간값(떨림·오락가락 걸러냄). 급등락은 최근 3번이 모두 같은 쪽으로 10% 넘게 벌어지면 바로 따라감."""
+        if sym not in raw_seen:
+            raw_seen.add(sym)
+            raw[sym] = [r for r in raw.get(sym, []) if time.time() - r[0] < 86400][-200:] + [[int(time.time()), ap, ad.year * 12 + ad.month - 1]]
         last = alog.get(sym, [None])[-1]
-        if last and len(last) > 3 and last[3] == tag and abs(ap / last[1] - 1) < .08:
-            ld = datetime(2000 + int(last[2][:2]), int(last[2][3:]), 15, tzinfo=KST)
-            if abs((ad - ld).days) <= 62:
-                return last[1], (ad if f"{ad:%y.%m}" == last[2] else ld)
-        return ap, ad
+        if not (last and len(last) > 3 and last[3] == tag and last[1] > 0):
+            return ap, ad
+        p, m = adj_smooth(last[1], 2000 * 12 + int(last[2][:2]) * 12 + int(last[2][3:]) - 1, raw[sym])
+        return p, datetime(m // 12, m % 12 + 1, 15, tzinfo=KST)
     btag = lambda s_: "v3" if s_ in SEMI else "v2"
     for (hv, iv, rg, per), (sym, name, grp) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in [(a, b, "기본") for a, b in HA] + EXTRA):
         ex = grp != "기본"
@@ -859,6 +867,7 @@ def minsky_html() -> str:
     (ROOT / "ha.json").write_text(json.dumps(charts, ensure_ascii=False), encoding="utf-8")
     alog.pop("_wk", None)
     alog_p.write_text(json.dumps(alog, ensure_ascii=False), encoding="utf-8")
+    raw_p.write_text(json.dumps(raw), encoding="utf-8")
     xcache_p.write_text(json.dumps(xcache, ensure_ascii=False), encoding="utf-8")
     return f'<div id="hapop" class="hapop" hidden><div class="mk-pull"></div>{"".join(cells)}<div class="mk-add">+ 종목 고르기</div><div class="mk-fabs"><button class="mk-fab mk-sort" type="button">내 순서</button><button class="mk-fab" type="button">＋ 종목</button></div></div>' if len(cells) > 1 else ""
 
