@@ -550,15 +550,21 @@ def sox_date():
     if not _SOX:
         try:
             q = get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0]
-            e = adj_engine([(t, v) for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]) if v], "^SOX")
+            e = adj_engine(closed_weeks([(t, v) for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]) if v]), "^SOX")
             _SOX.append(e[1] if e else None)
         except Exception:
             _SOX.append(None)
     return _SOX[0]
 
 
+def closed_weeks(tc):
+    """손떨방: 아직 안 끝난 이번 주 봉은 빼고 추정(장중 시세로 빌드마다 출렁이지 않게). 봉 시작 + 5일이 지나야 끝난 주로 봄."""
+    return tc[:-1] if len(tc) > 1 and time.time() < tc[-1][0] + 5 * 86400 else tc
+
+
 def adj_target(tc, lev3=False, sym=""):
-    """(가격, 날짜) — 고점에서 과거 하락장 폭·기간만큼."""
+    """(가격, 날짜) — 고점에서 과거 하락장 폭·기간만큼. 끝난 주봉만 씀(closed_weeks)."""
+    tc = closed_weeks(tc)
     if sym not in ADJ_OVR and not lev3:
         e = adj_engine(tc, sym)
         if e:
