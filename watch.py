@@ -1862,19 +1862,24 @@ const enP=v=>v&&typeof v==='object'?+v.p:+v,enXf=v=>v&&typeof v==='object'&&v.x>
 function enPts(svg){{const p=svg.querySelector('.mk-c');return p?(p.getAttribute('d')||'').replace(/[ML]/g,' ').trim().split(/\\s+/).map(t=>t.split(',').map(Number)).filter(q=>q.length===2).sort((a,b)=>a[0]-b[0]):[];}}
 function enOn(svg,x){{const pts=enPts(svg),py=(svg.dataset.py||'').split(',').map(Number);if(!pts.length||py.length<4)return null;const [lo,ylo,hi,yhi]=py;  // 초록 하이먼 곡선 위 가로 x 자리: [x, y, 그림 눈금의 가격]
   x=Math.max(pts[0][0],Math.min(pts[pts.length-1][0],x));let i=pts.findIndex(q=>q[0]>=x);if(i<=0)i=1;const a=pts[i-1],b=pts[i],f=b[0]>a[0]?(x-a[0])/(b[0]-a[0]):0,y=a[1]+(b[1]-a[1])*f;
-  return [x,y,Math.max(lo*.01,yhi!==ylo?lo+(y-ylo)/(yhi-ylo)*(hi-lo):lo)];}}
+  return [x,y,enPrice(svg,x,y)];}}
+function enPrice(svg,x,y){{const [lo,ylo,hi,yhi]=(svg.dataset.py||'').split(',').map(Number),lin=yy=>yhi!==ylo?lo+(yy-ylo)/(yhi-ylo)*(hi-lo):lo;  // 곡선 한 점의 가격
+  const d=svg.querySelector('.mk-d'),z=svg.querySelector('.mk-zd:not(.mk-pd)'),ap=+svg.dataset.ap;
+  if(d&&z&&ap>0&&x>+d.getAttribute('cx')){{const yd=+d.getAttribute('cy'),yz=+z.getAttribute('cy'),pd=Math.max(lin(yd),1e-9);  // 노란 점 오른쪽(앞날): 지금가와 좌절 예측치 사이를 높이 비율로(로그)
+    return yz!==yd?Math.exp(Math.log(pd)+(y-yd)/(yz-yd)*(Math.log(ap)-Math.log(pd))):pd;}}
+  return Math.max(lo*.01,lin(y));}}
 function paintEn(svg,sym,cur){{svg.querySelectorAll('.en-g').forEach(x=>x.remove());delete svg.dataset.en;const ev=enAll()[sym],e=enP(ev),xf=enXf(ev);if(!(e>0))return;
   const py=(svg.dataset.py||'').split(',').map(Number),p=svg.querySelector('.mk-p');if(py.length<4||!p)return;const [lo,ylo,hi,yhi]=py;
   const y=hi>lo?ylo+(e-lo)/(hi-lo)*(yhi-ylo):ylo,pts=enPts(svg),rp=(p.getAttribute('d')||'').replace(/[ML]/g,' ').trim().split(/\\s+/).map(t=>t.split(',').map(Number)).filter(q=>q.length===2);
-  if(!pts.length)return;let b=null;for(let i=pts.length-1;i>=0;i--){{const d=Math.abs(pts[i][1]-y);if(!b||d<b[0]-.01)b=[d,pts[i]];}}  // 초록 곡선에서 진입가 높이와 가까운 오른쪽 자리
+  if(!pts.length)return;const dt=svg.querySelector('.mk-d'),xm=dt?+dt.getAttribute('cx'):1e9;let b=null;for(let i=pts.length-1;i>=0;i--){{if(pts[i][0]>xm)continue;const d=Math.abs(Math.log(enPrice(svg,pts[i][0],pts[i][1])/e));if(!b||d<b[0]-.001)b=[d,pts[i]];}}  // 지금까지 구간(노란 점 왼쪽) 곡선에서 진입가와 가장 가까운 최근 자리
   let [x,yy]=b[1];if(e>hi*1.02||e<lo*.98){{const dot=svg.querySelector('.mk-d');x=dot?+dot.getAttribute('cx'):x;yy=Math.max(4,Math.min(106,y));}}
   if(xf!==null){{const o=enOn(svg,xf*200);if(o){{x=o[0];yy=o[1];}}}}  // 직접 찍은·옮긴 자리(선 위)
   const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','en-g');
   const lq=window.haLastQ?.[sym]?.[0],last=rp[rp.length-1],now=lq>0?lq:(yhi!==ylo?lo+(last[1]-ylo)/(yhi-ylo)*(hi-lo):0),r=now>0?Math.round((now/e-1)*100):null;
   g.innerHTML='<circle cx="'+x.toFixed(1)+'" cy="'+yy.toFixed(1)+'" r="4" class="en-d"/><circle cx="'+x.toFixed(1)+'" cy="'+yy.toFixed(1)+'" r="11" class="en-h"/><text class="en-t" x="'+(x+7).toFixed(1)+'" y="'+(yy+3).toFixed(1)+'">'+haFmt(e,cur)+'</text>';svg.appendChild(g);
   svg.dataset.en='진입 '+haFmt(e,cur)+(r===null?'':' ('+(r>=0?'+':'')+r+'%)');}}  // 점 옆엔 가격만, 수익률 줄은 확대 화면 진입가 버튼 왼쪽
-function paintEnAll(){{if(!hapop)return;const cells=[...hapop.querySelectorAll('.mk[data-s]')];cells.forEach(c=>{{const v=c.querySelector('svg[data-py]');if(v)paintEn(v,c.dataset.s,c.dataset.c||'');}});
-  document.querySelectorAll('.hz').forEach(d=>{{const c=cells.find(x=>x.dataset.k===d.dataset.k),v=d.querySelector('.hz-c svg[data-py]');if(c&&v)paintEn(v,c.dataset.s,c.dataset.c||'');
+function paintEnAll(){{if(!hapop)return;const cells=[...hapop.querySelectorAll('.mk[data-s]')];cells.forEach(c=>{{const v=c.querySelector('svg[data-py]');if(v){{v.dataset.ap=c.dataset.ap||'';paintEn(v,c.dataset.s,c.dataset.c||'');}}}});
+  document.querySelectorAll('.hz').forEach(d=>{{const c=cells.find(x=>x.dataset.k===d.dataset.k),v=d.querySelector('.hz-c svg[data-py]');if(c&&v){{v.dataset.ap=c.dataset.ap||'';paintEn(v,c.dataset.s,c.dataset.c||'');}}
     const l=d.querySelector('.hz-enl');if(l)l.textContent=v?.dataset.en||'';}});}}
 function enSave(sym,n,xf){{const m=enAll();if(xf===undefined&&enXf(m[sym])!==null)xf=enXf(m[sym]);if(n>0)m[sym]=xf===undefined||xf===null?n:{{p:n,x:+xf.toFixed(4)}};else delete m[sym];ls('entry',JSON.stringify(m));paintEnAll();updateShared(r=>{{r._entry=m;}});}}
 function enAsk(d,preset){{const c=hapop&&[...hapop.querySelectorAll('.mk[data-s]')].find(x=>x.dataset.k===d.dataset.k);if(!c)return;
