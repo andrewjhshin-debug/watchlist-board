@@ -554,7 +554,7 @@ def adj_estimate(x1, x2, w, f, lo_prev, wl_prev, cl):
         for k, g in grid:
             c = cl * k
             lo = min(lo_prev, c)
-            z0, z1, z2, z3, z4 = ((v - u) / q for v, u, q in zip((x1, x2, math.log(lo), (wf - (wf if c < lo_prev else wl_prev)) / wf, math.log(c / lo)), mu, sd))
+            z0, z1, z2, z3, z4 = ((v - u) / q for v, u, q in zip((x1, x2, math.log(lo), (wf - (wf if (c < lo_prev or lo_prev >= 1 or wj == 1) else wl_prev)) / wf, math.log(c / lo)), mu, sd))
             dist = [ADJ_W[0] * (a[0] - z0) ** 2 + ADJ_W[1] * (a[1] - z1) ** 2 + ADJ_W[2] * (a[2] - z2) ** 2 + ADJ_W[3] * (a[3] - z3) ** 2 + ADJ_W[4] * (a[4] - z4) ** 2 for a in Z]
             ds = sorted(dist)
             dK = max(ds[min(ADJ_K, len(ds)) - 1], 1e-9)  # 40번째로 가까운 사례의 거리 = 무게가 줄어드는 폭
@@ -633,7 +633,8 @@ def adj_engine(tc, sym=""):
 
 
 def vol52(c):  # 최근 52주 주간 수익률의 연환산 변동성
-    r = [math.log(b / a) for a, b in zip(c[-53:], c[-52:])]
+    c = c[-53:]
+    r = [math.log(b / a) for a, b in zip(c, c[1:])]
     mu = sum(r) / len(r)
     return (sum((v - mu) ** 2 for v in r) / len(r) * 52) ** .5
 
@@ -692,7 +693,7 @@ def adj_steady(st, now, ap, d, lo=None, tl=None, add=True):
         st["in"] = True if share >= 2 / 3 else False if share <= 1 / 3 else st["in"]
         c = adj_mid(sorted((r[1], 1) for r in h))
         ds = sorted(r[2] for r in h if lo is None or not r[3])  # 엔진 종목의 날짜는 '아직 바닥 전' 계산값들의 중간
-        if ds and (lo is None or abs(ds[len(ds) // 2] - st["s"][1]) > 8 * 604800):
+        if ds and (lo is None or st["s"][1] <= now or abs(ds[len(ds) // 2] - st["s"][1]) > 8 * 604800):
             st["s"][1] = ds[len(ds) // 2]
     if abs(c / st["s"][0] - 1) > .05 or (lo and st["s"][0] > lo):
         st["s"][0], st["lr"] = (min(c, lo) if lo else c), lo
@@ -839,7 +840,10 @@ def minsky_html() -> str:
         """본주(레버 아닌 종목)의 화면 값. 한 빌드에 한 번만 계산 → 칩·좌절 숫자·레버가 같은 값을 씀."""
         if s_ not in shown_c:
             p_, d_ = adj_target(tc_, False, s_)
-            shown_c[s_] = steady(s_, p_, d_) if p_ else (p_, d_)
+            if p_:
+                p_, d_ = steady(s_, p_, d_)
+                p_ = min(p_, tc_[-1][1])
+            shown_c[s_] = (p_, d_)
         return shown_c[s_]
     for (hv, iv, rg, per), (sym, name, grp) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in [(a, b, "기본") for a, b in HA] + EXTRA):
         ex = grp != "기본"
@@ -918,7 +922,7 @@ def minsky_html() -> str:
                 return g(mk(min(te, max(ts, ts + (t - t0) / ((t1 - t0) or 1) * (te - ts)))))
             chart = ""
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
-            sp = lambda v, cur=cur: f"{v / 1e8:.2f}억" if v >= 1e8 else f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}"
+            sp = lambda v, cur=cur: f"{v / 1e8:.2f}억" if v >= 1e8 else f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}" if v >= .1 else f"{cur}{v:.2g}"
             ap, zp, bsym, mult, chg, vol = None, "", None, 0, "", False
             if not ipo:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
                 bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
@@ -939,7 +943,10 @@ def minsky_html() -> str:
                     elif bsym in ADJ_RNG:
                         rng = (lev(ADJ_RNG[bsym][0] / bpx), lev(min(1.0, ADJ_RNG[bsym][1] / bpx)), *ADJ_RNG[bsym][2:])
                     if ap:
-                        ap, ad = steady(sym, ap, ad)
+                        if ad > datetime.now(KST):
+                            ap = min(steady(sym, ap, ad)[0], c[-1])  # 날짜는 본주 화면 날짜 그대로
+                        else:
+                            raw.pop(sym, None)  # 이미 지난 바닥 = 실제 레버 최저, 거르지 않음
                 else:
                     ap, ad = shown(sym, tc)
                     rng = ADJ_RNG.get(sym)
@@ -992,7 +999,7 @@ def minsky_html() -> str:
             gp = ((v / ap - 1) if az else (ap / v - 1)) if ap else 0
             gpa = f' data-ap="{ap:.4f}" data-gp="{gp:.4f}"{chr(32) + "data-az=1" if az else ""}' if ap else ""
             if ap and not az and tc:  # 디데이 칸: 고점 달 → 좌절 달
-                gpa += f' data-pk="{datetime.fromtimestamp(max(tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m}"'
+                gpa += f' data-pk="{datetime.fromtimestamp(max(tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m-%d}"'
             gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
             lowv = TRUE_LOW.get(sym) or min(c[c.index(max(c)):])  # 직전 저가: 고점 이후 최저(장중 저가, 없으면 주봉 종가)
@@ -1800,7 +1807,7 @@ function paintHaLive(q){{haLastQ=q;if(!hapop||hapop.hidden)return;hapop.querySel
 function hzSeq(el){{const m=hapop.querySelector('.mk:not([data-k]) .mk-s'),st=+el.dataset.st;if(!m||!(st>=0))return'';return'<small class="mk-s">'+m.textContent.split('→').map((t,i)=>i===st?'<u>'+t+'</u>':t).join('→')+'</small>';}}
 function hddT(b){{const d=b.closest('.hz-dd'),on=!d.classList.contains('on');d.classList.toggle('on',on);ls('hdd',on?'1':'0');if(ls('sync'))updateShared(x=>{{x._hdd=on;}});}}
 function hzDots(el){{const pk=el.dataset.pk,ad=el.dataset.ad;if(!pk||!ad)return'';const m=s=>+s.slice(0,4)*12+ +s.slice(5,7),now=new Date(),n=m(ad)-m(pk),g=Math.min(n,now.getFullYear()*12+now.getMonth()+1-m(pk));if(n<1)return'';
-  return'<div class="hz-dd'+(ls('hdd')==='1'?' on':'')+'">'+(D=>'<div class="dd-b"><b class="dd-d dd-t" onclick="event.stopPropagation();hddT(this)">D-'+D+'</b></div>')(Math.max(0,Math.round((new Date(+ad.slice(0,4),+ad.slice(5,7)-1,15)-now)/864e5)))+'<div class="dd-g" style="width:min(100%,'+(n*28)+'px)"><div class="dd-l"><span>새 논리</span><span>좌절</span></div><div class="dd-c">'+Array.from({{length:n}},(_,i)=>i<g?'<i class="dd-x"></i>':'<i style="background:hsl('+Math.round(120*i/Math.max(1,n-1))+',85%,55%)"></i>').join('')+'</div></div></div>';}}
+  return'<div class="hz-dd'+(ls('hdd')==='1'?' on':'')+'">'+(D=>'<div class="dd-b"><b class="dd-d dd-t" onclick="event.stopPropagation();hddT(this)">D-'+D+'</b></div>')(Math.max(0,Math.round((new Date(+ad.slice(0,4),+ad.slice(5,7)-1,+ad.slice(8,10)||15)-now)/864e5)))+'<div class="dd-g" style="width:min(100%,'+(n*28)+'px)"><div class="dd-l"><span>새 논리</span><span>좌절</span></div><div class="dd-c">'+Array.from({{length:n}},(_,i)=>i<g?'<i class="dd-x"></i>':'<i style="background:hsl('+Math.round(120*i/Math.max(1,n-1))+',85%,55%)"></i>').join('')+'</div></div></div>';}}
 function haDot(sv,v){{const p=(sv?.dataset.py||'').split(',').map(Number),d=sv?.querySelector('.mk-d');if(p.length<4||!d)return;  // 곡선 위 노란 점을 지금 가격 높이로
   const y=(p[1]+(v-p[0])/((p[2]-p[0])||1)*(p[3]-p[1])).toFixed(1),dy=y-d.getAttribute('cy');if(!dy)return;d.setAttribute('cy',y);
   const t=sv.querySelector('.mk-np');if(t)t.setAttribute('y',(+t.getAttribute('y')+dy).toFixed(1));
