@@ -471,65 +471,166 @@ ADJ3 = [(.85, 11), (.90, 14), (.95, 30)]
 # 사용자가 준 애널·분석으로 종목별 덮어쓰기: 심볼 → (하락폭, 고점부터 개월)
 ADJ_OVR = {"^KS11": (.52, 12)}  # 수동 덮어쓰기(애널 자료 등). 키움 Post BlueWave 의 역대 하락장 표(중간 -54%)만 차용, 기간은 08년형 12개월
 ADJ_WHY = {"^KS11": "수동: 역대 코스피 하락장 7건 중간 -54%, 08년형 12개월"}
-# ── 조정치 엔진 v2 (조정치_엔진.md 참고) ──────────────────────────────────────────
-# 과거 급락 1,315건(413종목·지수, 월봉 전체 이력: 36개월 신고가 뒤 -25% 넘게 빠진 사례)에서
-# 지금과 가장 닮은 40건을 골라 그 최종 깊이·기간의 중앙값을 쓴다(k-최근접 유사 사례).
+# ── 조정치 엔진 v3 (조정치_엔진.md 참고) ──────────────────────────────────────────
+# 과거 하락 5,079건(366종목·지수, 주봉: 36개월 신고가 뒤 -10% 넘게 빠진 사례) 가운데 지금과 닮은 사례를 닮을수록 무겁게 쳐서
+# "그 사례들은 같은 시점에서 자기 최저보다 얼마나 더 빠졌나(이미 바닥이었으면 0)"와 "바닥까지 몇 주 더 걸렸나"의 분포를 만든다.
+# 화면 값 = 그 분포의 가운데 절반 평균(위아래 25%씩 버림). 닮은 사례의 75% 이상이 이미 바닥이었으면 찍은 최저를 좌절로 본다.
 # 닮음 기준 5가지: 고점 전 2년 상승폭, 변동성, 지금까지 하락폭, 최저 찍은 뒤 지난 비율, 최저 대비 반등폭.
-# 종목 단위 교차검증(5개월 시점): 깊이 오차 중앙값 11.0%p(옛 단계표 15.3), 기간 오차 6.5개월(옛 10).
-EPI = json.loads((Path(__file__).parent / "episodes.json").read_text())  # [2년 상승(로그), 변동성, 최종 깊이(로그), 바닥까지 개월, 월별 최저/고점×1000, 월별 종가/고점×1000]
-ADJ_W, ADJ_K, ADJ_PASS = (.5, .5, 3, 1, 3), 40, .7
+# 덜 흔들리게: 사례를 40건에서 끊지 않고 거리에 따라 무게를 줌 + 주가를 ±10% 흔든 상태 3개 + 지난주·이번 주 사례를 섞음
+#   → 주가 2% 움직임이나 주가 바뀌는 순간(월요일)에 값이 튀지 않는다. 검증·점수는 조정치_엔진.md.
+EPW = json.loads((Path(__file__).parent / "episodes_w.json").read_text())["rows"]  # [2년 상승(로그), 변동성, 최종 깊이(로그), 바닥까지 주, 주별 종가/고점×10000]
+ADJ_W, ADJ_K, ADJ_LAM, ADJ_SIG, ADJ_KC, ADJ_Z = (.5, .5, 3., 1., 3.), 40, 2.0, .08, 300, (-1.22, 0.0, 1.22)
 ADJ_INFO = {}  # 종목별 근거(이름 누르면 뜸)
-_EPI_C = {}
+ADJ_RNG = {}  # 종목별 범위(이름 누르면 뜸): (가격 25%, 가격 75%, 날짜 25%, 날짜 75%, 이미 바닥일 확률)
+ADJ_LOW = {}  # 종목별 (고점 후 최저 종가, 그 시각) — 엔진이 값을 낸 종목만
+_EPW_C = {}
 
 
-def _since(path, m):  # 최저를 찍은 지 몇 달 됐나
-    k = 0
-    while m - 2 - k >= 0 and path[m - 2 - k] == path[m - 1]:
-        k += 1
-    return k
-
-
-def _epi(m):
-    if m not in _EPI_C:
-        X = [[e[0], e[1], math.log(e[4][m - 1] / 1000), _since(e[4], m) / m, math.log(e[5][m - 1] / e[4][m - 1])] for e in EPI]
+def _epw(w):
+    """고점 후 w주에 아직 진행 중이던 사례: (표준화한 입력 5개, 평균, 표준편차, 이미 바닥이었나, 자기 최저 대비 남은 하락, 바닥까지 남은 주)"""
+    if "lo" not in _EPW_C:  # 사례마다 주별 '그때까지 최저'와 그 주
+        L = []
+        for r in EPW:
+            lo, wl, a = 10000, 0, []
+            for k, v in enumerate(r[4]):
+                if v < lo:
+                    lo, wl = v, k + 1
+                a.append((lo, wl))
+            L.append(a)
+        _EPW_C["lo"] = L
+    if w not in _EPW_C:
+        X, bott, rem, left = [], [], [], []
+        for r, a in zip(EPW, _EPW_C["lo"]):
+            if len(a) >= w:
+                lo, wl = a[w - 1]
+                ll = math.log(lo / 10000)
+                X.append((r[0], r[1], ll, (w - wl) / w, math.log(r[4][w - 1] / lo)))
+                bott.append(r[3] <= w)
+                rem.append(0.0 if r[3] <= w else min(0.0, r[2] - ll))
+                left.append(float(r[3] - w))
         mu = [sum(c) / len(c) for c in zip(*X)]
         sd = [(sum((v - u) ** 2 for v in c) / len(c)) ** .5 or 1 for c, u in zip(zip(*X), mu)]
-        _EPI_C[m] = (X, mu, sd)
-    return _EPI_C[m]
+        _EPW_C[w] = ([tuple((v - u) / q for v, u, q in zip(x, mu, sd)) for x in X], mu, sd, bott, rem, left)
+    return _EPW_C[w]
+
+
+def adj_iq(pairs, q):
+    """(값, 무게) 묶음의 분위수(무게 중심 사이를 직선으로 이음 → 무게가 조금 바뀌어도 값이 튀지 않음). pairs 는 정렬돼 있어야 함."""
+    tot = sum(wt for _, wt in pairs)
+    acc, pc, pv = 0.0, None, None
+    for v, wt in pairs:
+        c = (acc + .5 * wt) / tot
+        if q <= c:
+            return v if pc is None else pv + (v - pv) * (q - pc) / (c - pc)
+        acc += wt
+        pc, pv = c, v
+    return pairs[-1][0]
+
+
+def adj_mid(pairs, lo=.25, hi=.75):
+    """(값, 무게) 묶음에서 가운데 절반(25~75%)의 평균. pairs 는 정렬돼 있어야 함."""
+    tot = sum(wt for _, wt in pairs)
+    acc = t = 0.0
+    for v, wt in pairs:
+        ov = min((acc + wt) / tot, hi) - max(acc / tot, lo)
+        if ov > 0:
+            t += v * ov
+        acc += wt
+    return t / (hi - lo)
+
+
+def adj_estimate(x1, x2, w, f, lo_prev, wl_prev, cl):
+    """w = 고점 주에서 몇째 주인가(진행 중인 주), f = 그 주가 얼마나 지났나(0~1), lo_prev·wl_prev = 끝난 주들의 최저 종가(고점=1)와 그 주, cl = 현재가/고점.
+    → pb(이미 바닥일 확률), D[25%, 화면 값, 75%] = ln(좌절가/고점), T[25%, 화면 값, 75%] = 고점부터 주, wf = 지금, wl = 최저를 찍은 주"""
+    wc, wf = min(w, 156), max(.01, w - 1 + f)
+    parts = [(wc, 1.0)] if (f >= 1 or w < 2 or w > 156) else [(wc - 1, 1 - f), (wc, f)]  # 지난주·이번 주 사례를 지난 만큼 섞음
+    x3 = math.log(min(lo_prev, cl))
+    wl = wf if cl < lo_prev else wl_prev
+    grid = [(math.exp(ADJ_SIG * z), math.exp(-z * z / 2)) for z in ADJ_Z]  # 주가를 조금 흔든 상태들
+    gs = sum(g for _, g in grid)
+    S, R, pb = [], [], 0.0
+    for wj, share in parts:
+        Z, mu, sd, bott, rem, left = _epw(wj)
+        for k, g in grid:
+            c = cl * k
+            lo = min(lo_prev, c)
+            z0, z1, z2, z3, z4 = ((v - u) / q for v, u, q in zip((x1, x2, math.log(lo), (wf - (wf if c < lo_prev else wl_prev)) / wf, math.log(c / lo)), mu, sd))
+            dist = [ADJ_W[0] * (a[0] - z0) ** 2 + ADJ_W[1] * (a[1] - z1) ** 2 + ADJ_W[2] * (a[2] - z2) ** 2 + ADJ_W[3] * (a[3] - z3) ** 2 + ADJ_W[4] * (a[4] - z4) ** 2 for a in Z]
+            ds = sorted(dist)
+            dK = max(ds[min(ADJ_K, len(ds)) - 1], 1e-9)  # 40번째로 가까운 사례의 거리 = 무게가 줄어드는 폭
+            cut = ds[0] + math.log(1e4) / ADJ_LAM * dK
+            wt = [(i, math.exp(-ADJ_LAM * d / dK)) for i, d in enumerate(dist) if d < cut]
+            m = share * g / gs / sum(v for _, v in wt)
+            for i, v in wt:
+                S.append((rem[i], v * m))
+                if bott[i]:
+                    pb += v * m
+            if k == 1.0:  # 시기: 아직 바닥 전이던 사례 중 가까운 300건의 '남은 주'
+                nb = sorted((d, i) for i, d in enumerate(dist) if not bott[i])[:ADJ_KC]
+                R += [(left[i], share / len(nb)) for _, i in nb]
+    S.sort()
+    R.sort()
+    pb /= sum(v for _, v in S)
+    tq = lambda q: wl if (not R or pb >= q) else wf + max(0.0, adj_iq(R, (q - pb) / max(1e-9, 1 - pb)))
+    dm = x3 + min(0.0, adj_mid(S))
+    if dm >= x3 - 1e-9 or not R:
+        dm, tm = x3, wl
+    else:
+        rt = sum(v for _, v in R)
+        tm = wf + adj_mid([(0.0, pb)] + [(v, wt / rt * (1 - pb)) for v, wt in R])
+    return {"pb": pb, "D": [x3 + min(0.0, adj_iq(S, .25)), dm, x3 + min(0.0, adj_iq(S, .75))], "T": [tq(.25), tm, tq(.75)], "wf": wf, "wl": wl}
+
+
+def adj_state(tc, now):
+    """주봉 [(시각, 종가)](마지막 = 현재가)에서 엔진 입력을 만든다. 추정할 게 없으면 None."""
+    wks, c, ts = [], [], []
+    for t, v in tc:
+        k = (int(t + 43200) // 86400 + 3) // 7  # 월요일 시작 주 번호(주봉은 거래소 시각 월요일 0시로 찍힘)
+        if wks and wks[-1] == k:
+            c[-1], ts[-1] = v, t
+        else:
+            wks.append(k)
+            c.append(v)
+            ts.append(t)
+    if len(c) < 3:
+        return None
+    ip = max(range(len(c) - 1), key=lambda i: c[i])  # 끝난 주들 가운데 고점
+    if ip < 8:
+        return None
+    if c[-1] >= c[ip]:  # 지금이 신고가 → 이번 주가 고점인 상태로
+        ip = len(c) - 1
+    pk = c[ip]
+    il = min(range(ip, max(ip + 1, len(c) - 1)), key=lambda i: c[i])
+    a = max(0, ip - 104)
+    r = [math.log(c[i + 1] / c[i]) for i in range(a, ip)]
+    mu = sum(r) / len(r)
+    f = 1.0 if ip == len(c) - 1 else min(1.0, max(0.0, (now - (wks[-1] * 7 - 3) * 86400) / 432000))  # 이번 주가 지난 정도(월 0시~토 0시, UTC)
+    st = dict(x1=math.log(pk / c[a]), x2=(sum((v - mu) ** 2 for v in r) / len(r) * 52) ** .5, w=max(1, wks[-1] - wks[ip]), f=f,
+              lo_prev=c[il] / pk, wl_prev=wks[il] - wks[ip], cl=c[-1] / pk)
+    il = il if c[il] <= c[-1] else len(c) - 1
+    return {"st": st, "pk": pk, "lo": c[il], "tl": ts[il]}
 
 
 def adj_engine(tc, sym=""):
-    """(가격, 날짜) — 유사 사례 엔진. 자료가 모자라면 None."""
-    ip = max(range(len(tc)), key=lambda k: tc[k][1])
-    if ip < 35:
+    """(가격, 날짜) — 유사 사례 엔진 v3. 자료가 모자라면 None. 범위·근거는 ADJ_RNG·ADJ_INFO 에 남김."""
+    now = time.time()
+    s = adj_state(tc, now)
+    if not s:
         return None
-    tp, pk = tc[ip]
-    tl, lo = min(tc[ip:], key=lambda q: q[1])
-    MO = 2629800  # 한 달(초)
-    n = max(1, round((tc[-1][0] - tp) / MO))  # 고점 후 몇 달
-    m, il = min(36, n), round((tl - tp) / MO)
-    r = [math.log(b[1] / a[1]) for a, b in zip(tc[max(0, ip - 156):ip], tc[max(0, ip - 156) + 1:ip + 1])]
-    mu_r = sum(r) / len(r)
-    x = [math.log(pk / tc[max(0, ip - 104)][1]), (sum((v - mu_r) ** 2 for v in r) / len(r) * 52) ** .5, math.log(lo / pk), min(1, (tc[-1][0] - tl) / MO / n), math.log(tc[-1][1] / lo)]
-    X, mu, sd = _epi(m)
-    z = [(v - u) / q for v, u, q in zip(x, mu, sd)]
-    nn = sorted(range(len(EPI)), key=lambda j: sum(w * ((X[j][k] - mu[k]) / sd[k] - z[k]) ** 2 for k, w in enumerate(ADJ_W)))[:ADJ_K]
-    ds, ts = sorted(EPI[j][2] for j in nn), sorted(EPI[j][3] for j in nn)
-    med = lambda a: (a[len(a) // 2] + a[(len(a) - 1) // 2]) / 2
-    pin = sum(1 for t in ts if t <= n) / len(ts)  # 닮은 사례 중 이 시점에 이미 바닥을 친 비율
-    now = datetime.now(KST)
-    D = min(med(ds), x[2])
-    price, T = pk * math.exp(D), max(med(ts), il)
-    date = datetime.fromtimestamp(tp, KST) + timedelta(days=T * 30.4)
-    if pin >= ADJ_PASS or price >= lo * .98:  # 이미 바닥(확률 70%↑) 또는 더 깊어질 근거 없음 → 찍은 최저가 좌절
-        price = lo
-        date = datetime.fromtimestamp(tl, KST) if pin >= ADJ_PASS else max(date, now + timedelta(days=61))
-    elif date < now + timedelta(days=30):  # 더 깊어진다고 보는데 중앙 기간은 이미 지남 → 두 달 뒤로
-        date = now + timedelta(days=61)
+    st, pk = s["st"], s["pk"]
+    r = adj_estimate(**st)
+    D, T = r["D"], r["T"]
+    when = lambda t: datetime.fromtimestamp(s["tl"] if t <= r["wl"] else now + (t - r["wf"]) * 604800, KST)
+    x3 = math.log(s["lo"] / pk)
+    inn = D[1] >= x3 - 1e-9  # 가운데 절반이 전부 '이미 바닥'(확률 75%↑) → 찍은 최저와 그 날짜가 좌절
+    price, date = (s["lo"], datetime.fromtimestamp(s["tl"], KST)) if inn else (pk * math.exp(D[1]), when(T[1]))
+    ADJ_RNG[sym] = (pk * math.exp(D[0]), min(s["lo"], pk * math.exp(D[2])), when(T[0]), when(T[2]), min(.92, max(.15, r["pb"])))
+    ADJ_LOW[sym] = (s["lo"], s["tl"])
     pc = lambda v: f"{(math.exp(v) - 1) * 100:+.0f}%"
-    ADJ_INFO[sym] = (f"닮은 과거 {ADJ_K}건: 깊이 중앙 {pc(med(ds))} (20~80%: {pc(ds[ADJ_K // 5])}~{pc(ds[-ADJ_K // 5])}), 바닥까지 중앙 {med(ts):.0f}개월, 이미 바닥일 확률 {pin * 100:.0f}%"
-                     f" · 입력: 2년 상승 {pc(x[0])}, 변동성 {x[1] * 100:.0f}%, 고점 후 {n}개월 {pc(x[2])}, 최저 대비 {pc(x[4])}")
+    ADJ_INFO[sym] = (f"닮은 과거 하락 사례를 닮은 만큼 무겁게 쳐서, 결과의 가운데 절반(위아래 25%씩 뺌)을 평균 → 고점 대비 {pc(D[1])} (범위 {pc(D[0])}~{pc(D[2])})"
+                     f" · 입력: 2년 상승 {pc(st['x1'])}, 변동성 {st['x2'] * 100:.0f}%, 고점 후 {st['w']}주 {pc(x3)}, 최저 대비 {pc(math.log(tc[-1][1] / s['lo']))}")
     return price, date
+
 
 def vol52(c):  # 최근 52주 주간 수익률의 연환산 변동성
     r = [math.log(b / a) for a, b in zip(c[-53:], c[-52:])]
@@ -537,11 +638,11 @@ def vol52(c):  # 최근 52주 주간 수익률의 연환산 변동성
     return (sum((v - mu) ** 2 for v in r) / len(r) * 52) ** .5
 
 
-def chip_te(te, tc, sym):
-    """칩(단계)·노란 점을 조정치 엔진 판단에 맞춤: 좌절이 아직 앞이면 정상화로 못 감, 이미 지났으면 정상화."""
-    # ponytail: 흔들림 방지로 화면 날짜가 최대 2개월 달라질 수 있어 경계에선 드물게 어긋날 수 있음
+def chip_te(te, tc, sym, shown=None):
+    """칩(단계)·노란 점을 조정치 엔진 판단에 맞춤: 좌절이 아직 앞이면 정상화로 못 감, 이미 지났으면 정상화.
+    shown = 화면 값(손떨방 거친 값)을 주는 함수. 주면 칩과 좌절 날짜가 항상 같은 판단을 씀."""
     try:
-        ap, ad = adj_target(tc, False, "^SOX" if sym == "SOXL" else sym)
+        ap, ad = (shown or (lambda s_, tc_: adj_target(tc_, False, s_)))("^SOX" if sym == "SOXL" else sym, tc)
     except Exception:
         return te
     if not ap:
@@ -566,18 +667,40 @@ def sox_date():
     return _SOX[0]
 
 
-def adj_smooth(shown, shown_m, hist):
-    """손떨방 계산. shown·shown_m = 지금 화면 가격·달(년*12+월-1), hist = [[시각, 가격, 달], ...] 최근 하루.
-    최선 추정 = 하루 계산값 중 가운데 절반의 평균(위아래 끝 25%씩 버림) → 범위 전체를 반영하되 튀는 값에 안 끌려감.
-    급등 뒤에는 새 값이 쌓일수록 자연히 따라감. 화면 값과 3% 안쪽이면 안 바꿈. → (가격, 달)"""
-    if len(hist) < 3:
-        return shown, shown_m
-    v = sorted(r[1] for r in hist)
-    q = len(v) // 4
-    mid = v[q:len(v) - q] or v
-    p = sum(mid) / len(mid)
-    m = sorted(r[2] for r in hist)[len(hist) // 2]
-    return (shown if abs(p / shown - 1) < .03 else p), m
+ADJ_TAG = "v5"  # 계산 방식 표시. v5 = 엔진 v3 + 손떨방 v2(11-24). 방식이 바뀌면 손떨방 재료·'첫 추정'을 새로 시작
+
+
+def adj_steady(st, now, ap, d, lo=None, tl=None, add=True):
+    """손떨방 v2. st = 종목의 저장 상태(없으면 None), ap·d = 방금 계산한 좌절 가격·날짜(유닉스), lo·tl = 엔진이 본 최저 종가와 그 시각.
+    → (새 상태, 화면 가격, 화면 날짜). 재료 = 최근 이틀 계산값.
+    최선 추정 = 이틀치 계산값의 가운데 절반 평균(위아래 25%씩 버림) → 한나절 튄 값엔 안 끌려가고, 이어지는 변화는 하루쯤 지나며 따라감.
+    화면 값은 최선 추정과 5%(날짜는 8주) 넘게 벌어질 때만 옮김(오락가락 방지). 찍은 최저보다 위에 남지는 않음.
+    바로 반영하는 것: 최저가가 화면 값을 정했을 때보다 15% 넘게 더 빠진 급락 → 방금 계산값으로 새로 시작.
+    '이미 바닥' 판정은 이틀치의 2/3 이상이 그렇게 말할 때 켜지고 1/3 이하면 꺼짐. 판정 중에 신저가가 나면 바로 새로 시작.
+    레버·수동·단계표 값(lo 없음)은 최저가 규칙 없이 같은 방식으로 거름.
+    (과거 10분 간격 재생 80종목×60일: 2% 넘게 갔다가 사흘 안에 되돌아온 횟수가 종목당 하루 0.61번 → 0.02번)"""
+    inn = d <= now
+    if (not isinstance(st, dict) or st.get("t") != ADJ_TAG or st.get("lo") != bool(lo)
+            or (lo and ((st["in"] and lo < (st.get("lv") or lo) * .995) or lo < (st.get("lr") or lo) * .85))):
+        st = {"t": ADJ_TAG, "lo": bool(lo), "in": inn, "s": [ap, d], "lr": lo, "h": []}
+    if add:
+        st["h"] = [r for r in st["h"] if now - r[0] < 172800][-300:] + [[int(now), float(f"{ap:.5g}"), int(d), int(inn)]]
+        st["lv"] = lo
+    h, c = st["h"], ap
+    if len(h) >= 3:
+        share = sum(r[3] for r in h) / len(h)
+        st["in"] = True if share >= 2 / 3 else False if share <= 1 / 3 else st["in"]
+        c = adj_mid(sorted((r[1], 1) for r in h))
+        ds = sorted(r[2] for r in h if lo is None or not r[3])  # 엔진 종목의 날짜는 '아직 바닥 전' 계산값들의 중간
+        if ds and (lo is None or abs(ds[len(ds) // 2] - st["s"][1]) > 8 * 604800):
+            st["s"][1] = ds[len(ds) // 2]
+    if abs(c / st["s"][0] - 1) > .05 or (lo and st["s"][0] > lo):
+        st["s"][0], st["lr"] = (min(c, lo) if lo else c), lo
+    if lo is None:
+        return st, st["s"][0], st["s"][1]
+    if st["in"]:
+        return st, lo, tl
+    return st, st["s"][0], max(st["s"][1], now + 86400)
 
 
 def adj_target(tc, lev3=False, sym=""):
@@ -702,21 +825,23 @@ def minsky_html() -> str:
     alog_p = ROOT / "adj_log.json"
     alog = json.loads(alog_p.read_text(encoding="utf-8")) if alog_p.exists() else {}
 
-    raw_p = ROOT / "adj_raw.json"  # 빌드마다 새로 계산한 값(하루치) → 손떨방 재료. 회차 사이엔 actions 캐시로 이어받음
+    raw_p = ROOT / "adj_raw.json"  # 빌드마다 새로 계산한 값(이틀치) → 손떨방 재료. 회차 사이엔 actions 캐시로 이어받음
     raw = json.loads(raw_p.read_text(encoding="utf-8")) if raw_p.exists() else {}
-    raw_seen = set()
+    raw_seen, shown_c = set(), {}
+    TAG = ADJ_TAG
 
-    def steady(sym, ap, ad, tag):
-        """손떨방: 화면 값 = 최근 하루 계산값 범위를 반영한 최선 추정(가운데 절반 평균, adj_smooth)."""
-        if sym not in raw_seen:
-            raw_seen.add(sym)
-            raw[sym] = [r for r in raw.get(sym, []) if time.time() - r[0] < 86400][-200:] + [[int(time.time()), ap, ad.year * 12 + ad.month - 1]]
-        last = alog.get(sym, [None])[-1]
-        if not (last and len(last) > 3 and last[3] == tag and last[1] > 0):
-            return ap, ad
-        p, m = adj_smooth(last[1], 2000 * 12 + int(last[2][:2]) * 12 + int(last[2][3:]) - 1, raw[sym])
-        return p, datetime(m // 12, m % 12 + 1, 15, tzinfo=KST)
-    btag = lambda s_: "v3" if s_ in SEMI else "v2"
+    def steady(sym, ap, ad):
+        """손떨방(adj_steady) → 화면 (가격, 날짜). 한 빌드에 종목당 계산값 하나만 재료에 넣음."""
+        raw[sym], p_, d_ = adj_steady(raw.get(sym), time.time(), ap, ad.timestamp(), *ADJ_LOW.get(sym, (None, None)), sym not in raw_seen)
+        raw_seen.add(sym)
+        return p_, datetime.fromtimestamp(d_, KST)
+
+    def shown(s_, tc_):
+        """본주(레버 아닌 종목)의 화면 값. 한 빌드에 한 번만 계산 → 칩·좌절 숫자·레버가 같은 값을 씀."""
+        if s_ not in shown_c:
+            p_, d_ = adj_target(tc_, False, s_)
+            shown_c[s_] = steady(s_, p_, d_) if p_ else (p_, d_)
+        return shown_c[s_]
     for (hv, iv, rg, per), (sym, name, grp) in ((v, h) for v in (("주", "1wk", "5y", 7 / 30.4),) for h in [(a, b, "기본") for a, b in HA] + EXTRA):
         ex = grp != "기본"
         if ex and name in xcache and len(xcache[name]) > 3 and time.time() - xcache[name][0] < 3600:  # 고르기 목록은 1시간에 한 번만 다시 계산
@@ -741,7 +866,7 @@ def minsky_html() -> str:
                         btc0 = [(t, v) for t, v in zip(bq["timestamp"], bq["indicators"]["quote"][0]["close"]) if v]
                         bcl = [v for _, v in btc0]
                         br0, bn, bts, bte = minsky_fit(bcl)
-                        bte = chip_te(bte, btc0, LEV[sym])
+                        bte = chip_te(bte, btc0, LEV[sym], shown)
                         fits[LEV[sym]] = (br0, bte)
                         spans[LEV[sym]] = (bts or 0.0, bte, bn)
                     except Exception:
@@ -764,7 +889,7 @@ def minsky_html() -> str:
                 r, n, ts, te = minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
                 if ts is not None:
                     sox = tc if sym != "SOXL" else [(t, v) for t, v in zip(*(lambda r_: (r_["timestamp"], r_["indicators"]["quote"][0]["close"]))(get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0])) if v]
-                    te = chip_te(te, sox, sym)  # 칩은 엔진(좌절 지났나)에 맞춤 → 레버는 이 te 를 그대로 따라감
+                    te = chip_te(te, sox, sym, shown)  # 칩은 엔진(좌절 지났나)에 맞춤 → 레버는 이 te 를 그대로 따라감
                 r0 = r
             if r0 <= .70 and sym not in ALWAYS_HA:
                 continue
@@ -801,37 +926,46 @@ def minsky_html() -> str:
                 if bsym and bsym not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
                     bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(bsym)}?interval=1wk&range=5y")["chart"]["result"][0]
                     btc = [(t, v) for t, v in zip(bq["timestamp"], bq["indicators"]["quote"][0]["close"]) if v]
-                    bp, bd = adj_target(btc, False, bsym)
+                    bp, bd = shown(bsym, btc)  # 화면에 고정된 본주 값과 같은 값으로
                     if bp:
-                        bp, bd = steady(bsym, bp, bd, btag(bsym))  # 화면에 고정된 본주 값과 같은 값으로
-                        adjb[bsym] = (bp / btc[-1][1], bd, vol52([v for _, v in btc]))
+                        adjb[bsym] = (bp / btc[-1][1], bd, vol52([v for _, v in btc]), btc[-1][1])
+                rng = None  # 닮은 과거 사례 범위(가운데 절반): (가격 아래, 가격 위, 날짜 앞, 날짜 뒤)
                 if bsym in adjb:  # 레버: 본주가 조정치까지 갈 때 배수만큼 빠진 값
-                    br, ad, bsig = adjb[bsym]
+                    br, ad, bsig, bpx = adjb[bsym]
                     yrs = max(0, (ad - datetime.now(KST)).days / 365)
-                    ap = c[-1] * br ** mult * math.exp(-(.5 * mult * (mult - 1) * bsig ** 2 + LEV_DRAG.get(sym, .15)) * yrs)  # 배수 복리 − 변동성 손실 ½L(L−1)σ²T − ETF 실제 비용
+                    lev = lambda q: c[-1] * q ** mult * math.exp(-(.5 * mult * (mult - 1) * bsig ** 2 + LEV_DRAG.get(sym, .15)) * yrs)  # 배수 복리 − 변동성 손실 ½L(L−1)σ²T − ETF 실제 비용
+                    ap = lev(br)
                     if ad < datetime.now(KST):  # 본주 좌절이 이미 지남 → 그 무렵 레버 실제 최저
                         ap = min(v for t, v in tc if abs(t - ad.timestamp()) < 15 * 86400) if any(abs(t - ad.timestamp()) < 15 * 86400 for t, _ in tc) else ap
+                    elif bsym in ADJ_RNG:
+                        rng = (lev(ADJ_RNG[bsym][0] / bpx), lev(min(1.0, ADJ_RNG[bsym][1] / bpx)), *ADJ_RNG[bsym][2:])
+                    if ap:
+                        ap, ad = steady(sym, ap, ad)
                 else:
-                    ap, ad = adj_target(tc, False, sym)
-                if ap:  # 흔들림 방지를 먼저 적용 → 칸 숫자·모델 좌절 날짜·확대 차트가 같은 값
-                    # 조정치 기록(바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
-                    tag = "v4" if bsym else btag(sym)  # v3 = 반도체 지수 날짜 반영(11-14), v4 = 레버: 고정된 본주 값 + ETF 비용(11-19). 바뀐 규칙은 흔들림 방지 한 번 건너뜀
-                    ap, ad = steady(sym, ap, ad, tag)
+                    ap, ad = shown(sym, tc)
+                    rng = ADJ_RNG.get(sym)
+                if ap:  # 손떨방을 거친 값 → 칸 숫자·모델 좌절 날짜·확대 차트가 같은 값
+                    # 조정치 기록(1% 넘게 또는 달이 바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
+                    tag = TAG
                     if not bsym:
-                        adjb[sym] = (ap / c[-1], ad, vol52(c))  # 레버리지는 화면에 고정된 이 값을 받아 씀(날것 값이면 달마다 뒤집힘)
-                    row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2), f"{ad:%y.%m}", tag]
-                    if not alog.get(sym) or alog[sym][-1][1:] != row[1:]:
+                        adjb[sym] = (ap / c[-1], ad, vol52(c), c[-1])  # 레버리지는 화면에 고정된 이 값을 받아 씀(날것 값이면 달마다 뒤집힘)
+                    row = [datetime.now(KST).strftime("%Y-%m-%d"), round(ap, 2) if ap >= 10 else float(f"{ap:.3g}"), f"{ad:%y.%m}", tag]
+                    last = alog.get(sym, [None])[-1]
+                    if not last or last[2:] != row[2:] or not last[1] or abs(row[1] / last[1] - 1) > .01:
                         alog.setdefault(sym, []).append(row)
                     h = alog.get(sym, [])
                     f0 = next((r for r in h if len(r) > 3 and r[3] == tag), None)  # 첫 추정 = 지금 계산 방식으로 처음 남긴 기록(방식 바뀐 몫은 빼려고)
-                    if f0 and f0[1] > 0 and f0[1:3] != row[1:3]:  # 이름 누르면: 첫 추정 → 지금
+                    if f0 and f0[1] > 0 and (f0[2] != row[2] or abs(row[1] / f0[1] - 1) > .01):  # 이름 누르면: 첫 추정 → 지금
                         dm = (ad.year - 2000 - int(f0[2][:2])) * 12 + ad.month - int(f0[2][3:])
                         chg = chr(10).join((f"첫 추정({f0[0][5:]}) {sp(f0[1])} ({f0[2]})", f"지금({h[-1][0][5:]}) {sp(ap)} ({ad:%y.%m})",
                                             f"첫 추정 대비 {(ap / f0[1] - 1) * 100:+.0f}%" + (f" · {abs(dm)}개월 {'늦춰짐' if dm > 0 else '당겨짐'}" if dm else "")))
-                    rr = [r[1] for r in raw.get(sym, [])]  # 이름 누르면: 최근 하루 계산 범위 → 그걸 반영한 최선 추정(화면 숫자)
+                    if rng and rng[0] < rng[1] * .97:  # 이름 누르면: 닮은 과거 사례들의 범위 → 그걸 반영한 최선 추정(화면 숫자)
+                        chg = (f"좌절 범위 {sp(rng[0])}~{sp(rng[1])} → 최선 추정 {sp(ap)}" + chr(10)
+                               + f"시기 범위 {rng[2]:%y.%m}~{rng[3]:%y.%m} → {ad:%y.%m} · 이미 바닥일 확률 {rng[4] * 100:.0f}%" + (chr(10) + chg if chg else ""))
+                    rr = [r[1] for r in raw.get(sym, {}).get("h", [])]  # 최근 이틀 계산값이 얼마나 오갔나
                     if len(rr) >= 3 and min(rr) > 0 and max(rr) / min(rr) > 1.03:
                         vol = max(rr) / min(rr) > 1.15  # 변수 큰 날은 좌절 숫자 뒤에 ±
-                        chg = (chg + chr(10) if chg else "") + f"최근 하루 계산 범위 {sp(min(rr))}~{sp(max(rr))} ({len(rr)}번) → 최선 추정 {sp(ap)} ({ad:%y.%m})"
+                        chg = (chg + chr(10) if chg else "") + f"최근 이틀 계산값 {sp(min(rr))}~{sp(max(rr))} ({len(rr)}번)"
                     if sym == "SOXL":
                         zd = ad
                 zp = f'<text class="mk-zp mk-zz" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}">{sp(ap)}(<tspan font-weight="bold">{ad:%y.%m}</tspan>){"±" if vol else ""}</text>' if ap else ""
@@ -863,7 +997,7 @@ def minsky_html() -> str:
             gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
             np = sp(v)
             lowv = TRUE_LOW.get(sym) or min(c[c.index(max(c)):])  # 직전 저가: 고점 이후 최저(장중 저가, 없으면 주봉 종가)
-            lw = (f'<tspan class="np-lo" x="{Xc(te) + 8:.1f}" dy="{-11 if Y(f(seg[-1])) > 78 else 10}">(저 {sp(lowv)})</tspan>'
+            lw = (f'<tspan class="np-lo" x="{Xc(te) + 8:.1f}" dy="{-13 if Y(f(seg[-1])) > 78 else 12}">(저 {sp(lowv)})</tspan>'
                   if not ipo and lowv and v > lowv * 1.005 else "")  # 지금이 저가면 생략
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" {' data-chg="' + html.escape(chg).replace(chr(10), "&#10;") + '"' if chg else ''} data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실·ETF 비용(연 {LEV_DRAG.get(sym, .15) * 100:.0f}%) 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
                          f'<svg viewBox="0 0 {W} {H}" data-py="{lo:.6g},{Y(f(lo)):.2f},{hi:.6g},{Y(f(hi)):.2f}">{bc}<path d="{line}" class="mk-p"/>'
@@ -926,7 +1060,7 @@ h1{{margin:0;font-size:22px;white-space:nowrap}}#avg{{font-family:'GalmuriMono11
 .hpick label{{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--edge);font-size:14px}}.hpick label small{{margin-left:auto;color:var(--sub);font-size:11px}}.hpick label input{{width:18px;height:18px;accent-color:#00ff3c}}
 .hapop{{padding-bottom:58px!important}}.mk-fabs{{position:fixed;right:10px;bottom:calc(var(--tabh) + 10px);z-index:35;display:flex;gap:8px}}.hapop[hidden] .mk-fabs{{display:none}}
 .mk-fab{{font:inherit;font-weight:700;font-size:14px;color:#00ff3c;background:#05070d99;border:1.5px solid #00ff3caa;border-radius:20px;padding:8px 14px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-fab:active{{background:#00ff3c;color:#00140a}}.hpick-q{{box-sizing:border-box;width:calc(100% - 24px);height:38px;flex:0 0 auto;-webkit-appearance:none;appearance:none;margin:0 12px 6px;font:inherit;font-size:14px;color:var(--txt);background:var(--tile);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}}.hpick h4[hidden],.hpick label[hidden]{{display:none}}.mk-x{{position:absolute;top:5px;right:6px;z-index:4;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;font:400 16px/1 system-ui,sans-serif;color:#5d6888;background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer;-webkit-tap-highlight-color:transparent}}.mk-x:hover,.mk-x:active{{color:#ff5a5a;border-color:#ff5a5a66;background:#ff5a5a14}}
-.np-lo{{font-size:.78em;opacity:.8}}.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-np,.mk-zp{{paint-order:stroke;stroke:var(--tile);stroke-width:3.5px;stroke-linejoin:round}}.mk-gp{{font-style:normal;color:#e8ecff}}.mk-sort{{color:#e8ecff;border-color:#8a96c0aa}}.mk-sx{{display:none}}.mk-pk,.mk-t .pk{{fill:#ff2a3c}}.mk-zd{{fill:#00ff3c!important}}.mk-zd.mk-pd{{fill:#ff2a3c!important}}.dd-l span:first-child{{color:#ff2a3c}}.dd-l span:last-child{{color:#00ff3c}}.hz-lb{{display:none}}.mk-t .lb2{{display:none}}.hz-m .mk-t .lb2{{display:inline}}.hz-m .mk-t{{font-size:9px}}.hz-h1 .hz-lb{{display:inline;font-size:9px}}.hz-m.sx .mk-sx{{display:inline}}.hz.hz-m,.hz.hz-b{{bottom:var(--tabh)}}.hz-m svg{{flex:0 0 auto!important;height:auto;max-height:calc(100dvh - 240px - var(--tabh));margin:auto 0}}.hz-sx{{align-self:flex-end;margin:0 0 10px;font:inherit;font-weight:700;font-size:16px;color:#ffb300;background:#3a2500;border:2px solid #ffb300;border-radius:22px;padding:10px 20px;cursor:pointer;-webkit-tap-highlight-color:transparent}}.hz-sx.on{{color:#fff;background:#ff2a3c;border-color:#ff2a3c}}.hz-m svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-m .mk-s,.hz-b .mk-s{{font-size:13px!important;line-height:1.5;white-space:normal}}.hz-m .mk-s u,.hz-b .mk-s u{{text-decoration:none;color:#ffb300}}.adjl{{stroke:#e8ecff;stroke-width:1.5;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}}.ax.adj{{left:auto;right:3px;color:#e8ecff;transform:translateY(-115%)}}.settings-more{{flex:0 0 auto;font-size:12px;color:var(--sub);margin:0 0 10px}}.settings-more summary{{cursor:pointer;padding:4px 0}}.settings-more .settings-hint{{max-height:30dvh;overflow:auto;margin:4px 0 0}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
+.np-lo{{font-size:10px;font-weight:bold;fill:#16bdd0}}.mk-rp-x{{display:block;margin-top:6px;font:inherit;font-size:12px;color:#ff5a5a;background:none;border:1px solid #ff5a5a66;border-radius:8px;padding:3px 10px;cursor:pointer}}.mk-rp{{white-space:pre-line;position:absolute;left:8px;top:30px;z-index:3;font-size:12px;color:var(--txt);background:#1c2540;border:1px solid var(--edge);border-radius:8px;padding:4px 8px}}.mk-np{{fill:#ffb300;font-size:12px}}.mk-zp{{fill:#e8ecff;font-size:11px;text-anchor:middle}}.mk-np,.mk-zp{{paint-order:stroke;stroke:var(--tile);stroke-width:3.5px;stroke-linejoin:round}}.mk-gp{{font-style:normal;color:#e8ecff}}.mk-sort{{color:#e8ecff;border-color:#8a96c0aa}}.mk-sx{{display:none}}.mk-pk,.mk-t .pk{{fill:#ff2a3c}}.mk-zd{{fill:#00ff3c!important}}.mk-zd.mk-pd{{fill:#ff2a3c!important}}.dd-l span:first-child{{color:#ff2a3c}}.dd-l span:last-child{{color:#00ff3c}}.hz-lb{{display:none}}.mk-t .lb2{{display:none}}.hz-m .mk-t .lb2{{display:inline}}.hz-m .mk-t{{font-size:9px}}.hz-h1 .hz-lb{{display:inline;font-size:9px}}.hz-m.sx .mk-sx{{display:inline}}.hz.hz-m,.hz.hz-b{{bottom:var(--tabh)}}.hz-m svg{{flex:0 0 auto!important;height:auto;max-height:calc(100dvh - 240px - var(--tabh));margin:auto 0}}.hz-sx{{align-self:flex-end;margin:0 0 10px;font:inherit;font-weight:700;font-size:16px;color:#ffb300;background:#3a2500;border:2px solid #ffb300;border-radius:22px;padding:10px 20px;cursor:pointer;-webkit-tap-highlight-color:transparent}}.hz-sx.on{{color:#fff;background:#ff2a3c;border-color:#ff2a3c}}.hz-m svg{{flex:1;min-height:0;width:100%;overflow:visible}}.hz-m .mk-s,.hz-b .mk-s{{font-size:13px!important;line-height:1.5;white-space:normal}}.hz-m .mk-s u,.hz-b .mk-s u{{text-decoration:none;color:#ffb300}}.adjl{{stroke:#e8ecff;stroke-width:1.5;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}}.ax.adj{{left:auto;right:3px;color:#e8ecff;transform:translateY(-115%)}}.settings-more{{flex:0 0 auto;font-size:12px;color:var(--sub);margin:0 0 10px}}.settings-more summary{{cursor:pointer;padding:4px 0}}.settings-more .settings-hint{{max-height:30dvh;overflow:auto;margin:4px 0 0}}.mk-zn{{fill:#00ff3c;text-anchor:end}}.mk svg{{overflow:visible}}
 body:has(.avgpop) .toast{{display:none}}.avgpop{{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;cursor:pointer}}
 .avgpop b{{font-family:'GalmuriMono11','Galmuri11',monospace;font-weight:normal;font-size:min(34vw,220px);line-height:1;
   text-shadow:0 0 6px #000,0 0 18px #000,0 0 30px #000}}
@@ -1369,7 +1503,7 @@ if(hapop)hapop.addEventListener('click',async e=>{{if(Date.now()<haSkip)return;i
   if(e.target.closest('.mk-rp-x')){{const c=e.target.closest('.mk[data-k]');c.querySelector('.mk-rp')?.remove();hideHa(c.dataset.k,!!c.dataset.x);return;}}
   if(e.target.closest('.mk-rp'))return;const el=e.target.closest('.mk[data-k]');if(!el)return;
   if(el.classList.contains('mk-zoomed')){{setHaZoom(el,1,0,0);saveHaZoom(el);return;}}
-  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.why?'\\n근거: '+nm.dataset.why:'')+(nm.dataset.chg?'\\n\\n'+nm.dataset.chg:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
+  const nm=e.target.closest('.mk-n');if(nm){{const o=el.querySelector('.mk-rp');if(o){{o.remove();return;}}const t=document.createElement('span');t.className='mk-rp';t.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.chg?'\\n'+nm.dataset.chg:'')+(nm.dataset.why?'\\n\\n근거: '+nm.dataset.why:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');const x=document.createElement('button');x.type='button';x.className='mk-rp-x';x.textContent='빼기';t.appendChild(x);el.appendChild(t);return;}}
   openHz(el);}});
 function fitDesktopHaChart(svg){{
   if(!svg)return;
@@ -2040,6 +2174,24 @@ def self_test() -> None:
     assert "<svg" in chart_svg(d) and "class=\"tgt\"" not in chart_svg(d)
     assert chart_svg(d | {"target": [1, 20]}).count('class="tgt"') == 2   # 목표 여러 개
     assert "class=\"tgt\"" in chart_svg(d | {"target": 1})   # 멀리 있는 목표가도 항상 표시
+    # 조정치 엔진 v3: 좌절은 찍은 최저보다 위일 수 없고, 범위는 순서대로, 주가 2% 움직임에 5% 넘게 안 튐
+    st = dict(x1=1.2, x2=.6, w=20, f=.5, lo_prev=.55, wl_prev=18, cl=.60)
+    r, r2 = adj_estimate(**st), adj_estimate(**{**st, "cl": .612})
+    assert 0 <= r["pb"] <= 1 and r["D"][0] <= r["D"][1] <= r["D"][2] <= math.log(.55) + 1e-9 and r["T"][1] >= r["wl"]
+    assert abs(r2["D"][1] - r["D"][1]) < .05
+    # 손떨방: 한 번 튄 값은 무시 / 이어지는 변화는 따라감 / 찍은 최저보다 위에 안 남음 / 15% 넘는 급락은 바로
+    z, now, far = None, 1.8e9, 1.8e9 + 9e6
+    for k in range(60):
+        z, p, _ = adj_steady(z, now + k * 600, 60.0 if k == 30 else 100.0, far, 200.0, now)
+    assert p == 100.0
+    for k in range(60, 400):
+        z, p, _ = adj_steady(z, now + k * 600, 80.0, far, 200.0, now)
+    assert abs(p / 80 - 1) <= .05
+    z, p, _ = adj_steady(None, now, 95.0, far, 100.0, now)
+    z, p, _ = adj_steady(z, now + 600, 93.0, far, 94.0, now)
+    assert p == 93.0
+    z, p, _ = adj_steady(z, now + 1200, 60.0, far, 79.0, now)
+    assert p == 60.0
     print("OK")
 
 
