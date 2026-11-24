@@ -765,6 +765,44 @@ def mkf(x: float) -> float:
     return MKT[round(x * 2000)]
 
 
+MONTHLY_HA = {"PEPG"}  # 하이먼을 월봉으로 그리는 종목(2026-11-25 요청: 진짜 고점을 꼭지점에 맞춰야 겹침)
+
+
+def monthly_tc(sym: str) -> list[tuple[int, float]]:
+    """상장 이후 전체를 월봉 종가로(야후는 1mo 요청에 주봉을 줄 때가 있어 주봉을 받아 달별로 묶음)."""
+    q = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval=1wk&range=max")["chart"]["result"][0]
+    m = {}
+    for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]):
+        if v:
+            k = datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m")
+            m[k] = (m[k][0] if k in m else t, v)
+    return list(m.values())
+
+
+def minsky_fit_peak(c: list[float]) -> tuple[float, int, float, float]:
+    """진짜 고점(전체 최고)을 곡선 꼭지점에 고정하고, 구간 시작·끝(ts, te)을 찾아 가장 닮은 것."""
+    def corr(a, b):
+        ma, mb = sum(a) / len(a), sum(b) / len(b)
+        sab = sum((x - ma) * (y - mb) for x, y in zip(a, b))
+        sa, sb = sum((x - ma) ** 2 for x in a) ** .5, sum((y - mb) ** 2 for y in b) ** .5
+        return sab / (sa * sb) if sa and sb else -1
+    px = max((i / 1000 for i in range(1001)), key=mk)
+    gi = max(range(len(c)), key=lambda i: c[i])
+    best = (-1.0, len(c), 0.0, 1.0)
+    for st in range(0, max(1, gi - 3)):
+        n, p = len(c) - st, gi - st
+        if p >= n - 1:
+            continue
+        for k in range(80, 101):
+            te = k / 100
+            ts = (px * (n - 1) - p * te) / (n - 1 - p)
+            if 0 <= ts < px - .05:
+                r = corr(c[st:], [mkf(ts + i / (n - 1) * (te - ts)) for i in range(n)])
+                if r > best[0]:
+                    best = (r, n, ts, te)
+    return best
+
+
 def minsky_fit(c: list[float], young: bool | None = None, te_fix: float | None = None) -> tuple[float, int, float, float]:
     """종가 끝부분 n주가 곡선 ts~te 구간과 가장 닮은 (상관계수, n, ts, te).
     1년 안 된 신규상장은 꼭대기에서 시작하니 시작점(ts)도 찾는다."""
@@ -855,6 +893,9 @@ def minsky_html() -> str:
         try:
             q = upbit_weeks(sym)[0] if sym.startswith("upbit:") else get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval={iv}&range={rg}")["chart"]["result"][0]  # 비트코인은 바와 같은 업비트 원화
             tc = [(t, v) for t, v in zip(q["timestamp"], q["indicators"]["quote"][0]["close"]) if v]
+            wtc, hvd, perd = tc, hv, per  # wtc = 주봉(좌절 엔진용). 월봉 종목은 그림만 월봉
+            if sym in MONTHLY_HA:
+                tc, hvd, perd = monthly_tc(sym), "월", 1
             c = [v for _, v in tc]
             if hv == "주":
                 young[sym] = len(c) < 52
@@ -890,9 +931,9 @@ def minsky_html() -> str:
             elif ipo:  # 곡선 시작(이륙)에 현재가 점만. 주봉 12개 쌓이면 보통대로 맞춤
                 r, n, ts, te = 0.0, 2, .39, .39
             else:
-                r, n, ts, te = minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
+                r, n, ts, te = minsky_fit_peak(c) if sym in MONTHLY_HA else minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
                 if ts is not None:
-                    sox = tc if sym != "SOXL" else [(t, v) for t, v in zip(*(lambda r_: (r_["timestamp"], r_["indicators"]["quote"][0]["close"]))(get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0])) if v]
+                    sox = wtc if sym != "SOXL" else [(t, v) for t, v in zip(*(lambda r_: (r_["timestamp"], r_["indicators"]["quote"][0]["close"]))(get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0])) if v]
                     te = chip_te(te, sox, sym, shown)  # 칩은 엔진(좌절 지났나)에 맞춤 → 레버는 이 te 를 그대로 따라감
                 r0 = r
             if r0 <= .70 and sym not in ALWAYS_HA:
@@ -949,7 +990,7 @@ def minsky_html() -> str:
                         else:
                             raw.pop(sym, None)  # 이미 지난 바닥 = 실제 레버 최저, 거르지 않음
                 else:
-                    ap, ad = shown(sym, tc)
+                    ap, ad = shown(sym, wtc)
                     rng = ADJ_RNG.get(sym)
                 if ap:  # 손떨방을 거친 값 → 칸 숫자·모델 좌절 날짜·확대 차트가 같은 값
                     # 조정치 기록(1% 넘게 또는 달이 바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
@@ -1006,7 +1047,7 @@ def minsky_html() -> str:
             lowv = TRUE_LOW.get(sym) or min(c[c.index(max(c)):])  # 직전 저가: 고점 이후 최저(장중 저가, 없으면 주봉 종가)
             lw = (f'<tspan class="np-lo" x="{Xc(te) + 8:.1f}" dy="{-13 if Y(f(seg[-1])) > 78 else 12}" data-lo="{lowv:.6g}" data-lf="{sp(lowv)}">(전저 {sp(lowv)}, {(v / lowv - 1) * 100:+.0f}%)</tspan>'
                   if not ipo and lowv and v > lowv * 1.005 else "")  # 지금이 저가면 생략
-            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" {' data-chg="' + html.escape(chg).replace(chr(10), "&#10;") + '"' if chg else ''} data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실·ETF 비용(연 {LEV_DRAG.get(sym, .15) * 100:.0f}%) 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hv}봉 · {max(1, round(n * per))}개월<em class="mk-gp">{gpt}</em></small>'
+            cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" {' data-chg="' + html.escape(chg).replace(chr(10), "&#10;") + '"' if chg else ''} data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실·ETF 비용(연 {LEV_DRAG.get(sym, .15) * 100:.0f}%) 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hvd}봉 · {max(1, round(n * perd))}개월<em class="mk-gp">{gpt}</em></small>'
                          f'<svg viewBox="0 0 {W} {H}" data-py="{lo:.6g},{Y(f(lo)):.2f},{hi:.6g},{Y(f(hi)):.2f}">{bc}<path d="{line}" class="mk-p"/>'
                          f'<circle cx="{Xc(te):.1f}" cy="{Y(f(seg[-1])):.1f}" r="5" class="mk-d"/><text class="mk-np" x="{Xc(te) + 8:.1f}" y="{Y(f(seg[-1])) + 4:.1f}"><tspan class="np-v">{np}</tspan>{lw}</text>{zp}<circle cx="{Xc(.90):.1f}" cy="{Y(mk(.90)):.1f}" r="4.5" class="mk-zd"/><circle cx="{Xc(px):.1f}" cy="{Y(mk(px)):.1f}" r="4.5" class="mk-zd mk-pd"/><g class="mk-t hz-lb">{"".join(f'<text x="{Xc(x) + dx:.1f}" y="{Y(mk(x)) + dy:.1f}">{t}</text>' for x, t, dx, dy in ((.47, "1차 현금화", 0, 18), (.70, "열정", -16, 0), (.79, "현실 부정", 18, -6), (.84, "공포", 16, 2)) if 14 < Xc(x) < W - 14 and abs(Xc(x) + dx - Xc(te)) > 22)}</g></svg>{chart}</div>')
             if ex:
