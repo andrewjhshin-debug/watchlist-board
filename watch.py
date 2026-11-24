@@ -743,7 +743,7 @@ HA = [("^KS11", "코스피"), ("000660.KS", "하닉"), ("005930.KS", "삼전"), 
       ("267260.KS", "HD현대일렉"), ("034020.KS", "두산에너빌"), ("INTC", "인텔"), ("INTW", "INTW"), ("MRVL", "마벨"), ("MVLL", "MVLL"), ("APP", "앱러빈"), ("APPX", "APPX"),
       ("042660.KS", "한화오션"), ("012450.KS", "한화에어로"), ("RKLB", "로켓랩"), ("RKLX", "RKLX"), ("010120.KS", "LS일렉"), ("ASTS", "ASTS"), ("ASTX", "ASTX"), ("OKLL", "OKLL"), ("SMU", "SMU"), ("NVDA", "엔비디아"), ("NVDL", "NVDL")]
 HA += [('upbit:KRW-BTC', '비트코인'), ('ANT', '앤트로픽'), ('SPCX', '스페이스X'), ('SPAL', 'SPAL'), ('SKHY', 'SKHY')]  # SKHY: SK하이닉스 나스닥 상장(2026-07)
-ALWAYS_HA = {"XYZ", "PEPG", "SOXS", "ANT", "SPCX", "SPAL", "SKHY", "NVDA", "NVDL"}  # 일치율과 관계없이 늘 표시(직접 요청). 앤트로픽은 2026-11-20 상장 → 주봉 12개 전에는 곡선 시작에 현재가만
+ALWAYS_HA = {"PEPG", "SOXS", "ANT", "SPCX", "SPAL", "SKHY", "NVDA", "NVDL"}  # 일치율과 관계없이 늘 표시(직접 요청). 앤트로픽은 2026-11-20 상장 → 주봉 12개 전에는 곡선 시작에 현재가만
 HA += [('000720.KS', '현대건설'), ('AAOI', 'AAOI'), ('AAOX', 'AAOX'), ('LITE', 'LITE'), ('LITX', 'LITX'), ('COHR', 'COHR'), ('COHX', 'COHX')]
 HA += [('PEPG', '펩젠')]  # 2026-11-25 요청
 
@@ -765,8 +765,8 @@ def mkf(x: float) -> float:
     return MKT[round(x * 2000)]
 
 
-MONTHLY_HA = {"PEPG", "247540.KQ", "006400.KS", "VKTX", "MDB", "XYZ"}  # 하이먼을 월봉으로 그리는 종목(2026-11-25 요청: 진짜 고점을 꼭지점에 맞춰야 겹침)
-PEAK_HA = MONTHLY_HA | {"005070.KS", "035900.KQ", "EDU", "TAL"}  # 진짜 고점(5년 최고)을 곡선 꼭지점에 고정해 맞추는 종목. 나머지는 주봉 그대로
+MONTHLY_HA = {"PEPG"}  # 하이먼을 월봉으로 그리는 종목(2026-11-25 요청: 진짜 고점을 꼭지점에 맞춰야 겹침)
+PEAK_HA = MONTHLY_HA  # 진짜 고점(5년 최고)을 곡선 꼭지점에 고정해 맞추는 종목. 나머지는 주봉 그대로
 
 
 def monthly_tc(sym: str) -> list[tuple[int, float]]:
