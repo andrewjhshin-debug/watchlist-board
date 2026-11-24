@@ -1847,7 +1847,7 @@ function npV(t){{return t&&(t.querySelector('.np-v')||t);}}  // 현재가 글자
 function npLo(c,v){{const l=c.querySelector('.np-lo');if(!l||!l.dataset.lo)return;const r=Math.round((v/l.dataset.lo-1)*100),s='(전저 '+l.dataset.lf+', '+(r>=0?'+':'')+r+'%)';if(l.textContent!==s)l.textContent=s;}}  // 전저→지금 상승률
 document.addEventListener('click',e=>{{const z=e.target.closest('.hz .mk-zz,.hz .mk-gp,.hz-rp');if(!z)return;e.stopPropagation();const d=z.closest('.hz');let o=d.querySelector('.hz-rp');if(o){{o.remove();return;}}
   const nm=d.querySelector('.mk-n');if(!nm||z.classList.contains('hz-rp'))return;o=document.createElement('div');o.className='mk-rp hz-rp';
-  o.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.chg?'\n'+nm.dataset.chg:'')+(nm.dataset.why?'\n\n근거: '+nm.dataset.why:'')+(nm.dataset.sc?'\n'+nm.dataset.sc:'');d.appendChild(o);}},true);  // 확대 화면: 좌절 숫자(±) 누르면 근거
+  o.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.chg?'\\n'+nm.dataset.chg:'')+(nm.dataset.why?'\\n\\n근거: '+nm.dataset.why:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');d.appendChild(o);}},true);  // 확대 화면: 좌절 숫자(±) 누르면 근거
 function npX(t,x){{t.setAttribute('x',x);t.querySelector('.np-lo')?.setAttribute('x',x);}}
 function placeNps(cs){{const m=[];for(const c of cs){{const t=c.querySelector('.mk-np'),d=c.querySelector('.mk-d');if(!t||!d)continue;let w=0;try{{w=t.getBBox().width;}}catch(e){{}}if(!w)continue;
     m.push([t,+d.getAttribute('cx'),w,c.querySelector('svg').viewBox.baseVal.width||200]);}}  // 먼저 전부 재고
