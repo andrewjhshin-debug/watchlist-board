@@ -1040,6 +1040,13 @@ def minsky_html() -> str:
             if sym in INVERSE:
                 zp = f'<text class="mk-zp mk-zz" x="{W - 3}" y="{Y(mk(.90)) + 15:.1f}" style="fill:#8b94ae;text-anchor:end">예측 안 함</text>'
             zp += "" if ipo else f'<text class="mk-zp mk-pk" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 9:.1f}">{sp(max((0 if ex or sym in INVERSE else true_high(sym)) or 0, max(seg)))}</text>'
+            si = [t for _, t in STAGES].index(stage)  # 이름 누르면: 직전 단계가 언제였나(곡선에 맞춘 봉 기준)
+            if si > 0 and not ipo and n > 1:
+                pst = STAGES[si - 1][1]
+                pm = [datetime.fromtimestamp(tc[-n + i][0], KST) for i in range(n) if next(t for x, t in STAGES if ts + i / (n - 1) * (te - ts) < x) == pst]
+                if pm:
+                    a_, b_ = f"{pm[0]:%y.%m}", f"{pm[-1]:%y.%m}"
+                    chg = f"직전 단계({pst}): {a_}" + (f"~{b_}" if b_ != a_ else "") + (chr(10) + chg if chg else "")
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
             az = bool(ap) and ad < datetime.now(KST)  # 좌절이 이미 지남
             gp = ((v / ap - 1) if az else (ap / v - 1)) if ap else 0
