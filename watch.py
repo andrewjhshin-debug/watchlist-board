@@ -765,6 +765,7 @@ def mkf(x: float) -> float:
     return MKT[round(x * 2000)]
 
 
+INVERSE = {"SOXS": "반도체 반대로 3배"}  # 인버스: 버블 모델과 반대로 움직여 좌절 예측 안 함, 고점은 그린 구간 고점
 MONTHLY_HA = {"PEPG"}  # 하이먼을 월봉으로 그리는 종목(2026-11-25 요청: 진짜 고점을 꼭지점에 맞춰야 겹침)
 PEAK_HA = MONTHLY_HA  # 진짜 고점(5년 최고)을 곡선 꼭지점에 고정해 맞추는 종목. 나머지는 주봉 그대로
 
@@ -935,7 +936,7 @@ def minsky_html() -> str:
                 r, n, ts, te = minsky_fit_peak(c) if sym in PEAK_HA else minsky_fit(c, True if hv == "일" else young.get(sym))  # 일봉 1년은 버블 중간부터라 시작점도 찾음
                 if ts is not None:
                     sox = wtc if sym != "SOXL" else [(t, v) for t, v in zip(*(lambda r_: (r_["timestamp"], r_["indicators"]["quote"][0]["close"]))(get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0])) if v]
-                    te = chip_te(te, sox, sym, shown)  # 칩은 엔진(좌절 지났나)에 맞춤 → 레버는 이 te 를 그대로 따라감
+                    te = te if sym in INVERSE else chip_te(te, sox, sym, shown)  # 칩은 엔진(좌절 지났나)에 맞춤 → 레버는 이 te 를 그대로 따라감
                 r0 = r
             if r0 <= .70 and sym not in ALWAYS_HA:
                 continue
@@ -967,7 +968,7 @@ def minsky_html() -> str:
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e8:.2f}억" if v >= 1e8 else f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}" if v >= .1 else f"{cur}{v:.2g}"
             ap, zp, bsym, mult, chg, vol = None, "", None, 0, "", False
-            if not ipo:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
+            if not ipo and sym not in INVERSE:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
                 bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
                 if bsym and bsym not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
                     bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(bsym)}?interval=1wk&range=5y")["chart"]["result"][0]
@@ -1036,14 +1037,16 @@ def minsky_html() -> str:
                 d0, p0, m0 = alog[sym][0][:3]
                 sc = f" data-sc=\"{d0[2:7]} 조정치 {sp(p0)}({m0}) &#10;실제 {sp(tc[ib][1])}({datetime.fromtimestamp(tc[ib][0], KST):%y.%m}) {(p0 / tc[ib][1] - 1) * 100:+.0f}%\""
             px = max((i / 1000 for i in range(1001)), key=mk)  # 곡선 꼭지점(새 논리)에 실제 고점 가격
-            zp += "" if ipo else f'<text class="mk-zp mk-pk" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 9:.1f}">{sp(max((0 if ex else true_high(sym)) or 0, max(seg)))}</text>'
+            if sym in INVERSE:
+                zp = f'<text class="mk-zp mk-zz" x="{min(Xc(.90), W - 36):.1f}" y="{Y(mk(.90)) + 15:.1f}" style="fill:#8b94ae">예측 안 함</text>'
+            zp += "" if ipo else f'<text class="mk-zp mk-pk" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 9:.1f}">{sp(max((0 if ex or sym in INVERSE else true_high(sym)) or 0, max(seg)))}</text>'
             v = c[-1]  # 노란 점 옆 현재가 (만 단위로 짧게)
             az = bool(ap) and ad < datetime.now(KST)  # 좌절이 이미 지남
             gp = ((v / ap - 1) if az else (ap / v - 1)) if ap else 0
             gpa = f' data-ap="{ap:.4f}" data-gp="{gp:.4f}"{chr(32) + "data-az=1" if az else ""}' if ap else ""
             if ap and not az and tc:  # 디데이 칸: 고점 달 → 좌절 달
                 gpa += f' data-pk="{datetime.fromtimestamp(max(tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m-%d}"'
-            gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else ""
+            gpt = f" · {'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%" if ap else f" · {INVERSE[sym]}" if sym in INVERSE else ""
             np = sp(v)
             lowv = TRUE_LOW.get(sym) or min(c[c.index(max(c)):])  # 직전 저가: 고점 이후 최저(장중 저가, 없으면 주봉 종가)
             lw = (f'<tspan class="np-lo" x="{Xc(te) + 8:.1f}" dy="{-13 if Y(f(seg[-1])) > 78 else 12}" data-lo="{lowv:.6g}" data-lf="{sp(lowv)}">(전저 {sp(lowv)}, {(v / lowv - 1) * 100:+.0f}%)</tspan>'
