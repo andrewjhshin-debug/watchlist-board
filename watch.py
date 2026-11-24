@@ -1581,7 +1581,7 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
   const d=document.createElement('div');d.className='hz hz-b';d.dataset.k=el.dataset.k;
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t"></div><div class="hz-enr"><span class="hz-enl"></span><button class="hz-en" type="button">진입가</button></div><div class="hz-c"></div>'+hzDots(el);
   const tabs=d.querySelector('.hz-t'),chart=d.querySelector('.hz-c'),price=d.querySelector('.hz-p');
-  paintEnAll();const curve=el.querySelector('svg')?.cloneNode(true);
+  paintEnAll();setTimeout(paintEnAll,80);const curve=el.querySelector('svg')?.cloneNode(true);  // 확대 화면이 붙은 뒤 한 번 더(점 옆 가격 자리 맞춤)
   if(curve){{curve.removeAttribute('style');delete curve.dataset.z;delete curve.dataset.fx;delete curve.dataset.fy;}}
   const preferred=ls('hz-v');
   let views=haCharts?.[el.dataset.k]||{{}},chosen='';
@@ -1877,9 +1877,14 @@ function paintEn(svg,sym,cur){{svg.querySelectorAll('.en-g').forEach(x=>x.remove
   const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','en-g');
   const lq=window.haLastQ?.[sym]?.[0],last=rp[rp.length-1],now=lq>0?lq:(yhi!==ylo?lo+(last[1]-ylo)/(yhi-ylo)*(hi-lo):0),r=now>0?Math.round((now/e-1)*100):null;
   g.innerHTML='<circle cx="'+x.toFixed(1)+'" cy="'+yy.toFixed(1)+'" r="4" class="en-d"/><circle cx="'+x.toFixed(1)+'" cy="'+yy.toFixed(1)+'" r="11" class="en-h"/><text class="en-t" x="'+(x+7).toFixed(1)+'" y="'+(yy+3).toFixed(1)+'">'+haFmt(e,cur)+'</text>';svg.appendChild(g);
-  svg.dataset.en='진입 '+haFmt(e,cur)+(r===null?'':' ('+(r>=0?'+':'')+r+'%)');}}  // 점 옆엔 가격만, 수익률 줄은 확대 화면 진입가 버튼 왼쪽
+  svg.dataset.en='진입 '+haFmt(e,cur)+(r===null?'':' ('+(r>=0?'+':'')+r+'%)');}}
+function enFit(svg){{const t=svg.querySelector('.en-t'),c=svg.querySelector('.en-d');if(!t||!c||!svg.closest('.hz-c'))return;  // 점 옆 가격: 다른 글자와 안 겹치는 자리(오른쪽·왼쪽·아래·위), 다 겹치면 숨김(위 줄에 진입가가 있으니)
+  const x=+c.getAttribute('cx'),y=+c.getAttribute('cy'),others=[...svg.querySelectorAll('text')].filter(o=>o!==t&&!o.closest('.en-g')&&getComputedStyle(o).display!=='none'&&o.getBBox().width>0).map(o=>o.getBBox());
+  const hit=b=>others.some(o=>b.x<o.x+o.width&&b.x+b.width>o.x&&b.y<o.y+o.height&&b.y+b.height>o.y)||b.x<0||b.x+b.width>200;t.style.display='';
+  for(const [tx,ty,an] of [[x+7,y+3,'start'],[x-7,y+3,'end'],[x,y+13,'middle'],[x,y-8,'middle']]){{t.setAttribute('x',tx.toFixed(1));t.setAttribute('y',ty.toFixed(1));t.style.textAnchor=an;if(!hit(t.getBBox()))return;}}
+  t.style.display='none';}}  // 점 옆엔 가격만, 수익률 줄은 확대 화면 진입가 버튼 왼쪽
 function paintEnAll(){{if(!hapop)return;const cells=[...hapop.querySelectorAll('.mk[data-s]')];cells.forEach(c=>{{const v=c.querySelector('svg[data-py]');if(v){{v.dataset.ap=c.dataset.ap||'';paintEn(v,c.dataset.s,c.dataset.c||'');}}}});
-  document.querySelectorAll('.hz').forEach(d=>{{const c=cells.find(x=>x.dataset.k===d.dataset.k),v=d.querySelector('.hz-c svg[data-py]');if(c&&v){{v.dataset.ap=c.dataset.ap||'';paintEn(v,c.dataset.s,c.dataset.c||'');}}
+  document.querySelectorAll('.hz').forEach(d=>{{const c=cells.find(x=>x.dataset.k===d.dataset.k),v=d.querySelector('.hz-c svg[data-py]');if(c&&v){{v.dataset.ap=c.dataset.ap||'';paintEn(v,c.dataset.s,c.dataset.c||'');requestAnimationFrame(()=>enFit(v));}}
     const l=d.querySelector('.hz-enl');if(l)l.textContent=v?.dataset.en||'';}});}}
 function enSave(sym,n,xf){{const m=enAll();if(xf===undefined&&enXf(m[sym])!==null)xf=enXf(m[sym]);if(n>0)m[sym]=xf===undefined||xf===null?n:{{p:n,x:+xf.toFixed(4)}};else delete m[sym];ls('entry',JSON.stringify(m));paintEnAll();updateShared(r=>{{r._entry=m;}});}}
 function enAsk(d,preset){{const c=hapop&&[...hapop.querySelectorAll('.mk[data-s]')].find(x=>x.dataset.k===d.dataset.k);if(!c)return;
@@ -1900,7 +1905,7 @@ let enDrag=null;  // 보라 점 끌기: 위아래로 움직이면 그 높이의 
 function enDragStart(h,y0){{const v=h.ownerSVGElement,c=enCell(v.closest('.hz'));if(!c)return false;enDrag={{v,c,g:h.parentNode}};return true;}}
 function enDragMove(cy,cx){{if(!enDrag)return;const {{v,g}}=enDrag,pt=v.createSVGPoint();pt.x=cx||0;pt.y=cy;const q=pt.matrixTransform(v.getScreenCTM().inverse()),o=enOn(v,q.x);if(!o)return;
   const [x,y]=o;enDrag.p=o[2];enDrag.x=x/200;g.querySelectorAll('circle').forEach(c=>{{c.setAttribute('cy',y.toFixed(1));c.setAttribute('cx',x.toFixed(1));}});
-  const t=g.querySelector('.en-t');if(t){{t.setAttribute('x',(x+7).toFixed(1));t.setAttribute('y',(y+3).toFixed(1));t.textContent=haFmt(Math.max(0,enDrag.p),enDrag.c.dataset.c||'');}}}}
+  const t=g.querySelector('.en-t');if(t){{t.textContent=haFmt(Math.max(0,enDrag.p),enDrag.c.dataset.c||'');enFit(v);}}}}
 function enDragEnd(){{if(!enDrag)return;const {{c,p,x}}=enDrag;enDrag=null;enJust=Date.now();if(p>0)enSave(c.dataset.s,+p.toPrecision(4),x);else paintEnAll();}}
 const enMove=(x,y)=>{{if(enLp&&Math.hypot(x-enLp.x0,y-enLp.y0)>10){{clearTimeout(enLp.t);enLp=null;}}}},enStop=()=>{{if(enLp){{clearTimeout(enLp.t);enLp=null;}}}};
 // 폰: 터치 이벤트로(포인터 이벤트는 브라우저가 스크롤로 가져가며 취소함). PC: 마우스
