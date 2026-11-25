@@ -238,6 +238,9 @@ def quote(sym: str) -> tuple[float, float]:
                 return dq[0], dq[1]
         except Exception as e:
             print("  한투 주간거래 실패:", sym, type(e).__name__)  # 키·토큰이 로그에 찍히지 않게 종류만
+    tp = m.get("currentTradingPeriod") or {}
+    if tp.get("pre") and tp.get("regular") and tp["pre"]["start"] <= time.time() < tp["regular"]["start"]:  # 프리장: 야후는 그제 종가를 주니 어젯밤 정규장 종가와 비교
+        return (closes[-1] if closes else m["regularMarketPrice"]), m["regularMarketPrice"]
     return (closes[-1] if closes else m["regularMarketPrice"]), m.get("chartPreviousClose") or m["previousClose"]
 
 
