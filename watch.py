@@ -449,7 +449,7 @@ def tile(d: dict) -> str:
     return (f'<div class="tile {cls}{" wide" if d.get("wide") else ""}{lv}" data-sym="{d.get('sym', '')}" data-cur="{cur}"{bar_attr}{live_attr} onclick="tap(this,event)">'
             f'<div class="name">{html.escape(d["name"])}{when}<span class="x">✕</span></div>'
             f'<div class="price">{fmt(price, cur)}</div>'
-            f'<div class="chg">{"▲" if chg >= 0 else "▼"} {fmt(abs(chg), cur)} ({pct:+.2f}%)</div>'
+            f'<div class="chg">{"▲" if chg >= 0 else "▼"} <span class="chg-a">{fmt(abs(chg), cur)} (</span>{pct:+.2f}%<span class="chg-a">)</span></div>'
             f'{zoomtools}{views}<div class="gauge"{"" if tgts else " hidden"}><i style="width:{left * 100:.0f}%"></i></div>'
             f'<div class="tgts" onclick="editT(event,this)">{tgt or '<div class="tgttxt">목표 설정 ✎</div>'}</div></div>')
 
@@ -1310,7 +1310,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 body.nochart:not(.baronly) .grid-wrap{{flex:1;min-height:0;grid-auto-rows:minmax(0,1fr);align-content:stretch;gap:5px;padding:5px 6px 6px}}
 body.nochart:not(.baronly) .grid-wrap .tile:not(.zoom):not([data-bar-only]){{min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:safe center;line-height:1.15;padding:2px 9px!important}}
 body.nochart:not(.baronly) .tile:not(.zoom) .name{{font-size:min(14px,1.75dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .price{{font-size:min(21px,2.5dvh)!important;margin:1px 0!important}}
-body.nochart:not(.baronly) .tile:not(.zoom) .tgttxt{{font-size:min(12px,1.45dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .chg{{font-size:min(18px,2.15dvh)!important;font-weight:800}}body.nochart:not(.baronly) .tile:not(.zoom) .gauge{{margin-top:3px;height:6px;flex:0 0 auto}}}}
+body.nochart:not(.baronly) .tile:not(.zoom) .tgttxt{{font-size:min(12px,1.45dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .chg{{font-size:min(18px,2.15dvh)!important;font-weight:800}}body.nochart:not(.baronly) .tile:not(.zoom) .chg-a{{display:none}}body.nochart:not(.baronly) .tile:not(.zoom) .gauge{{margin-top:3px;height:6px;flex:0 0 auto}}}}
 .since-row{{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:8px 14px;border:1px solid var(--edge);border-radius:12px;background:var(--tile);font-size:14px}}
 .since-row input{{font:inherit;font-size:13px;color:var(--txt);background:var(--cbg);border:1px solid var(--edge);border-radius:8px;padding:4px 6px;color-scheme:dark}}
 </style></head><body>
@@ -1518,7 +1518,7 @@ function apply(sym,price,prev){{
   el.querySelector('.price').textContent=f2(price,c);
   if(sym==='ecos:901Y067/I16E')paintBarLeading(el);
   el.classList.toggle('up',ch>=0);el.classList.toggle('down',ch<0);
-  el.querySelector('.chg').textContent=(ch>=0?'▲ ':'▼ ')+f2(Math.abs(ch),c)+' ('+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%)';
+  el.querySelector('.chg').innerHTML=(ch>=0?'▲ ':'▼ ')+'<span class="chg-a">'+f2(Math.abs(ch),c)+' (</span>'+(ch>=0?'+':'')+(ch/prev*100).toFixed(2)+'%<span class="chg-a">)</span>';
   el.querySelectorAll('.tgttxt[data-t]').forEach(t=>{{const g=price/+t.dataset.t-1;t.querySelector('b').textContent=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}});
   const ts=JSON.parse(el.dataset.tgts||'[]');delete el.dataset.left;
   {{const gg=el.querySelector('.gauge');if(ts.length){{const g=price/Math.max(...ts)-1;gg.dataset.g=(g>=0?'+':'')+(g*100).toFixed(1)+'%';}}else delete gg.dataset.g;}}el.classList.remove('lv1','lv2','lv3','lv4','below','pd','pr');
