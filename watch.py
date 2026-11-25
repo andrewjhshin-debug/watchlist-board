@@ -1058,7 +1058,9 @@ def minsky_html() -> str:
                 zp += f'<text class="mk-zp mk-gp" style="text-anchor:end" x="{W - 3}" y="{Y(mk(.90)) + 28:.1f}">{'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%</text>'
             gpt = f" · {INVERSE[sym]}" if sym in INVERSE else ""
             np = sp(v)
-            lowv = TRUE_LOW.get(sym) or min(c[c.index(max(c)):])  # 직전 저가: 고점 이후 최저(장중 저가, 없으면 주봉 종가)
+            lowv = TRUE_LOW.get(sym) or min(c[c.index(max(c)):])
+            if lowv and v and v < lowv:
+                lowv = v  # 지금이 더 낮으면 지금이 전저(마이너스 안 나게)  # 직전 저가: 고점 이후 최저(장중 저가, 없으면 주봉 종가)
             lw = (f'<tspan class="np-lo" x="{Xc(te) + 8:.1f}" dy="{-13 if Y(f(seg[-1])) > 78 else 12}" data-lo="{lowv:.6g}" data-lf="{sp(lowv)}">(전저 {sp(lowv)}, {(v / lowv - 1) * 100:+.0f}%)</tspan>'
                   if not ipo and lowv else "")  # 늘 표시(지금이 저가면 +0%)
             cells.append(f'<div class="mk" data-k="{html.escape(name)}" data-s="{html.escape(sym)}" data-c="{cur}" data-g="{grp}"{' data-x="1"' if ex else ''} data-hv="{hv}" data-st="{[t for _, t in STAGES].index(stage)}"{gpa}><b><span class="mk-n" style="color:hsl({max(0, min(120, (r - .6) / .4 * 120)):.0f},85%,55%)" {' data-chg="' + html.escape(chg).replace(chr(10), "&#10;") + '"' if chg else ''} data-r="{r * 100:.0f}"{sc}{' data-why="' + html.escape((ADJ_WHY.get(bsym or sym) or ADJ_INFO.get(bsym or sym, "")) + (f" · 레버 {mult}배: 본주 추정에 배수 복리, 변동성 손실·ETF 비용(연 {LEV_DRAG.get(sym, .15) * 100:.0f}%) 차감" if bsym else "")) + '"' if (bsym or sym) in ADJ_WHY or (bsym or sym) in ADJ_INFO else ''}>{html.escape(name)}</span> <u{' class="g"' if stage in GOOD else ''}>{stage}</u></b><small class="mk-w">{hvd}봉 · {max(1, round(n * perd))}개월<em class="mk-gpi">{gpt}</em></small>'
@@ -1858,7 +1860,7 @@ function placeZoomPrice(container,text,dot){{
   }}
 }}
 function npV(t){{return t&&(t.querySelector('.np-v')||t);}}  // 현재가 글자(아래 직전 저가 줄은 건드리지 않음). function 선언이라 위쪽 코드에서 먼저 불려도 됨
-function npLo(c,v){{const l=c.querySelector('.np-lo');if(!l||!l.dataset.lo)return;const r=Math.round((v/l.dataset.lo-1)*100),s='(전저 '+l.dataset.lf+', '+(r>=0?'+':'')+r+'%)';if(l.textContent!==s)l.textContent=s;}}  // 전저→지금 상승률
+function npLo(c,v){{const l=c.querySelector('.np-lo');if(!l||!l.dataset.lo)return;if(v<+l.dataset.lo){{l.dataset.lo=v;l.dataset.lf=haFmt(v,c.dataset.c||'');}}const r=Math.round((v/l.dataset.lo-1)*100),s='(전저 '+l.dataset.lf+', '+(r>=0?'+':'')+r+'%)';if(l.textContent!==s)l.textContent=s;}}  // 전저→지금 상승률
 document.addEventListener('click',e=>{{const z=e.target.closest('.hz .zz-pm,.hz-rp');if(!z)return;e.stopPropagation();const d=z.closest('.hz');let o=d.querySelector('.hz-rp');if(o){{o.remove();return;}}
   const nm=d.querySelector('.mk-n');if(!nm||z.classList.contains('hz-rp'))return;o=document.createElement('div');o.className='mk-rp hz-rp';
   o.textContent='일치율 '+nm.dataset.r+'%'+(nm.dataset.chg?'\\n'+nm.dataset.chg:'')+(nm.dataset.why?'\\n\\n근거: '+nm.dataset.why:'')+(nm.dataset.sc?'\\n'+nm.dataset.sc:'');d.appendChild(o);}},true);  // 확대 화면: 좌절 숫자(±) 누르면 근거
