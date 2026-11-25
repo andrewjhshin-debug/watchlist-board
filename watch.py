@@ -1899,7 +1899,9 @@ let enLp=null,enJust=0;  // 하이먼 차트 꾹 누르기(0.55초) → 누른 �
 document.addEventListener('click',e=>{{if(Date.now()-enJust<900&&e.target.closest('.hz')){{e.stopPropagation();e.preventDefault();return;}}const bt=e.target.closest('.hz-en');if(!bt)return;e.stopPropagation();enAsk(bt.closest('.hz'));}},true);
 function enStart(v,x0,y0){{clearTimeout(enLp?.t);
   enLp={{x0,y0,t:setTimeout(()=>{{enLp=null;enJust=Date.now();const pt=v.createSVGPoint();pt.x=x0;pt.y=y0;const q=pt.matrixTransform(v.getScreenCTM().inverse()),o=enOn(v,q.x);
-    const c=enCell(v.closest('.hz'));navigator.vibrate?.(15);if(c&&o&&o[2]>0)enSave(c.dataset.s,+o[2].toPrecision(4),o[0]/200);}},550)}};}}  // 꾹 = 그 자리 가격으로 바로(얼추). 정확히는 점을 끌거나 진입가 버튼
+    const c=enCell(v.closest('.hz'));navigator.vibrate?.(15);if(c&&o&&o[2]>0){{enSave(c.dataset.s,+o[2].toPrecision(4),o[0]/200);const g=v.querySelector('.en-g');if(g)enDrag={{v,c,g,p:o[2],x:o[0]/200}};}}}},550)}};}}  // 꾹 = 그 자리(가로) 선 위에 바로, 손 안 떼고 끌면 이어서 옮김  // 꾹 = 그 자리 가격으로 바로(얼추). 정확히는 점을 끌거나 진입가 버튼
+function enArea(t){{const d=t.closest('.hz');if(!d||t.closest('button,input,a,.hz-h,.hz-t,.hz-enr,.dd-d,.dd-g,.dd-c,.hz-p,.mk-w,.hz-s,.hz-rp,.en-dlg'))return null;  // 확대 화면 아래쪽 어디든 → 하이먼 그림
+  const v=d.querySelector('.hz-c svg[data-py]');if(!v)return null;const r=v.getBoundingClientRect();return t.closest('.hz-c')||t.getBoundingClientRect().top>=r.top-20||t===d?v:null;}}
 function enCell(d){{return d&&hapop&&[...hapop.querySelectorAll('.mk[data-s]')].find(x=>x.dataset.k===d.dataset.k);}}
 let enDrag=null;  // 보라 점 끌기: 위아래로 움직이면 그 높이의 가격, 손 떼면 저장
 function enDragStart(h,y0){{const v=h.ownerSVGElement,c=enCell(v.closest('.hz'));if(!c)return false;enDrag={{v,c,g:h.parentNode}};return true;}}
@@ -1910,10 +1912,10 @@ function enDragEnd(){{if(!enDrag)return;const {{c,p,x}}=enDrag;enDrag=null;enJus
 const enMove=(x,y)=>{{if(enLp&&Math.hypot(x-enLp.x0,y-enLp.y0)>10){{clearTimeout(enLp.t);enLp=null;}}}},enStop=()=>{{if(enLp){{clearTimeout(enLp.t);enLp=null;}}}};
 // 폰: 터치 이벤트로(포인터 이벤트는 브라우저가 스크롤로 가져가며 취소함). PC: 마우스
 document.addEventListener('touchstart',e=>{{const h=e.touches.length===1&&e.target.closest('.hz-c .en-h');if(h&&enDragStart(h)){{e.stopPropagation();e.preventDefault();return;}}
-  const v=e.touches.length===1&&e.target.closest('.hz-c svg[data-py]');if(v)enStart(v,e.touches[0].clientX,e.touches[0].clientY);else enStop();}},{{capture:true,passive:false}});
+  const v=e.touches.length===1&&enArea(e.target);if(v)enStart(v,e.touches[0].clientX,e.touches[0].clientY);else enStop();}},{{capture:true,passive:false}});
 document.addEventListener('touchmove',e=>{{if(enDrag){{e.stopPropagation();e.preventDefault();enDragMove(e.touches[0].clientY,e.touches[0].clientX);return;}}if(e.touches.length>1)enStop();else enMove(e.touches[0].clientX,e.touches[0].clientY);}},{{capture:true,passive:false}});
 ['touchend','touchcancel'].forEach(t=>document.addEventListener(t,e=>{{if(enDrag){{e.stopPropagation();enDragEnd();return;}}enStop();}},true));
-document.addEventListener('pointerdown',e=>{{if(e.pointerType!=='mouse')return;const h=e.target.closest('.hz-c .en-h');if(h&&enDragStart(h)){{e.stopPropagation();e.preventDefault();return;}}const v=e.target.closest('.hz-c svg[data-py]');if(v)enStart(v,e.clientX,e.clientY);}},true);
+document.addEventListener('pointerdown',e=>{{if(e.pointerType!=='mouse')return;const h=e.target.closest('.hz-c .en-h');if(h&&enDragStart(h)){{e.stopPropagation();e.preventDefault();return;}}const v=enArea(e.target);if(v)enStart(v,e.clientX,e.clientY);}},true);
 document.addEventListener('pointermove',e=>{{if(e.pointerType!=='mouse')return;if(enDrag){{e.stopPropagation();e.preventDefault();enDragMove(e.clientY,e.clientX);return;}}enMove(e.clientX,e.clientY);}},true);
 ['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,e=>{{if(e.pointerType!=='mouse')return;if(enDrag){{e.stopPropagation();enDragEnd();return;}}enStop();}},true));
 document.addEventListener('contextmenu',e=>{{if(e.target.closest('.hz-c'))e.preventDefault();}},true);
