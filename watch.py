@@ -1310,7 +1310,7 @@ body.baronly .bar-footer{{margin:2px 10px 6px;border:1px solid var(--edge);borde
 body.nochart:not(.baronly) .grid-wrap{{flex:1;min-height:0;grid-auto-rows:minmax(0,1fr);align-content:stretch;gap:5px;padding:5px 6px 6px}}
 body.nochart:not(.baronly) .grid-wrap .tile:not(.zoom):not([data-bar-only]){{min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:safe center;line-height:1.15;padding:2px 9px!important}}
 body.nochart:not(.baronly) .tile:not(.zoom) .name{{font-size:min(14px,1.75dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .price{{font-size:min(21px,2.5dvh)!important;margin:1px 0!important}}
-body.nochart:not(.baronly) .tile:not(.zoom) .chg,body.nochart:not(.baronly) .tile:not(.zoom) .tgttxt{{font-size:min(12px,1.45dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .gauge{{margin-top:3px;height:6px;flex:0 0 auto}}}}
+body.nochart:not(.baronly) .tile:not(.zoom) .tgttxt{{font-size:min(12px,1.45dvh)!important}}body.nochart:not(.baronly) .tile:not(.zoom) .chg{{font-size:min(18px,2.15dvh)!important;font-weight:800}}body.nochart:not(.baronly) .tile:not(.zoom) .gauge{{margin-top:3px;height:6px;flex:0 0 auto}}}}
 .since-row{{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:8px 14px;border:1px solid var(--edge);border-radius:12px;background:var(--tile);font-size:14px}}
 .since-row input{{font:inherit;font-size:13px;color:var(--txt);background:var(--cbg);border:1px solid var(--edge);border-radius:8px;padding:4px 6px;color-scheme:dark}}
 </style></head><body>
