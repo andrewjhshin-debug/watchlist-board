@@ -1613,7 +1613,7 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
     const button=e.target.closest('button');
     if(button){{ls('hz-v',button.dataset.v);show(button.dataset.v);}}
   }};
-  d.onclick=()=>{{if(Date.now()<haSkip)return;if(d.classList.contains('mk-zoomed')){{setHaZoom(d,1,0,0);return;}}history.back();}};  // 확대 중이면 원래 크기, 아니면 닫기
+  d.onclick=()=>{{if(Date.now()<haSkip)return;if(d.classList.contains('mk-zoomed')){{setHaZoom(d,1,0,0);saveHzZoom(d);return;}}history.back();}};  // 확대 중이면 원래 크기, 아니면 닫기
   document.body.appendChild(d);history.pushState({{pop:1}},'');ls('hm','k:'+el.dataset.k);
   price.textContent=views.last||tileBySym.get(el.dataset.s)?.querySelector('.price').textContent||npV(el.querySelector('.mk-np'))?.textContent||'';
   paintTabs();
@@ -1634,7 +1634,7 @@ function setHaZoom(el,z,fx,fy){{const sv=el.querySelector('svg');if(!sv)return;i
   Object.assign(sv.dataset,{{z,fx,fy}});sv.style.transformOrigin='0 0';
   sv.style.transform=z>1.01?'translate('+fx*100+'%,'+fy*100+'%) scale('+z+')':'';el.classList.toggle('mk-zoomed',z>1.01);}}
 function hzzMap(){{try{{return JSON.parse(ls('hzz')||'{{}}');}}catch(e){{return {{}};}}}}
-function saveHzZoom(d){{const sv=d.querySelector('.hz-c svg'),m=hzzMap();if(!sv)return;const z=+(sv.dataset.z||1);if(z>1.01)m[d.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[d.dataset.k];
+function saveHzZoom(d){{const sv=d.querySelector('.hz-c svg'),m=hzzMap();if(!sv)return;const z=+(sv.dataset.z||1);if(z>1.05)m[d.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[d.dataset.k];
   ls('hzz',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzz=m;}});}}  // 크게 보기에서 손가락으로 키운 상태도 기억(다시 열면 그대로)
 function saveHaZoom(el){{const m=haZoomMap(),sv=el.querySelector('svg'),z=+(sv.dataset.z||1);
   if(z>1.01)m[el.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[el.dataset.k];ls('hzoom',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzoom=m;}});}}
