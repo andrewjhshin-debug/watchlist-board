@@ -1582,8 +1582,9 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t"></div><div class="hz-enr"><span class="hz-enw"><span class="hz-enl"></span><span class="hz-zl"></span></span><button class="hz-en" type="button">진입가</button></div><div class="hz-c"></div>'+hzDots(el);
   const tabs=d.querySelector('.hz-t'),chart=d.querySelector('.hz-c'),price=d.querySelector('.hz-p');
   {{const pr=document.createElement('div');pr.className='hz-pr';price.before(pr);pr.append(price,tabs);}}  // 봉 버튼은 큰 가격 오른쪽 빈자리로(세로 공간 확보)
-  paintEnAll();setTimeout(()=>{{paintEnAll();const zz=hzzMap()[d.dataset.k];if(zz&&d.querySelector('.hz-c svg'))setHaZoom(d,zz[0],zz[1],zz[2]);}},80);const curve=el.querySelector('svg')?.cloneNode(true);  // 확대 화면이 붙은 뒤 한 번 더(점 옆 가격 자리 맞춤)
-  if(curve){{curve.removeAttribute('style');delete curve.dataset.z;delete curve.dataset.fx;delete curve.dataset.fy;delete curve.dataset.st;curve.querySelectorAll('.en-g').forEach(x=>x.remove());hzStretch(curve,1.7);}}
+  paintEnAll();setTimeout(paintEnAll,80);const curve=el.querySelector('svg')?.cloneNode(true);  // 확대 화면이 붙은 뒤 한 번 더(점 옆 가격 자리 맞춤)
+  if(curve){{curve.removeAttribute('style');delete curve.dataset.z;delete curve.dataset.fx;delete curve.dataset.fy;delete curve.dataset.st;curve.querySelectorAll('.en-g').forEach(x=>x.remove());hzStretch(curve,1.7);
+    const zz=hzzMap()[el.dataset.k];if(zz&&zz[0]>1.01){{Object.assign(curve.dataset,{{z:zz[0],fx:zz[1],fy:zz[2]}});curve.style.transformOrigin='0 0';curve.style.transform='translate('+zz[1]*100+'%,'+zz[2]*100+'%) scale('+zz[0]+')';d.classList.add('mk-zoomed');}}}}  // 키워 둔 상태 그대로(봉 탭을 보다 와도)
   const preferred=ls('hz-v');
   let views=haCharts?.[el.dataset.k]||{{}},chosen='';
   const mounted=new Map();
