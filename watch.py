@@ -1264,7 +1264,7 @@ header .tabs button,.zoom-tools .tabs button{{border:0!important;border-radius:7
 header .tabs button[aria-pressed="true"],.zoom-tools .tabs button[aria-pressed="true"]{{background:#1c2540!important;color:var(--txt)!important}}
 #reload{{color:var(--txt)!important}}
 #live::before,#bar-stamp::before{{content:"";display:inline-block;width:6px;height:6px;margin-right:5px;border-radius:50%;background:#00ff3c;box-shadow:0 0 5px #00ff3c;vertical-align:1px}}
-#fold,#sync{{border-radius:8px}}
+#fold,#sync{{border-radius:8px}}@media(max-width:600px){{#fold{{position:fixed;right:14px;bottom:calc(var(--tabh) + 12px);z-index:20;font-size:15px;padding:7px 14px;border-radius:12px;background:var(--tile);color:var(--acc);border-color:var(--acc)}}}}
 .tabbar{{position:fixed;left:0;right:0;bottom:0;z-index:32;display:flex;background:#070a12;border-top:1px solid var(--edge);padding:6px 0 calc(6px + env(safe-area-inset-bottom,0px))}}
 .tabbar button{{flex:1;font:inherit;font-size:11px;color:#4a5576;background:none!important;border:0!important;padding:2px 0;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}}
 .tabbar button span{{display:block;font-size:19px;line-height:1.2}}.tabbar button.on{{color:var(--acc)}}
