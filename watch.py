@@ -1582,7 +1582,7 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t"></div><div class="hz-enr"><span class="hz-enw"><span class="hz-enl"></span><span class="hz-zl"></span></span><button class="hz-en" type="button">진입가</button></div><div class="hz-c"></div>'+hzDots(el);
   const tabs=d.querySelector('.hz-t'),chart=d.querySelector('.hz-c'),price=d.querySelector('.hz-p');
   paintEnAll();setTimeout(paintEnAll,80);const curve=el.querySelector('svg')?.cloneNode(true);  // 확대 화면이 붙은 뒤 한 번 더(점 옆 가격 자리 맞춤)
-  if(curve){{curve.removeAttribute('style');delete curve.dataset.z;delete curve.dataset.fx;delete curve.dataset.fy;}}
+  if(curve){{curve.removeAttribute('style');delete curve.dataset.z;delete curve.dataset.fx;delete curve.dataset.fy;delete curve.dataset.st;curve.querySelectorAll('.en-g').forEach(x=>x.remove());hzStretch(curve,1.7);}}
   const preferred=ls('hz-v');
   let views=haCharts?.[el.dataset.k]||{{}},chosen='';
   const mounted=new Map();
@@ -1872,7 +1872,7 @@ function paintEn(svg,sym,cur){{svg.querySelectorAll('.en-g').forEach(x=>x.remove
   const py=(svg.dataset.py||'').split(',').map(Number),p=svg.querySelector('.mk-p');if(py.length<4||!p)return;const [lo,ylo,hi,yhi]=py;
   const y=hi>lo?ylo+(e-lo)/(hi-lo)*(yhi-ylo):ylo,pts=enPts(svg),rp=(p.getAttribute('d')||'').replace(/[ML]/g,' ').trim().split(/\\s+/).map(t=>t.split(',').map(Number)).filter(q=>q.length===2);
   if(!pts.length)return;const dt=svg.querySelector('.mk-d'),xm=dt?+dt.getAttribute('cx'):1e9;let b=null;for(let i=pts.length-1;i>=0;i--){{if(pts[i][0]>xm)continue;const d=Math.abs(Math.log(enPrice(svg,pts[i][0],pts[i][1])/e));if(!b||d<b[0]-.001)b=[d,pts[i]];}}  // 지금까지 구간(노란 점 왼쪽) 곡선에서 진입가와 가장 가까운 최근 자리
-  let [x,yy]=b[1];if(e>hi*1.02||e<lo*.98){{const dot=svg.querySelector('.mk-d');x=dot?+dot.getAttribute('cx'):x;yy=Math.max(4,Math.min(106,y));}}
+  let [x,yy]=b[1];if(e>hi*1.02||e<lo*.98){{const dot=svg.querySelector('.mk-d');x=dot?+dot.getAttribute('cx'):x;const vb=svg.viewBox.baseVal;yy=Math.max(vb.y+4,Math.min(vb.y+vb.height-4,y));}}
   if(xf!==null){{const o=enOn(svg,xf*200);if(o){{x=o[0];yy=o[1];}}}}  // 직접 찍은·옮긴 자리(선 위)
   const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','en-g');
   const lq=window.haLastQ?.[sym]?.[0],last=rp[rp.length-1],now=lq>0?lq:(yhi!==ylo?lo+(last[1]-ylo)/(yhi-ylo)*(hi-lo):0),r=now>0?Math.round((e/now-1)*100):null;
@@ -1887,6 +1887,15 @@ function paintEnAll(){{if(!hapop)return;const cells=[...hapop.querySelectorAll('
   document.querySelectorAll('.hz').forEach(d=>{{const c=cells.find(x=>x.dataset.k===d.dataset.k),v=d.querySelector('.hz-c svg[data-py]');if(c&&v){{v.dataset.ap=c.dataset.ap||'';paintEn(v,c.dataset.s,c.dataset.c||'');requestAnimationFrame(()=>enFit(v));}}
     const l=d.querySelector('.hz-enl');if(l)l.textContent=v?.dataset.en||c?.querySelector('svg[data-py]')?.dataset.en||'';
     const zl=d.querySelector('.hz-zl');if(zl)zl.textContent=c?.querySelector('.mk-gp')?.textContent||'';}});}}
+function hzStretch(v,k){{if(!v||v.dataset.st)return;const vb=v.getAttribute('viewBox').split(' ').map(Number),mid=vb[1]+vb[3]/2,Y=y=>mid+(y-mid)*k;v.dataset.st='1';  // 확대 화면: 위아래로 늘려 글자 자리 확보
+  v.querySelectorAll('path').forEach(p=>p.setAttribute('d',(p.getAttribute('d')||'').replace(/([ML])\\s*([\\d.-]+),([\\d.-]+)/g,(m,c,x,y)=>c+x+','+Y(+y).toFixed(1))));
+  v.querySelectorAll('circle').forEach(c=>c.setAttribute('cy',Y(+c.getAttribute('cy')).toFixed(1)));
+  v.querySelectorAll('line').forEach(l=>{{l.setAttribute('y1',Y(+l.getAttribute('y1')).toFixed(1));l.setAttribute('y2',Y(+l.getAttribute('y2')).toFixed(1));}});
+  v.querySelectorAll('text').forEach(t=>{{const y=parseFloat(t.getAttribute('y'));if(!isNaN(y))t.setAttribute('y',Y(y).toFixed(1));}});
+  const py=(v.dataset.py||'').split(',').map(Number);if(py.length===4)v.dataset.py=[py[0],Y(py[1]).toFixed(2),py[2],Y(py[3]).toFixed(2)].join(',');
+  const zd=v.querySelector('.mk-zd:not(.mk-pd)'),pd=v.querySelector('.mk-pd'),zz=v.querySelector('.mk-zz'),pk=v.querySelector('.mk-pk');  // 점에 붙은 글자는 원래 간격 그대로
+  if(zd&&zz)zz.setAttribute('y',(+zd.getAttribute('cy')+15).toFixed(1));if(pd&&pk)pk.setAttribute('y',(+pd.getAttribute('cy')-9).toFixed(1));
+  v.setAttribute('viewBox',vb[0]+' '+(Y(vb[1])-16).toFixed(1)+' '+vb[2]+' '+(vb[3]*k+44).toFixed(1));}}
 function enSave(sym,n,xf){{const m=enAll();if(xf===undefined&&enXf(m[sym])!==null)xf=enXf(m[sym]);if(n>0)m[sym]=xf===undefined||xf===null?n:{{p:n,x:+xf.toFixed(4)}};else delete m[sym];ls('entry',JSON.stringify(m));paintEnAll();updateShared(r=>{{r._entry=m;}});}}
 function enAsk(d,preset){{const c=hapop&&[...hapop.querySelectorAll('.mk[data-s]')].find(x=>x.dataset.k===d.dataset.k);if(!c)return;
   const sym=c.dataset.s,cur=enP(enAll()[sym]),t0=Date.now(),box=document.createElement('div');box.className='en-dlg';
