@@ -1461,7 +1461,7 @@ function pullT(){{
       // 새로 저장하는 값은 전부 여기(_키)로 웹·앱 공유. ls()만 쓰면 그 기기에만 남음
       let haChg=false;
       if(Array.isArray(m._hlha)&&JSON.stringify(m._hlha)!==ls('hlha')){{ls('hlha',JSON.stringify(m._hlha));haChg=true;}}
-      if(typeof m._hsx==='boolean')ls('hsx',m._hsx?'1':'0');if(typeof m._hdd==='boolean')ls('hdd',m._hdd?'1':'0');if(m._hzz&&typeof m._hzz==='object')ls('hzz',JSON.stringify(m._hzz));if(typeof m._htx==='boolean'){{ls('htx',m._htx?'1':'0');document.querySelectorAll('.hz').forEach(x=>x.classList.toggle('tx-off',!m._htx));}}if(m._hzoom&&typeof m._hzoom==='object'&&JSON.stringify(m._hzoom)!==ls('hzoom')){{ls('hzoom',JSON.stringify(m._hzoom));haChg=true;}}
+      if(typeof m._hsx==='boolean')ls('hsx',m._hsx?'1':'0');if(typeof m._hdd==='boolean')ls('hdd',m._hdd?'1':'0');if(m._hzz&&typeof m._hzz==='object'){{if((m._hzz._t||0)>=(hzzMap()._t||0))ls('hzz',JSON.stringify(m._hzz));else updateShared(x=>{{x._hzz=hzzMap();}});}}if(typeof m._htx==='boolean'){{ls('htx',m._htx?'1':'0');document.querySelectorAll('.hz').forEach(x=>x.classList.toggle('tx-off',!m._htx));}}if(m._hzoom&&typeof m._hzoom==='object'&&JSON.stringify(m._hzoom)!==ls('hzoom')){{if((m._hzoom._t||0)>=(haZoomMap()._t||0)){{ls('hzoom',JSON.stringify(m._hzoom));haChg=true;}}else updateShared(x=>{{x._hzoom=haZoomMap();}});}}
       for(const [mk,lk] of [['_haOn','ha-on'],['_haOff','ha-off']])if(Array.isArray(m[mk])&&JSON.stringify(m[mk])!==ls(lk)){{ls(lk,JSON.stringify(m[mk]));haChg=true;}}
       if(haChg)paintHaHL();
       if(m._entry&&typeof m._entry==='object'&&JSON.stringify(m._entry)!==(ls('entry')||'{{}}')){{ls('entry',JSON.stringify(m._entry));paintEnAll();}}
@@ -1637,10 +1637,10 @@ function setHaZoom(el,z,fx,fy){{const sv=el.querySelector('svg');if(!sv)return;i
   Object.assign(sv.dataset,{{z,fx,fy}});sv.style.transformOrigin='0 0';
   sv.style.transform=z>1.01?'translate('+fx*100+'%,'+fy*100+'%) scale('+z+')':'';el.classList.toggle('mk-zoomed',z>1.01);}}
 function hzzMap(){{try{{return JSON.parse(ls('hzz')||'{{}}');}}catch(e){{return {{}};}}}}
-function saveHzZoom(d){{const sv=d.querySelector('.hz-c svg'),m=hzzMap();if(!sv)return;const z=+(sv.dataset.z||1);if(z>1.05)m[d.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[d.dataset.k];
-  ls('hzz',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzz=m;}});}}  // 크게 보기에서 손가락으로 키운 상태도 기억(다시 열면 그대로)
+function saveHzZoom(d){{const sv=d.querySelector('.hz-c svg'),m=hzzMap();if(!sv)return;const z=+(sv.dataset.z||1);if(z>1.05)m[d.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[d.dataset.k];m._t=Date.now();
+  ls('hzz',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzz=hzzMap();}});}}  // 크게 보기에서 손가락으로 키운 상태도 기억(다시 열면 그대로)
 function saveHaZoom(el){{const m=haZoomMap(),sv=el.querySelector('svg'),z=+(sv.dataset.z||1);
-  if(z>1.01)m[el.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[el.dataset.k];ls('hzoom',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzoom=m;}});}}
+  if(z>1.01)m[el.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[el.dataset.k];m._t=Date.now();ls('hzoom',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzoom=haZoomMap();}});}}
 var haLastQ=null;  // var: 아래 순서 적용(applyHa→paintHaHL)이 먼저 불려도 에러 안 나게. let 이면 순번 적용이 조용히 실패했음
 function haList(k){{try{{return JSON.parse(ls(k)||'[]');}}catch(e){{return [];}}}}
 function paintHaHL(){{let h=[];try{{h=JSON.parse(ls('hlha')||'[]');}}catch(e){{}}const zm=haZoomMap(),on=haList('ha-on'),off=haList('ha-off');
