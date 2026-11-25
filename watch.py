@@ -972,7 +972,7 @@ def minsky_html() -> str:
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e8:.2f}억" if v >= 1e8 else f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}" if v >= .1 else f"{cur}{v:.2g}"
             ap, zp, bsym, mult, chg, vol = None, "", None, 0, "", False
-            if not ipo and sym not in INVERSE:  # 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
+            if not ipo:  # 인버스(SOXS)도 특수 상황으로 자기 차트로 대강 예측. 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
                 bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
                 if bsym and bsym not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
                     bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(bsym)}?interval=1wk&range=5y")["chart"]["result"][0]
@@ -1041,8 +1041,6 @@ def minsky_html() -> str:
                 d0, p0, m0 = alog[sym][0][:3]
                 sc = f" data-sc=\"{d0[2:7]} 조정치 {sp(p0)}({m0}) &#10;실제 {sp(tc[ib][1])}({datetime.fromtimestamp(tc[ib][0], KST):%y.%m}) {(p0 / tc[ib][1] - 1) * 100:+.0f}%\""
             px = max((i / 1000 for i in range(1001)), key=mk)  # 곡선 꼭지점(새 논리)에 실제 고점 가격
-            if sym in INVERSE:
-                zp = f'<text class="mk-zp mk-zz" x="{W - 3}" y="{Y(mk(.90)) + 15:.1f}" style="fill:#8b94ae;text-anchor:end">예측 안 함</text>'
             zp += "" if ipo else f'<text class="mk-zp mk-pk" x="{min(max(Xc(px), 22), W - 22):.1f}" y="{Y(mk(px)) - 9:.1f}">{sp(max((0 if ex or sym in INVERSE else true_high(sym)) or 0, max(seg)))}</text>'
             si = [t for _, t in STAGES].index(stage)  # 이름 누르면: 직전 단계가 언제였나(곡선에 맞춘 봉 기준)
             if si > 0 and not ipo and n > 1:
@@ -1056,7 +1054,7 @@ def minsky_html() -> str:
             gp = ((v / ap - 1) if az else (ap / v - 1)) if ap else 0
             gpa = f' data-ap="{ap:.4f}" data-gp="{gp:.4f}"{chr(32) + "data-az=1" if az else ""}' if ap else ""
             if ap and not az and tc:  # 디데이 칸: 고점 달 → 좌절 달
-                gpa += f' data-pk="{datetime.fromtimestamp(max(tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m-%d}"'
+                gpa += f' data-pk="{datetime.fromtimestamp(max(tc[-n:] if sym in INVERSE else tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m-%d}"'
             if ap:  # 좌절까지 % 는 좌절 가격 바로 밑에 같은 크기로
                 zp += f'<text class="mk-zp mk-gp" style="text-anchor:end" x="{W - 3}" y="{Y(mk(.90)) + 28:.1f}">{'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%</text>'
             gpt = f" · {INVERSE[sym]}" if sym in INVERSE else ""
