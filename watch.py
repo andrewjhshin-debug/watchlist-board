@@ -1458,7 +1458,7 @@ function pullT(){{
       // 새로 저장하는 값은 전부 여기(_키)로 웹·앱 공유. ls()만 쓰면 그 기기에만 남음
       let haChg=false;
       if(Array.isArray(m._hlha)&&JSON.stringify(m._hlha)!==ls('hlha')){{ls('hlha',JSON.stringify(m._hlha));haChg=true;}}
-      if(typeof m._hsx==='boolean')ls('hsx',m._hsx?'1':'0');if(typeof m._hdd==='boolean')ls('hdd',m._hdd?'1':'0');if(typeof m._htx==='boolean'){{ls('htx',m._htx?'1':'0');document.querySelectorAll('.hz').forEach(x=>x.classList.toggle('tx-off',!m._htx));}}if(m._hzoom&&typeof m._hzoom==='object'&&JSON.stringify(m._hzoom)!==ls('hzoom')){{ls('hzoom',JSON.stringify(m._hzoom));haChg=true;}}
+      if(typeof m._hsx==='boolean')ls('hsx',m._hsx?'1':'0');if(typeof m._hdd==='boolean')ls('hdd',m._hdd?'1':'0');if(m._hzz&&typeof m._hzz==='object')ls('hzz',JSON.stringify(m._hzz));if(typeof m._htx==='boolean'){{ls('htx',m._htx?'1':'0');document.querySelectorAll('.hz').forEach(x=>x.classList.toggle('tx-off',!m._htx));}}if(m._hzoom&&typeof m._hzoom==='object'&&JSON.stringify(m._hzoom)!==ls('hzoom')){{ls('hzoom',JSON.stringify(m._hzoom));haChg=true;}}
       for(const [mk,lk] of [['_haOn','ha-on'],['_haOff','ha-off']])if(Array.isArray(m[mk])&&JSON.stringify(m[mk])!==ls(lk)){{ls(lk,JSON.stringify(m[mk]));haChg=true;}}
       if(haChg)paintHaHL();
       if(m._entry&&typeof m._entry==='object'&&JSON.stringify(m._entry)!==(ls('entry')||'{{}}')){{ls('entry',JSON.stringify(m._entry));paintEnAll();}}
@@ -1582,7 +1582,7 @@ function openHz(el){{  // 하이먼 곡선을 먼저 표시하고 추가 봉 차
   d.innerHTML='<div class="hz-h">'+el.querySelector('b').outerHTML+'<span>✕</span></div>'+(el.querySelector('.mk-w')?.outerHTML||'')+hzSeq(el)+'<div class="hz-p"></div><small class="hz-s"></small><div class="hz-t"></div><div class="hz-enr"><span class="hz-enw"><span class="hz-enl"></span><span class="hz-zl"></span></span><button class="hz-en" type="button">진입가</button></div><div class="hz-c"></div>'+hzDots(el);
   const tabs=d.querySelector('.hz-t'),chart=d.querySelector('.hz-c'),price=d.querySelector('.hz-p');
   {{const pr=document.createElement('div');pr.className='hz-pr';price.before(pr);pr.append(price,tabs);}}  // 봉 버튼은 큰 가격 오른쪽 빈자리로(세로 공간 확보)
-  paintEnAll();setTimeout(paintEnAll,80);const curve=el.querySelector('svg')?.cloneNode(true);  // 확대 화면이 붙은 뒤 한 번 더(점 옆 가격 자리 맞춤)
+  paintEnAll();setTimeout(()=>{{paintEnAll();const zz=hzzMap()[d.dataset.k];if(zz&&d.querySelector('.hz-c svg'))setHaZoom(d,zz[0],zz[1],zz[2]);}},80);const curve=el.querySelector('svg')?.cloneNode(true);  // 확대 화면이 붙은 뒤 한 번 더(점 옆 가격 자리 맞춤)
   if(curve){{curve.removeAttribute('style');delete curve.dataset.z;delete curve.dataset.fx;delete curve.dataset.fy;delete curve.dataset.st;curve.querySelectorAll('.en-g').forEach(x=>x.remove());hzStretch(curve,1.7);}}
   const preferred=ls('hz-v');
   let views=haCharts?.[el.dataset.k]||{{}},chosen='';
@@ -1632,6 +1632,9 @@ function haZoomMap(){{try{{return JSON.parse(ls('hzoom')||'{{}}');}}catch(e){{re
 function setHaZoom(el,z,fx,fy){{const sv=el.querySelector('svg');if(!sv)return;if(!(z>1.01)||Math.abs(fx)>5||Math.abs(fy)>5){{z=1;fx=0;fy=0;}}
   Object.assign(sv.dataset,{{z,fx,fy}});sv.style.transformOrigin='0 0';
   sv.style.transform=z>1.01?'translate('+fx*100+'%,'+fy*100+'%) scale('+z+')':'';el.classList.toggle('mk-zoomed',z>1.01);}}
+function hzzMap(){{try{{return JSON.parse(ls('hzz')||'{{}}');}}catch(e){{return {{}};}}}}
+function saveHzZoom(d){{const sv=d.querySelector('.hz-c svg'),m=hzzMap();if(!sv)return;const z=+(sv.dataset.z||1);if(z>1.01)m[d.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[d.dataset.k];
+  ls('hzz',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzz=m;}});}}  // 크게 보기에서 손가락으로 키운 상태도 기억(다시 열면 그대로)
 function saveHaZoom(el){{const m=haZoomMap(),sv=el.querySelector('svg'),z=+(sv.dataset.z||1);
   if(z>1.01)m[el.dataset.k]=[z,+sv.dataset.fx,+sv.dataset.fy];else delete m[el.dataset.k];ls('hzoom',JSON.stringify(m));if(ls('sync'))updateShared(x=>{{x._hzoom=m;}});}}
 var haLastQ=null;  // var: 아래 순서 적용(applyHa→paintHaHL)이 먼저 불려도 에러 안 나게. let 이면 순번 적용이 조용히 실패했음
@@ -1743,9 +1746,9 @@ if(hapop){{
   document.addEventListener('touchmove',e=>{{if(!pz||e.touches.length!==2)return;e.preventDefault();
     const z=Math.max(1,Math.min(5,pz.z0*dist(e.touches)/pz.d0)),m=mid(e.touches,pz.o),tx=m[0]-pz.p[0]*z,ty=m[1]-pz.p[1]*z,sv=pz.svg;
     setHaZoom(pz.el,Math.max(1.02,z),tx/pz.w,ty/pz.h);}},{{capture:true,passive:false}});
-  document.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{if(!pz.el.classList.contains('hz'))saveHaZoom(pz.el);pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
+  document.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{if(!pz.el.classList.contains('hz'))saveHaZoom(pz.el);else saveHzZoom(pz.el);pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
   // 노트북 터치패드 두 손가락 벌리기(=Ctrl+휠)·Ctrl+마우스휠: 커서 자리 중심으로 확대/축소
-  let wzT=null;const wSave=el=>{{if(!el.classList.contains('hz'))saveHaZoom(el);}};document.addEventListener('wheel',e=>{{const el=hzPick(e),svg=el?.querySelector('svg');if(!svg)return;
+  let wzT=null;const wSave=el=>{{if(!el.classList.contains('hz'))saveHaZoom(el);else saveHzZoom(el);}};document.addEventListener('wheel',e=>{{const el=hzPick(e),svg=el?.querySelector('svg');if(!svg)return;
     if(!e.ctrlKey){{if(!el.classList.contains('mk-zoomed'))return;e.preventDefault();  // 확대된 칸 위에서 두 손가락 쓸기 = 그림 이동
       const z=+svg.dataset.z,r=svg.getBoundingClientRect(),w=r.width/z,h=r.height/z;setHaZoom(el,z,+svg.dataset.fx-e.deltaX/w,+svg.dataset.fy-e.deltaY/h);
       clearTimeout(wzT);wzT=setTimeout(()=>wSave(el),400);return;}}
