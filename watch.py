@@ -1879,7 +1879,11 @@ function enPrice(svg,x,y){{const [lo,ylo,hi,yhi]=(svg.dataset.py||'').split(',')
 function paintEn(svg,sym,cur){{svg.querySelectorAll('.en-g').forEach(x=>x.remove());delete svg.dataset.en;const ev=enAll()[sym],e=enP(ev),xf=enXf(ev);if(!(e>0))return;
   const py=(svg.dataset.py||'').split(',').map(Number),p=svg.querySelector('.mk-p');if(py.length<4||!p)return;const [lo,ylo,hi,yhi]=py;
   const y=hi>lo?ylo+(e-lo)/(hi-lo)*(yhi-ylo):ylo,pts=enPts(svg),rp=(p.getAttribute('d')||'').replace(/[ML]/g,' ').trim().split(/\\s+/).map(t=>t.split(',').map(Number)).filter(q=>q.length===2);
-  if(!pts.length)return;const dt=svg.querySelector('.mk-d'),xm=dt?+dt.getAttribute('cx'):1e9;let b=null;for(let i=pts.length-1;i>=0;i--){{if(pts[i][0]>xm)continue;const d=Math.abs(Math.log(enPrice(svg,pts[i][0],pts[i][1])/e));if(!b||d<b[0]-.001)b=[d,pts[i]];}}  // 지금까지 구간(노란 점 왼쪽) 곡선에서 진입가와 가장 가까운 최근 자리
+  if(!pts.length)return;const dt=svg.querySelector('.mk-d'),xm=dt?+dt.getAttribute('cx'):1e9;const zc=svg.querySelector('.mk-zd:not(.mk-pd)'),zx=zc?+zc.getAttribute('cx'):1e9;let pk=null;pts.forEach(q=>{{if(q[0]<=xm&&(!pk||q[1]<pk[1]))pk=q;}});
+  const s0=enOn(svg,xm+.01),R=(s0?[s0]:[]).concat(pts.filter(q=>q[0]>xm+.01&&q[0]<=zx)),L=pts.filter(q=>q[0]<=xm&&(!pk||q[0]>=pk[0])).reverse();  // 하락기 = 고점→좌절. 노란 점 오른쪽(좌절 쪽) 먼저, 다음 왼쪽(고점까지)
+  const cross=a=>{{let n=null;for(const q of a){{const pr=enPrice(svg,q[0],q[1]);if(n&&(pr-e)*(n[2]-e)<=0){{const f=n[2]!==pr?(e-n[2])/(pr-n[2]):0;return [n[0]+(q[0]-n[0])*f,n[1]+(q[1]-n[1])*f];}}n=[q[0],q[1],pr];}}return null;}};
+  let b=null;const hc=cross(R)||cross(L);if(hc)b=[0,hc];else for(const q of R.concat(L)){{const d=Math.abs(Math.log(enPrice(svg,q[0],q[1])/e));if(!b||d<b[0]-.001)b=[d,q];}}  // 진입가를 처음 지나는 자리, 없으면 하락기에서 가장 가까운 자리
+  if(!b)return;
   let [x,yy]=b[1];if(e>hi*1.02||e<lo*.98){{const dot=svg.querySelector('.mk-d');x=dot?+dot.getAttribute('cx'):x;const vb=svg.viewBox.baseVal;yy=Math.max(vb.y+4,Math.min(vb.y+vb.height-4,y));}}
   if(xf!==null){{const o=enOn(svg,xf*200);if(o){{x=o[0];yy=o[1];}}}}  // 직접 찍은·옮긴 자리(선 위)
   const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','en-g');
