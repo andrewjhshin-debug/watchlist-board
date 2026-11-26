@@ -1464,7 +1464,7 @@ function pullT(){{
       if(typeof m._hsx==='boolean')ls('hsx',m._hsx?'1':'0');if(typeof m._hdd==='boolean')ls('hdd',m._hdd?'1':'0');if(m._hzz&&typeof m._hzz==='object'){{if((m._hzz._t||0)>=(hzzMap()._t||0))ls('hzz',JSON.stringify(m._hzz));else updateShared(x=>{{x._hzz=hzzMap();}});}}if(typeof m._htx==='boolean'){{ls('htx',m._htx?'1':'0');document.querySelectorAll('.hz').forEach(x=>x.classList.toggle('tx-off',!m._htx));}}if(m._hzoom&&typeof m._hzoom==='object'&&JSON.stringify(m._hzoom)!==ls('hzoom')){{if((m._hzoom._t||0)>=(haZoomMap()._t||0)){{ls('hzoom',JSON.stringify(m._hzoom));haChg=true;}}else updateShared(x=>{{x._hzoom=haZoomMap();}});}}
       for(const [mk,lk] of [['_haOn','ha-on'],['_haOff','ha-off']])if(Array.isArray(m[mk])&&JSON.stringify(m[mk])!==ls(lk)){{ls(lk,JSON.stringify(m[mk]));haChg=true;}}
       if(haChg)paintHaHL();
-      if(m._entry&&typeof m._entry==='object'&&JSON.stringify(m._entry)!==(ls('entry')||'{{}}')){{ls('entry',JSON.stringify(m._entry));paintEnAll();}}
+      if(m._entry&&typeof m._entry==='object'&&JSON.stringify(m._entry)!==(ls('entry')||'{{}}')){{if((m._entry._t||0)>=(enAll()._t||0)){{ls('entry',JSON.stringify(m._entry));paintEnAll();}}else updateShared(r=>{{r._entry=enAll();}});}}  // 더 새 값만(바로 나가서 서버에 못 올라간 진입가가 옛 값에 덮이지 않게)
       if(generation===avgGeneration&&!ls(avgPendingKey(code))){{
         if(Array.isArray(m._avg))adoptSharedAverage(m._avg);
         else if(ls(AVG_KEY)!=null){{
@@ -1908,7 +1908,7 @@ function hzStretch(v,k){{if(!v||v.dataset.st)return;const vb=v.getAttribute('vie
   const zd=v.querySelector('.mk-zd:not(.mk-pd)'),pd=v.querySelector('.mk-pd'),zz=v.querySelector('.mk-zz'),pk=v.querySelector('.mk-pk');  // 점에 붙은 글자는 원래 간격 그대로
   const gp=v.querySelector('.mk-gp');if(zd&&zz)zz.setAttribute('y',(+zd.getAttribute('cy')+15).toFixed(1));if(zd&&gp)gp.setAttribute('y',(+zd.getAttribute('cy')+28).toFixed(1));if(pd&&pk)pk.setAttribute('y',(+pd.getAttribute('cy')-9).toFixed(1));
   v.setAttribute('viewBox',vb[0]+' '+(Y(vb[1])-26).toFixed(1)+' '+vb[2]+' '+(vb[3]*k+54).toFixed(1));}}
-function enSave(sym,n,xf){{const m=enAll();if(xf===undefined&&enXf(m[sym])!==null)xf=enXf(m[sym]);if(n>0)m[sym]=xf===undefined||xf===null?n:{{p:n,x:+xf.toFixed(4)}};else delete m[sym];ls('entry',JSON.stringify(m));paintEnAll();updateShared(r=>{{r._entry=m;}});}}
+function enSave(sym,n,xf){{const m=enAll();if(xf===undefined&&enXf(m[sym])!==null)xf=enXf(m[sym]);if(n>0)m[sym]=xf===undefined||xf===null?n:{{p:n,x:+xf.toFixed(4)}};else delete m[sym];m._t=Date.now();ls('entry',JSON.stringify(m));paintEnAll();updateShared(r=>{{r._entry=enAll();}});}}
 function enAsk(d,preset){{const c=hapop&&[...hapop.querySelectorAll('.mk[data-s]')].find(x=>x.dataset.k===d.dataset.k);if(!c)return;
   const sym=c.dataset.s,cur=enP(enAll()[sym]),t0=Date.now(),box=document.createElement('div');box.className='en-dlg';
   box.innerHTML='<div class="en-in"><b></b><input inputmode="decimal" autocomplete="off"><div class="en-bt">'+(cur>0?'<button type="button" data-a="del">지우기</button>':'')+'<button type="button" data-a="no">취소</button><button type="button" data-a="ok">확인</button></div></div>';
