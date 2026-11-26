@@ -36,7 +36,11 @@ self.addEventListener('fetch', event => {
   event.waitUntil(network.then(response => savePage(response.clone())).catch(() => {}));
   event.respondWith((async () => {
     const saved = await cached;
-    if (saved && !reload) return saved;
+    if (saved && !reload) {
+      // 새 버전을 1.5초까지 기다려 봄(옛 화면이 그대로 뜨던 문제). 느리거나 끊기면 저장본
+      const fresh = await Promise.race([network.then(r => (r.ok ? r : null)).catch(() => null), new Promise(r => setTimeout(r, 1500, null))]);
+      return fresh ? fresh.clone() : saved;
+    }
     try {
       const response = await network;
       return response.ok || !saved ? response : saved;
