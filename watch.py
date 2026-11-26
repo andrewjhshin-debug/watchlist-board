@@ -473,7 +473,8 @@ ADJ = [(.50, 14), (.66, 16), (.80, 30), (.90, 36)]
 ADJ3 = [(.85, 11), (.90, 14), (.95, 30)]
 # 사용자가 준 애널·분석으로 종목별 덮어쓰기: 심볼 → (하락폭, 고점부터 개월)
 ADJ_OVR = {"^KS11": (.52, 12)}  # 수동 덮어쓰기(애널 자료 등). 키움 Post BlueWave 의 역대 하락장 표(중간 -54%)만 차용, 기간은 08년형 12개월
-ADJ_WHY = {"^KS11": "수동: 역대 코스피 하락장 7건 중간 -54%, 08년형 12개월"}
+ADJ_WHY = {"^KS11": "수동: 역대 코스피 하락장 7건 중간 -54%, 08년형 12개월",
+           "SOXS": "인버스(반도체 반대로 3배)는 계속 닳아 진짜 바닥이 없음 → 급등 전 가격(직전 최저 근처)으로 돌아오는 때를 좌절로 봄 · 날짜 = 필라델피아 좌절 + 두 달(과거 지수 바닥 12번 뒤 돌아오는 데 걸린 가운데 값) · 그 전에는 반도체가 더 빠지면 오를 수 있음"}
 # ── 조정치 엔진 v3 (조정치_엔진.md 참고) ──────────────────────────────────────────
 # 과거 하락 5,079건(366종목·지수, 주봉: 36개월 신고가 뒤 -10% 넘게 빠진 사례) 가운데 지금과 닮은 사례를 닮을수록 무겁게 쳐서
 # "그 사례들은 같은 시점에서 자기 최저보다 얼마나 더 빠졌나(이미 바닥이었으면 0)"와 "바닥까지 몇 주 더 걸렸나"의 분포를 만든다.
@@ -769,7 +770,9 @@ def mkf(x: float) -> float:
 
 
 PM = '<tspan class="zz-pm">±</tspan>'  # 확대 화면에서 이 ± 를 누르면 근거 팝업
-INVERSE = {"SOXS": "반도체 반대로 3배"}  # 인버스: 버블 모델과 반대로 움직여 좌절 예측 안 함, 고점은 그린 구간 고점
+INVERSE = {"SOXS": "반도체 반대로 3배"}  # 인버스: 버블 모델과 반대로 움직임. 고점은 그린 구간 고점, 좌절 가격은 자기 차트 엔진 값(사실상 급등 전 최저 수준), 날짜는 지수에 묶음
+INV_LAG = 61  # 일. 인버스 좌절 날짜 = 필라델피아 화면 좌절일 + 이만큼. 과거 지수 저점 12번 뒤 일간 -3배가 '저점날 값 → 급등 전 수준'(약 x0.3)까지 닳은 때의 가운데가 2~2.5달(가운데 절반 1~3.5달)
+# ponytail: 고정값. 자기 차트 날짜는 늘 '오늘+3~5주'로 나와 D-day 가 끝나지 않아서(2026-11-27 재검수) 지수 날짜에 묶음. 사례가 늘면 다시 잼
 MONTHLY_HA = {"PEPG"}  # 하이먼을 월봉으로 그리는 종목(2026-11-25 요청: 진짜 고점을 꼭지점에 맞춰야 겹침)
 PEAK_HA = MONTHLY_HA  # 진짜 고점(5년 최고)을 곡선 꼭지점에 고정해 맞추는 종목. 나머지는 주봉 그대로
 
@@ -972,7 +975,7 @@ def minsky_html() -> str:
             cur = "$" if q["meta"].get("currency") == "USD" and not sym.startswith("^") else ""  # 미국 종목은 달러 표시
             sp = lambda v, cur=cur: f"{v / 1e8:.2f}억" if v >= 1e8 else f"{v / 1e4:.0f}만" if v >= 1e6 else f"{v / 1e4:.1f}만" if v >= 1e4 else f"{cur}{v:,.0f}" if v >= 100 else f"{cur}{v:.2f}" if v >= .1 else f"{cur}{v:.2g}"
             ap, zp, bsym, mult, chg, vol = None, "", None, 0, "", False
-            if not ipo:  # 인버스(SOXS)도 특수 상황으로 자기 차트로 대강 예측. 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
+            if not ipo:  # 인버스(SOXS)도 특수 상황으로 대강 예측(가격은 자기 차트, 날짜는 지수 + INV_LAG). 좌절 자리에 조정 참고 가격(날짜) (설정에 설명). 레버는 더 깊게. 상장 직후는 근거 없어 생략
                 bsym, mult = (LEV[sym], 2) if sym in LEV else ("^SOX", 3) if sym == "SOXL" else (None, 0)
                 if bsym and bsym not in adjb:  # 본주가 아직 안 나왔으면 먼저 계산
                     bq = get_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(bsym)}?interval=1wk&range=5y")["chart"]["result"][0]
@@ -998,6 +1001,12 @@ def minsky_html() -> str:
                 else:
                     ap, ad = shown(sym, wtc)
                     rng = ADJ_RNG.get(sym)
+                    if sym in INVERSE and ap:  # 가격(급등 전 수준)은 그대로, 날짜만 지수 화면 좌절일 + INV_LAG
+                        if "^SOX" not in shown_c:  # 보통은 SOXL 칸이 먼저 계산해 둠
+                            sq = get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0]
+                            shown("^SOX", [(t, v) for t, v in zip(sq["timestamp"], sq["indicators"]["quote"][0]["close"]) if v])
+                        if shown_c["^SOX"][0]:
+                            ad, rng = shown_c["^SOX"][1] + timedelta(days=INV_LAG), None  # rng 를 비움 → '이미 바닥일 확률' 같은 일반 엔진 문구를 안 띄움
                 if ap:  # 손떨방을 거친 값 → 칸 숫자·모델 좌절 날짜·확대 차트가 같은 값
                     # 조정치 기록(1% 넘게 또는 달이 바뀔 때만 한 줄) → 나중에 실제 바닥과 채점
                     tag = TAG
