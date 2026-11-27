@@ -1082,7 +1082,7 @@ def minsky_html() -> str:
                     sg = statistics.stdev([math.log(b / a) for a, b in zip(sx_[-53:-1], sx_[-52:])]) * math.sqrt(52)
                     T_ = max(0, (sd - now_).days) / 365
                     pr = [v * math.exp(-3 * math.log(shown_c["^SOX"][0] / sx_[-1]) - (6 * s_ * s_ + LEV_DRAG.get(sym, .15)) * T_) for s_ in (sg, sg * .77)]
-                    bc += f'<text class="mk-zp mk-inv" style="text-anchor:end;fill:#7fd0ff" x="{W - 3}" y="{Y(mk(px)) - 25:.1f}" data-iq="1">${pr[0]:.0f}~{pr[1]:.0f}({sd:%y.%m})</text>'  # 고점 가격 줄 바로 위 한 줄(점·글자와 안 겹치게)
+                    bc += f'<text class="mk-zp mk-inv" style="text-anchor:end;fill:#7fd0ff" x="{W - 3}" y="{Y(mk(px)) - 25:.1f}" data-iq="1">${pr[0]:.0f}~{pr[1]:.0f}({sd:%y.%m})</text>' + f'<text class="mk-zp mk-inv" style="text-anchor:end;fill:#7fd0ff" x="{W - 3}" y="{Y(mk(px)) - 41:.1f}" data-iq="2">SOXL 바닥 = SOXS 꼭대기</text>'  # 고점 가격 줄 바로 위 한 줄(점·글자와 안 겹치게)
                 except Exception as e_:
                     print(f"인버스 꼭대기 {sym} 실패: {e_}")
             if ap:  # 좌절까지 % 는 좌절 가격 바로 밑에 같은 크기로
@@ -1943,8 +1943,8 @@ function hzStretch(v,k){{if(!v||v.dataset.st)return;const vb=v.getAttribute('vie
   v.querySelectorAll('text').forEach(t=>{{const y=parseFloat(t.getAttribute('y'));if(!isNaN(y))t.setAttribute('y',Y(y).toFixed(1));}});
   const py=(v.dataset.py||'').split(',').map(Number);if(py.length===4)v.dataset.py=[py[0],Y(py[1]).toFixed(2),py[2],Y(py[3]).toFixed(2)].join(',');
   const zd=v.querySelector('.mk-zd:not(.mk-pd)'),pd=v.querySelector('.mk-pd'),zz=v.querySelector('.mk-zz'),pk=v.querySelector('.mk-pk');  // 점에 붙은 글자는 원래 간격 그대로
-  const gp=v.querySelector('.mk-gp');if(zd&&zz)zz.setAttribute('y',(+zd.getAttribute('cy')+15).toFixed(1));if(zd&&gp)gp.setAttribute('y',(+zd.getAttribute('cy')+28).toFixed(1));if(pd&&pk)pk.setAttribute('y',(+pd.getAttribute('cy')-9).toFixed(1));const iq=v.querySelector('[data-iq]');if(iq&&pk)iq.setAttribute('y',(+pk.getAttribute('y')-16).toFixed(1));
-  const xt=iq?16:0;v.setAttribute('viewBox',vb[0]+' '+(Y(vb[1])-26-xt).toFixed(1)+' '+vb[2]+' '+(vb[3]*k+54+xt).toFixed(1));}}
+  const gp=v.querySelector('.mk-gp');if(zd&&zz)zz.setAttribute('y',(+zd.getAttribute('cy')+15).toFixed(1));if(zd&&gp)gp.setAttribute('y',(+zd.getAttribute('cy')+28).toFixed(1));if(pd&&pk)pk.setAttribute('y',(+pd.getAttribute('cy')-9).toFixed(1));const iq=v.querySelector('[data-iq]');if(pk)v.querySelectorAll('[data-iq]').forEach(t=>t.setAttribute('y',(+pk.getAttribute('y')-16*t.dataset.iq).toFixed(1)));
+  const xt=iq?16*v.querySelectorAll('[data-iq]').length:0;v.setAttribute('viewBox',vb[0]+' '+(Y(vb[1])-26-xt).toFixed(1)+' '+vb[2]+' '+(vb[3]*k+54+xt).toFixed(1));}}
 function enSave(sym,n,xf){{const m=enAll();if(xf===undefined&&enXf(m[sym])!==null)xf=enXf(m[sym]);if(n>0)m[sym]=xf===undefined||xf===null?n:{{p:n,x:+xf.toFixed(4)}};else delete m[sym];m._t=Date.now();ls('entry',JSON.stringify(m));paintEnAll();updateShared(r=>{{r._entry=enAll();}});}}
 function enAsk(d,preset){{const c=hapop&&[...hapop.querySelectorAll('.mk[data-s]')].find(x=>x.dataset.k===d.dataset.k);if(!c)return;
   const sym=c.dataset.s,cur=enP(enAll()[sym]),t0=Date.now(),box=document.createElement('div');box.className='en-dlg';
