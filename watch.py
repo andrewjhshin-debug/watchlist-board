@@ -211,6 +211,22 @@ def day_market_now() -> bool:
     return n.weekday() < 5 and start <= n.hour < start + 8
 
 
+def nasdaq_quote(sym: str, gmtoff: int):
+    """나스닥 마지막 체결(프리·정규·애프터 다 포함) → (가격, 직전 정규장 종가, 체결 시각 ts). 못 받으면 None."""
+    for ac in ("stocks", "etf"):
+        p = (get_json(f"https://api.nasdaq.com/api/quote/{urllib.request.quote(sym)}/info?assetclass={ac}").get("data") or {}).get("primaryData") or {}
+        if not p.get("lastSalePrice") or not p.get("lastTradeTimestamp"):
+            continue
+        v = float(p["lastSalePrice"].strip("$").replace(",", ""))
+        try:
+            ch = float(p.get("netChange", "").replace(",", ""))
+        except ValueError:  # UNCH 등
+            ch = 0.0
+        t = datetime.strptime(p["lastTradeTimestamp"].replace(" ET", ""), "%b %d, %Y %I:%M %p")
+        return v, round(v - ch, 4), t.replace(tzinfo=timezone(timedelta(seconds=gmtoff))).timestamp()
+    return None
+
+
 def quote(sym: str) -> tuple[float, float]:
     """(현재가, 전일 종가). 미국 종목은 시간외 거래까지 포함한 마지막 1분 가격, 한국 낮에는 한투 주간거래 가격."""
     if sym.startswith("upbit:"):
@@ -238,6 +254,15 @@ def quote(sym: str) -> tuple[float, float]:
                 return dq[0], dq[1]
         except Exception as e:
             print("  한투 주간거래 실패:", sym, type(e).__name__)  # 키·토큰이 로그에 찍히지 않게 종류만
+    if not sym.startswith("^") and "=" not in sym and "." not in sym:  # 미국 개별 종목·ETF
+        last_t = (d.get("timestamp") or [0])[-1]
+        if time.time() - last_t > 600:  # 야후 1분봉이 10분 넘게 멈춤(프리장 첫 시간 등) → 나스닥 마지막 체결로
+            try:
+                nq = nasdaq_quote(sym, m.get("gmtoffset", -18000))
+                if nq and nq[2] > last_t:
+                    return nq[0], nq[1]
+            except Exception as e:
+                print("  나스닥 실패:", sym, type(e).__name__)
     tp = m.get("currentTradingPeriod") or {}
     if tp.get("pre") and tp.get("regular") and tp["pre"]["start"] <= time.time() < tp["regular"]["start"]:  # 프리장: 야후는 그제 종가를 주니 어젯밤 정규장 종가와 비교
         return (closes[-1] if closes else m["regularMarketPrice"]), m["regularMarketPrice"]
