@@ -1075,7 +1075,7 @@ def minsky_html() -> str:
                 cp += [(xq + (xz - xq) * t, yq + (yz - yq) * t * t * (3 - 2 * t)) for t in (i / 14 for i in range(1, 15))]
                 cp += [(Xc(x), Y(mk(x))) for x in (x0 + i / 200 * (1 - x0) for i in range(201)) if x > .90]
                 bc = (f'<path d="M{" L".join(f"{a:.1f},{b:.1f}" for a, b in cp)}" class="mk-c"/>' + bc[bc.index("<line"):]
-                      + f'<circle cx="{xq:.1f}" cy="{yq:.1f}" r="4.5" fill="#7fd0ff" stroke="#000"/>'
+                      + f'<circle cx="{xq:.1f}" cy="{yq:.1f}" r="4.5" fill="#7fd0ff" stroke="#000" class="mk-iqd"/>'
                       )
                 try:  # 꼭대기 가격(대강): 지수가 지금 → 화면 좌절까지 갈 때 -3배 복리 - 변동성 손실(6σ²T) - 비용. σ 는 최근 52주, 덜 흔들리면(0.77σ) 위쪽
                     sx_ = [x for x in get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0]["indicators"]["quote"][0]["close"] if x]
@@ -1883,18 +1883,21 @@ function placeZoomPrice(container,text,dot){{
   const baseline=box.y-(+text.getAttribute('y'));
   const lbs=[...svg.querySelectorAll('.hz-lb text')];lbs.forEach(l=>l.style.display='');
   const obstacles=[...svg.querySelectorAll('text,circle')].filter(label=>label!==text&&label!==dot&&!lbs.includes(label)&&getComputedStyle(label).display!=='none').map(label=>label.getBBox()).filter(rect=>rect.width&&rect.height);
-  for(const offset of [0,-16,16,-32,32,-48,48]){{
+  const vy=svg.viewBox.baseVal.y;let best=null;  // 확대 화면은 viewBox 위쪽이 음수 → 실제 위아래 끝 기준. 빈 자리 없으면 가장 덜 겹치는 자리
+  pos:for(const offset of [0,-16,16,-32,32,-48,48,-64,64]){{
     for(const right of [cx+8+box.width<=width-3,cx+8+box.width>width-3]){{
       const x=right?cx+8:cx-8,y=cy+4+offset;
       const left=right?x:x-box.width,top=y+baseline;
-      if(left<3||left+box.width>width-3||top<3||top+box.height>height-3)continue;
-      if(obstacles.some(rect=>left<rect.x+rect.width+4&&left+box.width>rect.x-4&&top<rect.y+rect.height+3&&top+box.height>rect.y-3))continue;
-      text.setAttribute('text-anchor',right?'start':'end');
-      npX(text,x);
-      text.setAttribute('y',y);
-      const r=text.getBBox();lbs.forEach(l=>{{const q=l.getBBox();if(r.x<q.x+q.width+3&&r.x+r.width>q.x-3&&r.y<q.y+q.height+2&&r.y+r.height>q.y-2)l.style.display='none';}});  // 단계 글자는 현재가에 양보
-      return;
+      if(left<3||left+box.width>width-3||top<vy+3||top+box.height>vy+height-3)continue;
+      const ov=obstacles.reduce((s,r)=>s+Math.max(0,Math.min(left+box.width,r.x+r.width+4)-Math.max(left,r.x-4))*Math.max(0,Math.min(top+box.height,r.y+r.height+3)-Math.max(top,r.y-3)),0);
+      if(!best||ov<best.ov)best={{ov,x,y,right}};if(!ov)break pos;
     }}
+  }}
+  if(best){{
+      text.setAttribute('text-anchor',best.right?'start':'end');
+      npX(text,best.x);
+      text.setAttribute('y',best.y);
+      const r=text.getBBox();lbs.forEach(l=>{{const q=l.getBBox();if(r.x<q.x+q.width+3&&r.x+r.width>q.x-3&&r.y<q.y+q.height+2&&r.y+r.height>q.y-2)l.style.display='none';}});  // 단계 글자는 현재가에 양보
   }}
 }}
 function npV(t){{return t&&(t.querySelector('.np-v')||t);}}  // 현재가 글자(아래 직전 저가 줄은 건드리지 않음). function 선언이라 위쪽 코드에서 먼저 불려도 됨
@@ -1943,8 +1946,8 @@ function hzStretch(v,k){{if(!v||v.dataset.st)return;const vb=v.getAttribute('vie
   v.querySelectorAll('text').forEach(t=>{{const y=parseFloat(t.getAttribute('y'));if(!isNaN(y))t.setAttribute('y',Y(y).toFixed(1));}});
   const py=(v.dataset.py||'').split(',').map(Number);if(py.length===4)v.dataset.py=[py[0],Y(py[1]).toFixed(2),py[2],Y(py[3]).toFixed(2)].join(',');
   const zd=v.querySelector('.mk-zd:not(.mk-pd)'),pd=v.querySelector('.mk-pd'),zz=v.querySelector('.mk-zz'),pk=v.querySelector('.mk-pk');  // 점에 붙은 글자는 원래 간격 그대로
-  const gp=v.querySelector('.mk-gp');if(zd&&zz)zz.setAttribute('y',(+zd.getAttribute('cy')+15).toFixed(1));if(zd&&gp)gp.setAttribute('y',(+zd.getAttribute('cy')+28).toFixed(1));if(pd&&pk)pk.setAttribute('y',(+pd.getAttribute('cy')-9).toFixed(1));const iq=v.querySelector('[data-iq]');if(pk)v.querySelectorAll('[data-iq]').forEach(t=>t.setAttribute('y',(+pk.getAttribute('y')-16*t.dataset.iq).toFixed(1)));
-  const xt=iq?16*v.querySelectorAll('[data-iq]').length:0;v.setAttribute('viewBox',vb[0]+' '+(Y(vb[1])-26-xt).toFixed(1)+' '+vb[2]+' '+(vb[3]*k+54+xt).toFixed(1));}}
+  const gp=v.querySelector('.mk-gp');if(zd&&zz)zz.setAttribute('y',(+zd.getAttribute('cy')+15).toFixed(1));if(zd&&gp)gp.setAttribute('y',(+zd.getAttribute('cy')+28).toFixed(1));if(pd&&pk)pk.setAttribute('y',(+pd.getAttribute('cy')-9).toFixed(1));const iq=v.querySelector('[data-iq]');const iqd=v.querySelector('.mk-iqd');if(iqd){{let yb=Math.min(+iqd.getAttribute('cy'),pd?+pd.getAttribute('cy'):1e9)-8;[...v.querySelectorAll('[data-iq]')].sort((a,b)=>a.dataset.iq-b.dataset.iq).forEach(t=>{{const fs=parseFloat(getComputedStyle(t).fontSize)||12;t.style.setProperty('font-size',(fs*.8).toFixed(1)+'px','important');t.setAttribute('y',yb.toFixed(1));yb-=fs*.8+3;}});if(pd&&pk){{pk.setAttribute('text-anchor','end');pk.style.textAnchor='end';pk.setAttribute('x',(+pd.getAttribute('cx')-8).toFixed(1));pk.setAttribute('y',(+pd.getAttribute('cy')+4).toFixed(1));}}}}  // 인버스: 하늘 점 바로 위에 작게 두 줄, 고점 가격은 빨간 점 왼쪽으로 비켜 줌
+  const xt=iq?8:0;v.setAttribute('viewBox',vb[0]+' '+(Y(vb[1])-26-xt).toFixed(1)+' '+vb[2]+' '+(vb[3]*k+54+xt).toFixed(1));}}
 function enSave(sym,n,xf){{const m=enAll();if(xf===undefined&&enXf(m[sym])!==null)xf=enXf(m[sym]);if(n>0)m[sym]=xf===undefined||xf===null?n:{{p:n,x:+xf.toFixed(4)}};else delete m[sym];m._t=Date.now();ls('entry',JSON.stringify(m));paintEnAll();updateShared(r=>{{r._entry=enAll();}});}}
 function enAsk(d,preset){{const c=hapop&&[...hapop.querySelectorAll('.mk[data-s]')].find(x=>x.dataset.k===d.dataset.k);if(!c)return;
   const sym=c.dataset.s,cur=enP(enAll()[sym]),t0=Date.now(),box=document.createElement('div');box.className='en-dlg';
