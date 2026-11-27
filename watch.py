@@ -1076,7 +1076,15 @@ def minsky_html() -> str:
                 cp += [(Xc(x), Y(mk(x))) for x in (x0 + i / 200 * (1 - x0) for i in range(201)) if x > .90]
                 bc = (f'<path d="M{" L".join(f"{a:.1f},{b:.1f}" for a, b in cp)}" class="mk-c"/>' + bc[bc.index("<line"):]
                       + f'<circle cx="{xq:.1f}" cy="{yq:.1f}" r="4.5" fill="#7fd0ff" stroke="#000"/>'
-                      + f'<text class="mk-zp mk-inv" style="text-anchor:end;fill:#7fd0ff" x="{W - 3}" y="{Y(mk(px)) - 24:.1f}">반도체 바닥({sd:%y.%m})까지 ↑</text>')
+                      )
+                try:  # 꼭대기 가격(대강): 지수가 지금 → 화면 좌절까지 갈 때 -3배 복리 - 변동성 손실(6σ²T) - 비용. σ 는 최근 52주, 덜 흔들리면(0.77σ) 위쪽
+                    sx_ = [x for x in get_json("https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?interval=1wk&range=5y")["chart"]["result"][0]["indicators"]["quote"][0]["close"] if x]
+                    sg = statistics.stdev([math.log(b / a) for a, b in zip(sx_[-53:-1], sx_[-52:])]) * math.sqrt(52)
+                    T_ = max(0, (sd - now_).days) / 365
+                    pr = [v * math.exp(-3 * math.log(shown_c["^SOX"][0] / sx_[-1]) - (6 * s_ * s_ + LEV_DRAG.get(sym, .15)) * T_) for s_ in (sg, sg * .77)]
+                    bc += f'<text class="mk-zp mk-inv" style="text-anchor:end;fill:#7fd0ff" x="{W - 3}" y="{Y(mk(px)) - 25:.1f}" data-iq="1">${pr[0]:.0f}~{pr[1]:.0f}({sd:%y.%m})</text>'  # 고점 가격 줄 바로 위 한 줄(점·글자와 안 겹치게)
+                except Exception as e_:
+                    print(f"인버스 꼭대기 {sym} 실패: {e_}")
             if ap:  # 좌절까지 % 는 좌절 가격 바로 밑에 같은 크기로
                 zp += f'<text class="mk-zp mk-gp" style="text-anchor:end" x="{W - 3}" y="{Y(mk(.90)) + 28:.1f}">{'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%</text>'
             gpt = f" · {INVERSE[sym]}" if sym in INVERSE else ""
@@ -1874,7 +1882,7 @@ function placeZoomPrice(container,text,dot){{
   const cx=+dot.getAttribute('cx'),cy=+dot.getAttribute('cy');
   const baseline=box.y-(+text.getAttribute('y'));
   const lbs=[...svg.querySelectorAll('.hz-lb text')];lbs.forEach(l=>l.style.display='');
-  const obstacles=[...svg.querySelectorAll('text')].filter(label=>label!==text&&!lbs.includes(label)&&getComputedStyle(label).display!=='none').map(label=>label.getBBox()).filter(rect=>rect.width&&rect.height);
+  const obstacles=[...svg.querySelectorAll('text,circle')].filter(label=>label!==text&&label!==dot&&!lbs.includes(label)&&getComputedStyle(label).display!=='none').map(label=>label.getBBox()).filter(rect=>rect.width&&rect.height);
   for(const offset of [0,-16,16,-32,32,-48,48]){{
     for(const right of [cx+8+box.width<=width-3,cx+8+box.width>width-3]){{
       const x=right?cx+8:cx-8,y=cy+4+offset;
@@ -1920,7 +1928,7 @@ function paintEn(svg,sym,cur){{svg.querySelectorAll('.en-g').forEach(x=>x.remove
   g.innerHTML='<circle cx="'+x.toFixed(1)+'" cy="'+yy.toFixed(1)+'" r="5" class="en-d"/><circle cx="'+x.toFixed(1)+'" cy="'+yy.toFixed(1)+'" r="11" class="en-h"/><text class="en-t" x="'+(x+7).toFixed(1)+'" y="'+(yy+3).toFixed(1)+'">'+haFmt(e,cur)+(r===null?'':' ('+(r>=0?'+':'')+r+'%)')+'</text>';svg.appendChild(g);
   svg.dataset.en='진입 '+haFmt(e,cur)+(r===null?'':' ('+(r>=0?'+':'')+r+'%)');}}
 function enFit(svg){{const t=svg.querySelector('.en-t'),c=svg.querySelector('.en-d');if(!t||!c||!svg.closest('.hz-c'))return;  // 점 옆 가격: 다른 글자와 안 겹치는 자리(오른쪽·왼쪽·아래·위), 다 겹치면 숨김(위 줄에 진입가가 있으니)
-  const x=+c.getAttribute('cx'),y=+c.getAttribute('cy'),others=[...svg.querySelectorAll('text,.mk-d,.mk-zd')].filter(o=>o!==t&&!o.closest('.en-g')&&getComputedStyle(o).display!=='none'&&o.getBBox().width>0).map(o=>o.getBBox());
+  const x=+c.getAttribute('cx'),y=+c.getAttribute('cy'),others=[...svg.querySelectorAll('text,circle')].filter(o=>o!==t&&!o.closest('.en-g')&&getComputedStyle(o).display!=='none'&&o.getBBox().width>0).map(o=>o.getBBox());
   const ov=b=>others.reduce((s,o)=>s+Math.max(0,Math.min(b.x+b.width,o.x+o.width)-Math.max(b.x,o.x))*Math.max(0,Math.min(b.y+b.height,o.y+o.height)-Math.max(b.y,o.y)),0)+(b.x<0||b.x+b.width>200?1e6:0);t.style.display='';let best=null;
   for(const [tx,ty,an] of [[x+7,y+3,'start'],[197,y+15,'end'],[197,y-9,'end'],[x-7,y+3,'end'],[x,y+15,'middle'],[x,y-9,'middle'],[197,y+27,'end'],[197,y-21,'end'],[x,y+27,'middle'],[x,y-21,'middle'],[x-7,y+15,'end'],[x-7,y-9,'end']]){{t.setAttribute('x',tx.toFixed(1));t.setAttribute('y',ty.toFixed(1));t.style.textAnchor=an;const o=ov(t.getBBox());if(!o)return;if(!best||o<best[0])best=[o,tx,ty,an];}}
   t.setAttribute('x',best[1].toFixed(1));t.setAttribute('y',best[2].toFixed(1));t.style.textAnchor=best[3];}}  // 다 겹치면 가장 덜 겹치는 자리(숨기지 않음)  // 점 옆엔 가격만, 수익률 줄은 확대 화면 진입가 버튼 왼쪽
@@ -1935,8 +1943,8 @@ function hzStretch(v,k){{if(!v||v.dataset.st)return;const vb=v.getAttribute('vie
   v.querySelectorAll('text').forEach(t=>{{const y=parseFloat(t.getAttribute('y'));if(!isNaN(y))t.setAttribute('y',Y(y).toFixed(1));}});
   const py=(v.dataset.py||'').split(',').map(Number);if(py.length===4)v.dataset.py=[py[0],Y(py[1]).toFixed(2),py[2],Y(py[3]).toFixed(2)].join(',');
   const zd=v.querySelector('.mk-zd:not(.mk-pd)'),pd=v.querySelector('.mk-pd'),zz=v.querySelector('.mk-zz'),pk=v.querySelector('.mk-pk');  // 점에 붙은 글자는 원래 간격 그대로
-  const gp=v.querySelector('.mk-gp');if(zd&&zz)zz.setAttribute('y',(+zd.getAttribute('cy')+15).toFixed(1));if(zd&&gp)gp.setAttribute('y',(+zd.getAttribute('cy')+28).toFixed(1));if(pd&&pk)pk.setAttribute('y',(+pd.getAttribute('cy')-9).toFixed(1));
-  v.setAttribute('viewBox',vb[0]+' '+(Y(vb[1])-26).toFixed(1)+' '+vb[2]+' '+(vb[3]*k+54).toFixed(1));}}
+  const gp=v.querySelector('.mk-gp');if(zd&&zz)zz.setAttribute('y',(+zd.getAttribute('cy')+15).toFixed(1));if(zd&&gp)gp.setAttribute('y',(+zd.getAttribute('cy')+28).toFixed(1));if(pd&&pk)pk.setAttribute('y',(+pd.getAttribute('cy')-9).toFixed(1));const iq=v.querySelector('[data-iq]');if(iq&&pk)iq.setAttribute('y',(+pk.getAttribute('y')-16).toFixed(1));
+  const xt=iq?16:0;v.setAttribute('viewBox',vb[0]+' '+(Y(vb[1])-26-xt).toFixed(1)+' '+vb[2]+' '+(vb[3]*k+54+xt).toFixed(1));}}
 function enSave(sym,n,xf){{const m=enAll();if(xf===undefined&&enXf(m[sym])!==null)xf=enXf(m[sym]);if(n>0)m[sym]=xf===undefined||xf===null?n:{{p:n,x:+xf.toFixed(4)}};else delete m[sym];m._t=Date.now();ls('entry',JSON.stringify(m));paintEnAll();updateShared(r=>{{r._entry=enAll();}});}}
 function enAsk(d,preset){{const c=hapop&&[...hapop.querySelectorAll('.mk[data-s]')].find(x=>x.dataset.k===d.dataset.k);if(!c)return;
   const sym=c.dataset.s,cur=enP(enAll()[sym]),t0=Date.now(),box=document.createElement('div');box.className='en-dlg';
