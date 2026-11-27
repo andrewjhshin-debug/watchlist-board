@@ -1775,13 +1775,20 @@ if(hapop){{
   document.addEventListener('touchend',e=>{{if(pz&&e.touches.length<2){{if(!pz.el.classList.contains('hz'))saveHaZoom(pz.el);else saveHzZoom(pz.el);pz=null;haSkip=Date.now()+400;}}}},{{capture:true}});
   // 노트북 터치패드 두 손가락 벌리기(=Ctrl+휠)·Ctrl+마우스휠: 커서 자리 중심으로 확대/축소
   let wzT=null;const wSave=el=>{{if(!el.classList.contains('hz'))saveHaZoom(el);else saveHzZoom(el);}};document.addEventListener('wheel',e=>{{const el=hzPick(e),svg=el?.querySelector('svg');if(!svg)return;
-    if(!e.ctrlKey){{if(!el.classList.contains('mk-zoomed'))return;e.preventDefault();  // 확대된 칸 위에서 두 손가락 쓸기 = 그림 이동
+    const hzW=el.classList.contains('hz')&&e.target.closest('.hz-c');  // 크게 보기 하이먼 그림 위에선 그냥 휠 = 확대/축소
+    if(!e.ctrlKey&&!hzW){{if(!el.classList.contains('mk-zoomed'))return;e.preventDefault();  // 확대된 칸 위에서 두 손가락 쓸기 = 그림 이동
       const z=+svg.dataset.z,r=svg.getBoundingClientRect(),w=r.width/z,h=r.height/z;setHaZoom(el,z,+svg.dataset.fx-e.deltaX/w,+svg.dataset.fy-e.deltaY/h);
       clearTimeout(wzT);wzT=setTimeout(()=>wSave(el),400);return;}}
     e.preventDefault();
     const z0=+(svg.dataset.z||1),sr=svg.getBoundingClientRect(),w=sr.width/z0,h=sr.height/z0,tx=+(svg.dataset.fx||0)*w,ty=+(svg.dataset.fy||0)*h,
-      mx=e.clientX-(sr.left-tx),my=e.clientY-(sr.top-ty),px=(mx-tx)/z0,py=(my-ty)/z0,z=Math.max(1,Math.min(5,z0*Math.exp(-e.deltaY*.01)));
+      mx=e.clientX-(sr.left-tx),my=e.clientY-(sr.top-ty),px=(mx-tx)/z0,py=(my-ty)/z0,z=Math.max(1,Math.min(5,z0*Math.exp(-Math.max(-25,Math.min(25,e.deltaY))*.01)));  // 마우스 휠 한 칸에 너무 튀지 않게
     setHaZoom(el,z,(mx-px*z)/w,(my-py*z)/h);clearTimeout(wzT);wzT=setTimeout(()=>wSave(el),400);}},{{passive:false}});
+  // 마우스로 크게 보기 하이먼 그림을 누르고 끌면 이동(확대돼 있을 때)
+  let dg=null;document.addEventListener('pointerdown',e=>{{if(e.pointerType!=='mouse'||e.button!==0)return;const el=e.target.closest?.('.hz');if(!el||!e.target.closest('.hz-c'))return;const svg=el.querySelector('.hz-c svg');if(!svg||!(+svg.dataset.z>1.01))return;e.preventDefault();
+    dg={{el,svg,x:e.clientX,y:e.clientY,fx:+svg.dataset.fx||0,fy:+svg.dataset.fy||0,m:0}};}});
+  document.addEventListener('pointermove',e=>{{if(!dg)return;const dx=e.clientX-dg.x,dy=e.clientY-dg.y;if(!dg.m&&Math.hypot(dx,dy)<4)return;dg.m=1;
+    const z=+dg.svg.dataset.z,r=dg.svg.getBoundingClientRect(),w=r.width/z,h=r.height/z;setHaZoom(dg.el,z,dg.fx+dx/w,dg.fy+dy/h);}});
+  document.addEventListener('pointerup',e=>{{if(!dg)return;if(dg.m){{saveHzZoom(dg.el);const k=ev=>{{ev.stopPropagation();ev.preventDefault();}};addEventListener('click',k,{{capture:true,once:true}});setTimeout(()=>removeEventListener('click',k,true),50);}}dg=null;}});
 }}
 document.getElementById('pct').onclick=showPct;
 addEventListener('popstate',()=>{{const charts=document.querySelectorAll('.tile.zoom');charts.forEach(e=>e.classList.remove('zoom'));
