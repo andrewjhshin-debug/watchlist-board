@@ -1064,6 +1064,19 @@ def minsky_html() -> str:
             gpa = f' data-ap="{ap:.4f}" data-gp="{gp:.4f}"{chr(32) + "data-az=1" if az else ""}' if ap else ""
             if ap and not az and tc:  # 디데이 칸: 고점 달 → 좌절 달
                 gpa += f' data-pk="{datetime.fromtimestamp(max(tc[-n:] if sym in INVERSE else tc, key=lambda x: x[1])[0], KST):%Y-%m}" data-ad="{ad:%Y-%m-%d}"'
+            if sym in INVERSE and ap and not az and not ipo and shown_c.get("^SOX", (0,))[0]:  # 인버스: 본주와 반대로 → 반도체 바닥까지 오르고 그 뒤 좌절로 내려가게 곡선 오른쪽을 바꿈
+                x0 = min(ts, .66) if ts else 0  # frame() 과 같은 시작점
+                sd, now_ = shown_c["^SOX"][1], datetime.now(KST)
+                k = min(.9, max(.1, (sd - now_).days / max(1, (ad - now_).days)))  # 오늘~좌절 사이에서 반도체 바닥 자리(날짜 비율)
+                xa, ya, xz, yz = Xc(te), Y(mk(te)), Xc(.90), Y(mk(.90))
+                xq, yq = xa + (xz - xa) * k, ya + (Y(mk(px)) - ya) * .8
+                cp = [(Xc(x), Y(mk(x))) for x in (x0 + i / 200 * (1 - x0) for i in range(201)) if x <= te]
+                cp += [(xa + (xq - xa) * t, ya + (yq - ya) * (1 - (1 - t) ** 2)) for t in (i / 20 for i in range(1, 21))]
+                cp += [(xq + (xz - xq) * t, yq + (yz - yq) * t * t * (3 - 2 * t)) for t in (i / 14 for i in range(1, 15))]
+                cp += [(Xc(x), Y(mk(x))) for x in (x0 + i / 200 * (1 - x0) for i in range(201)) if x > .90]
+                bc = (f'<path d="M{" L".join(f"{a:.1f},{b:.1f}" for a, b in cp)}" class="mk-c"/>' + bc[bc.index("<line"):]
+                      + f'<circle cx="{xq:.1f}" cy="{yq:.1f}" r="4.5" fill="#7fd0ff" stroke="#000"/>'
+                      + f'<text class="mk-zp" style="text-anchor:end;fill:#7fd0ff" x="{W - 3}" y="{Y(mk(px)) - 24:.1f}">반도체 바닥({sd:%y.%m})까지 ↑</text>')
             if ap:  # 좌절까지 % 는 좌절 가격 바로 밑에 같은 크기로
                 zp += f'<text class="mk-zp mk-gp" style="text-anchor:end" x="{W - 3}" y="{Y(mk(.90)) + 28:.1f}">{'좌절 대비' if az else '좌절까지'} {gp * 100:+.0f}%</text>'
             gpt = f" · {INVERSE[sym]}" if sym in INVERSE else ""
