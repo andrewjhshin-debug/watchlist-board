@@ -2053,10 +2053,11 @@ function scheduleBoardUpdate(){{
   updateTimer=setTimeout(()=>{{
     updateTimer=0;
     if(document.hidden)return;
-    if(Date.now()-lastInputAt<2000||barPress||boP||haP||document.querySelector('.tile.zoom,.hz,.hpick,.avgpop,dialog[open]')){{
+    if(Date.now()-lastInputAt<2000||barPress||boP||haP||document.querySelector('.tile.zoom,.hpick,.avgpop,dialog[open],.en-dlg')){{
       scheduleBoardUpdate();
       return;
     }}
+    try{{const hz=document.querySelector('.hz');sessionStorage.hzk=hz?hz.dataset.k||'':'';sessionStorage.hab=hapop&&!hapop.hidden?'1':'';}}catch(e){{}}  // 크게 보기를 열어 둔 채여도 새 버전으로 → 다시 열어 줌
     const url=new URL(location.href);
     url.searchParams.set('b',availableBuild);
     url.searchParams.set('t',Date.now());
@@ -2331,6 +2332,7 @@ paintHL();
 repaint();pullT();setInterval(()=>{{if(document.visibilityState==='visible')pullT();}},15000);  // 웹·앱의 목표가와 평균 종목을 함께 가져옴
 pollLive();pollUpbit();setInterval(pollLive,15000);setInterval(pollUpbit,15000);
 try{{if(sessionStorage.rl){{sessionStorage.removeItem('rl');showRefreshToast('새로고침했습니다');}}}}catch(e){{}}
+try{{const k=sessionStorage.hzk,hb=sessionStorage.hab;sessionStorage.removeItem('hzk');sessionStorage.removeItem('hab');if(hb&&hapop&&hapop.hidden)document.getElementById('ha')?.click();if(k)setTimeout(()=>{{const c=[...document.querySelectorAll('.mk[data-k]')].find(x=>x.dataset.k===k);if(c&&!document.querySelector('.hz'))openHz(c);}},300);}}catch(e){{}}
 setInterval(()=>refreshBoard(false),{CFG["refresh_min"] * 60000});
 const loadedAt=Date.now();
 // 다시 열면 화면을 그대로 보여 주고 시세와 차트는 뒤에서 갱신한다.
